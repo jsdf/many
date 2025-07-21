@@ -23,6 +23,9 @@ Features
     - ability to create more terminals, so you can have one running claude and another running the app or doing a git command
     - clickable links in terminal output
   - an integrated review tool of the git changes on the branch
+- per repo settings
+  - command to init a new worktree (e.g. `npm install`)
+  - commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
 
 ## Development Commands
 
