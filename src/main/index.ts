@@ -1,10 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
-const fs = require('fs').promises;
-const { execSync } = require('child_process');
-const simpleGit = require('simple-git');
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import path from 'path'
+import { promises as fs } from 'fs'
+import simpleGit from 'simple-git'
 
-let mainWindow;
+let mainWindow: BrowserWindow | null = null
 
 // Get user data directory for storing app data
 const userDataPath = app.getPath('userData');
@@ -29,7 +28,7 @@ async function loadAppData() {
 }
 
 // Save app data to disk
-async function saveAppData(data) {
+async function saveAppData(data: any) {
   try {
     await fs.mkdir(userDataPath, { recursive: true });
     await fs.writeFile(dataFilePath, JSON.stringify(data, null, 2), 'utf8');
@@ -50,7 +49,7 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, '../preload/index.js')
     }
   });
 
@@ -67,7 +66,12 @@ async function createWindow() {
     }
   }
 
-  mainWindow.loadFile('src/index.html');
+  // In development, electron-vite will serve the renderer
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.loadURL('http://localhost:5173')
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+  }
 
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
