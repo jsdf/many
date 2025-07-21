@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
-import path from "path";
-import { promises as fs } from "fs";
-import simpleGit from "simple-git";
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const path = require("path");
+const fs = require("fs").promises;
+const { execSync } = require("child_process");
+const simpleGit = require("simple-git");
 
-let mainWindow: BrowserWindow | null = null;
+let mainWindow;
 
 // Get user data directory for storing app data
 const userDataPath = app.getPath("userData");
@@ -28,7 +29,7 @@ async function loadAppData() {
 }
 
 // Save app data to disk
-async function saveAppData(data: any) {
+async function saveAppData(data) {
   try {
     await fs.mkdir(userDataPath, { recursive: true });
     await fs.writeFile(dataFilePath, JSON.stringify(data, null, 2), "utf8");
@@ -45,11 +46,11 @@ async function createWindow() {
     height: appData.windowBounds.height,
     x: appData.windowBounds.x,
     y: appData.windowBounds.y,
-    icon: path.join(__dirname, "../../public/many-shodan.png"),
+    icon: path.join(__dirname, "many-shodan.png"),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -66,12 +67,7 @@ async function createWindow() {
     }
   }
 
-  // In development, electron-vite will serve the renderer
-  if (process.env.NODE_ENV === "development") {
-    mainWindow.loadURL("http://localhost:5173");
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
-  }
+  mainWindow.loadFile("src/index.html");
 
   if (process.argv.includes("--dev")) {
     mainWindow.webContents.openDevTools();
@@ -81,7 +77,9 @@ async function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on("window-all-closed", () => {
-  app.quit();
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
 app.on("activate", () => {

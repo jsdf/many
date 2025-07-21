@@ -141,7 +141,7 @@ The application uses secure IPC handlers in main process:
 - `src/renderer.js` - UI logic, event handling, state management
 - `src/index.html` - UI structure and modals
 - `src/styles.css` - Dark theme styling, responsive design
-- `src/logo.png` - Application icon
+- `src/many-shodan.png` - Application icon
 
 ### AI Integration Pattern
 

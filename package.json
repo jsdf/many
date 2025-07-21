@@ -8,8 +8,7 @@
     "dev": "electron-vite dev",
     "prebuild": "electron-vite build",
     "build": "electron-builder",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "pack": "electron-builder --dir"
   },
   "keywords": [
     "electron",
@@ -46,14 +45,14 @@
       "node_modules/**/*"
     ],
     "mac": {
-      "icon": "src/logo.png",
+      "icon": "public/many-shodan.png",
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "icon": "src/logo.png"
+      "icon": "public/many-shodan.png"
     },
     "linux": {
-      "icon": "src/logo.png",
+      "icon": "public/many-shodan.png",
       "category": "Development"
     }
   }
