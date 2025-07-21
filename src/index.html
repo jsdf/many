@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Many - Worktree Manager</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Worktrees</h2>
+                <button id="add-repo-btn" class="btn btn-secondary">Add Repo</button>
+            </div>
+            
+            <div class="repo-selector">
+                <select id="repo-select">
+                    <option value="">Select a repository...</option>
+                </select>
+            </div>
+            
+            <div class="worktree-list" id="worktree-list">
+                <p class="empty-state">Select a repository to view worktrees</p>
+            </div>
+            
+            <button id="create-worktree-btn" class="btn btn-primary" disabled>
+                + Create Worktree
+            </button>
+        </div>
+        
+        <div class="main-content">
+            <div class="welcome">
+                <h1>Many Worktree Manager</h1>
+                <p>Manage git worktrees for parallel development with AI tools</p>
+                <div class="features">
+                    <div class="feature">
+                        <h3>🌿 Multiple Worktrees</h3>
+                        <p>Work on different features simultaneously</p>
+                    </div>
+                    <div class="feature">
+                        <h3>🤖 AI Integration</h3>
+                        <p>Generate branch names from prompts</p>
+                    </div>
+                    <div class="feature">
+                        <h3>⚡ Quick Setup</h3>
+                        <p>Create worktrees with a single click</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Worktree Modal -->
+    <div id="create-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Worktree</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="prompt-input">What are you working on?</label>
+                    <input type="text" id="prompt-input" placeholder="e.g., fix login bug, add dark mode, refactor API..." />
+                </div>
+                <div class="form-group">
+                    <label for="branch-preview">Branch name preview:</label>
+                    <div id="branch-preview" class="branch-preview">username/branch-name</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+                <button class="btn btn-primary" id="modal-create">Create Worktree</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Repo Modal -->
+    <div id="add-repo-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Repository</h3>
+                <button class="modal-close" id="add-repo-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="repo-path-input">Repository path:</label>
+                    <div class="path-input-group">
+                        <input type="text" id="repo-path-input" placeholder="/path/to/your/repo" />
+                        <button type="button" class="btn btn-secondary" id="browse-folder-btn">Browse...</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="add-repo-cancel">Cancel</button>
+                <button class="btn btn-primary" id="add-repo-save">Add Repository</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
