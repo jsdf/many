@@ -12,37 +12,7 @@ A modern Electron desktop application for managing Git worktrees, designed for p
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18 or higher
-- Git installed and configured
-- An existing Git repository to manage
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/your-username/many.git
-   cd many
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Run in development mode:
-
-   ```bash
-   npm run dev
-   ```
-
-4. Build for production:
-   ```bash
-   npm run build
-   ```
+No builds offered yet, for now checkout and use `npm run build` to build the app.
 
 ## Usage
 
