@@ -54,10 +54,6 @@ class WorktreeManager {
             this.browseForFolder();
         });
 
-        // Prompt input for branch name preview
-        document.getElementById('prompt-input').addEventListener('input', (e) => {
-            this.updateBranchPreview(e.target.value);
-        });
 
         // Close modals on outside click
         document.getElementById('create-modal').addEventListener('click', (e) => {
@@ -206,32 +202,19 @@ class WorktreeManager {
         }
         
         document.getElementById('create-modal').classList.add('show');
-        document.getElementById('prompt-input').focus();
-        this.updateBranchPreview('');
+        document.getElementById('branch-input').focus();
     }
 
     hideCreateWorktreeModal() {
         document.getElementById('create-modal').classList.remove('show');
-        document.getElementById('prompt-input').value = '';
-        this.updateBranchPreview('');
-    }
-
-    updateBranchPreview(prompt) {
-        const sanitizedPrompt = prompt
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, '-')
-            .substring(0, 50);
-        
-        const branchName = sanitizedPrompt ? `${this.currentUsername}/${sanitizedPrompt}` : `${this.currentUsername}/branch-name`;
-        document.getElementById('branch-preview').textContent = branchName;
+        document.getElementById('branch-input').value = '';
     }
 
     async createWorktree() {
-        const prompt = document.getElementById('prompt-input').value.trim();
+        const branchName = document.getElementById('branch-input').value.trim();
         
-        if (!prompt) {
-            this.showError('Please enter a description of what you\'re working on');
+        if (!branchName) {
+            this.showError('Please enter a branch name');
             return;
         }
 
@@ -241,7 +224,7 @@ class WorktreeManager {
         }
 
         try {
-            const result = await window.electronAPI.createWorktree(this.currentRepo, this.currentUsername, prompt);
+            const result = await window.electronAPI.createWorktree(this.currentRepo, branchName);
             console.log('Created worktree:', result);
             
             // Refresh the worktree list

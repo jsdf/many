@@ -1,7 +1,7 @@
 {
-  "name": "many-worktree-manager",
+  "name": "many",
   "version": "1.0.0",
-  "description": "Electron app for managing git worktrees with AI tools",
+  "description": "Use git worktrees with AI tools",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -10,7 +10,12 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
-  "keywords": ["electron", "git", "worktree", "ai"],
+  "keywords": [
+    "electron",
+    "git",
+    "worktree",
+    "ai"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -19,5 +24,27 @@
   },
   "dependencies": {
     "simple-git": "^3.20.0"
+  },
+  "build": {
+    "appId": "com.many.app",
+    "productName": "Many",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "icon": "src/logo.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "icon": "src/logo.png"
+    },
+    "linux": {
+      "icon": "src/logo.png",
+      "category": "Development"
+    }
   }
 }

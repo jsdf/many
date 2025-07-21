@@ -118,25 +118,33 @@ ipcMain.handle('get-worktrees', async (event, repoPath) => {
   }
 });
 
-ipcMain.handle('create-worktree', async (event, repoPath, branchName, prompt) => {
+ipcMain.handle('create-worktree', async (event, repoPath, branchName) => {
   try {
     const git = simpleGit(repoPath);
     
-    // Generate branch name from prompt
-    const sanitizedPrompt = prompt
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 50);
+    // Use branch name as-is, no sanitization
+    const sanitizedBranchName = branchName.replace(/[^a-zA-Z0-9\-_\/]/g, '-');
+    const worktreePath = path.join(repoPath, '..', `${path.basename(repoPath)}-${sanitizedBranchName.replace(/\//g, '-')}`);
     
-    const fullBranchName = `${branchName}/${sanitizedPrompt}`;
-    const worktreePath = path.join(repoPath, '..', `${path.basename(repoPath)}-${sanitizedPrompt}`);
+    // Check if branch already exists
+    const branches = await git.branch();
+    const branchExists = branches.all.includes(sanitizedBranchName);
     
-    // Create new branch and worktree
-    await git.checkoutLocalBranch(fullBranchName);
-    await git.raw(['worktree', 'add', worktreePath, fullBranchName]);
+    if (branchExists) {
+      // Branch exists, create worktree with detached HEAD then checkout branch
+      // This works whether the branch is checked out elsewhere or not
+      const branchCommit = await git.raw(['rev-parse', sanitizedBranchName]);
+      await git.raw(['worktree', 'add', '--detach', worktreePath, branchCommit.trim()]);
+      
+      // After creating detached worktree, checkout the branch within the worktree
+      const worktreeGit = simpleGit(worktreePath);
+      await worktreeGit.checkout(['-B', sanitizedBranchName, sanitizedBranchName]);
+    } else {
+      // Create new branch and worktree in one step (avoids checking out in main repo)
+      await git.raw(['worktree', 'add', '-b', sanitizedBranchName, worktreePath]);
+    }
     
-    return { path: worktreePath, branch: fullBranchName };
+    return { path: worktreePath, branch: sanitizedBranchName };
   } catch (error) {
     throw new Error(`Failed to create worktree: ${error.message}`);
   }
