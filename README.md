@@ -1,18 +1,14 @@
 # Many - Worktree Manager
 
+![logo](public/many-shodan.png)
+
 A modern Electron desktop application for managing Git worktrees, designed for parallel development workflows with AI tools like Claude Code.
 
 ## Features
 
-- **Multiple Repository Management** - Add and switch between different Git repositories
 - **Worktree Creation & Management** - Create new worktrees with automatic branch creation
-- **AI-Friendly Branch Naming** - Converts natural language prompts into clean branch names
 - **Integrated Workflow** - Designed to work seamlessly with AI development tools
 - **Cross-Platform** - Works on macOS, Windows, and Linux
-
-## Screenshots
-
-![Many Worktree Manager Interface](docs/screenshot.png)
 
 ## Getting Started
 
@@ -25,17 +21,20 @@ A modern Electron desktop application for managing Git worktrees, designed for p
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/your-username/many.git
    cd many
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Run in development mode:
+
    ```bash
    npm run dev
    ```
