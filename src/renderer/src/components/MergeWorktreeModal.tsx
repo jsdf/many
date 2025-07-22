@@ -26,7 +26,6 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false)
 
   const defaultBranches = ['main', 'master', 'dev', 'develop', 'trunk']
 
@@ -104,15 +103,12 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
     const loadGitStatus = async () => {
       if (!worktreePath) return
       
-      setIsLoadingStatus(true)
       try {
         const status = await window.electronAPI.getWorktreeStatus(worktreePath)
         setGitStatus(status)
       } catch (error) {
         console.error('Failed to load git status:', error)
         // Don't set error state for git status, just log it
-      } finally {
-        setIsLoadingStatus(false)
       }
     }
 
@@ -274,7 +270,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
             <button 
               type="submit" 
               className="btn btn-primary"
-              disabled={isMerging || !toBranch.trim() || !message.trim() || isLoadingBranches || (gitStatus && gitStatus.hasChanges)}
+              disabled={isMerging || !toBranch.trim() || !message.trim() || isLoadingBranches || (gitStatus?.hasChanges === true)}
             >
               {isMerging ? 'Merging...' : 'Merge'}
             </button>

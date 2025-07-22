@@ -273,7 +273,8 @@ body {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
     width: 100%;
     padding: 10px 12px;
     background: #3c3c3c;
@@ -281,6 +282,12 @@ body {
     border-radius: 4px;
     color: #ffffff;
     font-size: 14px;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
 }
 
 .path-input-group {
@@ -312,7 +319,8 @@ body {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: #0e639c;
 }
