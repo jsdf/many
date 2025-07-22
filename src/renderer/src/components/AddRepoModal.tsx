@@ -12,6 +12,7 @@ interface AddRepoModalProps {
 const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose, onAdd, onSaveConfig }) => {
   const [repoPath, setRepoPath] = useState('')
   const [mainBranch, setMainBranch] = useState('')
+  const [initCommand, setInitCommand] = useState('')
   const [branches, setBranches] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
@@ -39,6 +40,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
           // Load current config
           const config = await window.electronAPI.getRepoConfig(currentRepo)
           setMainBranch(config.mainBranch || '')
+          setInitCommand(config.initCommand || '')
           
           // Load available branches
           const repoBranches = await window.electronAPI.getBranches(currentRepo)
@@ -80,7 +82,10 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
       setError(null)
 
       try {
-        await onSaveConfig!({ mainBranch: mainBranch.trim() })
+        await onSaveConfig!({ 
+          mainBranch: mainBranch.trim(),
+          initCommand: initCommand.trim() || null 
+        })
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to save configuration')
       } finally {
@@ -133,30 +138,46 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             {isConfigMode ? (
-              <div className="form-group">
-                <label htmlFor="main-branch-select">Main branch:</label>
-                <select
-                  id="main-branch-select"
-                  value={mainBranch}
-                  onChange={(e) => setMainBranch(e.target.value)}
-                  disabled={isLoading || isLoadingBranches}
-                >
-                  {isLoadingBranches ? (
-                    <option value="">Loading branches...</option>
-                  ) : (
-                    <>
-                      {branches.map(branch => (
-                        <option key={branch} value={branch}>
-                          {branch}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
-                  This branch will be used as the default base branch when creating new worktrees.
-                </p>
-              </div>
+              <>
+                <div className="form-group">
+                  <label htmlFor="main-branch-select">Main branch:</label>
+                  <select
+                    id="main-branch-select"
+                    value={mainBranch}
+                    onChange={(e) => setMainBranch(e.target.value)}
+                    disabled={isLoading || isLoadingBranches}
+                  >
+                    {isLoadingBranches ? (
+                      <option value="">Loading branches...</option>
+                    ) : (
+                      <>
+                        {branches.map(branch => (
+                          <option key={branch} value={branch}>
+                            {branch}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
+                    This branch will be used as the default base branch when creating new worktrees.
+                  </p>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="init-command-input">Initialization command (optional):</label>
+                  <input
+                    type="text"
+                    id="init-command-input"
+                    value={initCommand}
+                    onChange={(e) => setInitCommand(e.target.value)}
+                    placeholder="npm install"
+                    disabled={isLoading}
+                  />
+                  <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
+                    This command will be executed in each new worktree after it's created.
+                  </p>
+                </div>
+              </>
             ) : (
               <div className="form-group">
                 <label htmlFor="repo-path-input">Repository path:</label>

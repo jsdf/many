@@ -11,6 +11,7 @@ export interface Worktree {
 
 export interface RepositoryConfig {
   mainBranch: string | null
+  initCommand?: string | null
 }
 
 export interface MergeOptions {

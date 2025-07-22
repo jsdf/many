@@ -8,28 +8,35 @@ Many Worktree Manager is an Electron desktop application for managing Git worktr
 
 Features
 
-- add/manage repos
-- lists worktrees in the left sidebar
-- clicking a worktree in the sidebar shows it in the main pane
-- create worktree (along with a corresponding git branch)
-- create a worktree from an existing git branch
-- archive worktree (deletes the file tree, though it still exists as a branch in git)
-- features of the main pane
-  - a menu of tools to open the worktree in
-    - open folder
-    - open in terminal
-    - open in editor
-  - an integrated terminal, so you can use claude or run commands
-    - ability to create more terminals, so you can have one running claude and another running the app or doing a git command
-    - clickable links in terminal output
-  - an integrated review tool of the git changes on the branch
-- per repo settings
-  - command to init a new worktree (e.g. `npm install`)
-  - commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
+- [x] add/manage repos
+- [x] lists worktrees in the left sidebar
+- [x] clicking a worktree in the sidebar shows it in the main pane
+- [x] create worktree (along with a corresponding git branch)
+- [ ] create a worktree from an existing git branch
+- [ ] archive worktree (deletes the file tree, though it still exists as a branch in git)
+- [ ] features of the main pane
+  - [ ] a menu of tools to open the worktree in
+    - [x] open folder
+    - [x] open in terminal
+    - [x] open in editor
+    - [ ] npm scripts
+  - [ ] an integrated terminal, so you can use claude or run commands
+    - [ ] ability to create more terminals, so you can have one running claude and another running the app or doing a git command
+    - [ ] clickable links in terminal output
+  - [ ] an integrated review tool of the git changes on the branch
+- [ ] per repo settings
+  - [x] command to init a new worktree (e.g. `npm install`)
+  - [ ] commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
+
+don't forget to update this list if you finish implementing a feature
 
 ## Development Commands
 
 ### Running the Application
+
+- `npm run build` if you want to check for errors without actually running the app
+
+be sure to run these in the background e.g. with `&` because they are long running processes and you will time out waiting for them to finish if you run them normally
 
 - `npm start` - Launch the application in production mode
 - `npm run dev` - Launch in development mode with DevTools enabled

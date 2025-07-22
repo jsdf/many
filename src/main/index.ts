@@ -190,6 +190,19 @@ ipcMain.handle("create-worktree", async (event, repoPath, branchName, baseBranch
       ]);
     }
 
+    // Execute initialization command if configured
+    const appData = await loadAppData();
+    const repoConfig = appData.repositoryConfigs[repoPath];
+    if (repoConfig?.initCommand) {
+      try {
+        console.log(`Running initialization command: ${repoConfig.initCommand}`);
+        await execAsync(repoConfig.initCommand, { cwd: worktreePath });
+      } catch (error) {
+        console.warn(`Initialization command failed: ${error.message}`);
+        // Don't fail worktree creation if init command fails
+      }
+    }
+
     return { path: worktreePath, branch: sanitizedBranchName };
   } catch (error) {
     throw new Error(`Failed to create worktree: ${error.message}`);
@@ -279,10 +292,10 @@ ipcMain.handle("select-folder", async () => {
 ipcMain.handle("get-repo-config", async (event, repoPath) => {
   try {
     const appData = await loadAppData();
-    return appData.repositoryConfigs[repoPath] || { mainBranch: null };
+    return appData.repositoryConfigs[repoPath] || { mainBranch: null, initCommand: null };
   } catch (error) {
     console.error("Failed to get repo config:", error);
-    return { mainBranch: null };
+    return { mainBranch: null, initCommand: null };
   }
 });
 
