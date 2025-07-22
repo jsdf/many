@@ -149,9 +149,14 @@ ipcMain.handle("create-worktree", async (event, repoPath, branchName, baseBranch
 
     // Use branch name as-is, no sanitization
     const sanitizedBranchName = branchName.replace(/[^a-zA-Z0-9\-_\/]/g, "-");
+    
+    // Get repository configuration to determine worktree directory
+    const configData = await loadAppData();
+    const repoConfiguration = configData.repositoryConfigs[repoPath];
+    const worktreeBaseDir = repoConfiguration?.worktreeDirectory || path.join(repoPath, "..");
+    
     const worktreePath = path.join(
-      repoPath,
-      "..",
+      worktreeBaseDir,
       `${path.basename(repoPath)}-${sanitizedBranchName.replace(/\//g, "-")}`
     );
 
@@ -191,12 +196,10 @@ ipcMain.handle("create-worktree", async (event, repoPath, branchName, baseBranch
     }
 
     // Execute initialization command if configured
-    const appData = await loadAppData();
-    const repoConfig = appData.repositoryConfigs[repoPath];
-    if (repoConfig?.initCommand) {
+    if (repoConfiguration?.initCommand) {
       try {
-        console.log(`Running initialization command: ${repoConfig.initCommand}`);
-        await execAsync(repoConfig.initCommand, { cwd: worktreePath });
+        console.log(`Running initialization command: ${repoConfiguration.initCommand}`);
+        await execAsync(repoConfiguration.initCommand, { cwd: worktreePath });
       } catch (error) {
         console.warn(`Initialization command failed: ${error.message}`);
         // Don't fail worktree creation if init command fails
@@ -292,10 +295,10 @@ ipcMain.handle("select-folder", async () => {
 ipcMain.handle("get-repo-config", async (event, repoPath) => {
   try {
     const appData = await loadAppData();
-    return appData.repositoryConfigs[repoPath] || { mainBranch: null, initCommand: null };
+    return appData.repositoryConfigs[repoPath] || { mainBranch: null, initCommand: null, worktreeDirectory: null };
   } catch (error) {
     console.error("Failed to get repo config:", error);
-    return { mainBranch: null, initCommand: null };
+    return { mainBranch: null, initCommand: null, worktreeDirectory: null };
   }
 });
 
@@ -386,6 +389,15 @@ ipcMain.handle("merge-worktree", async (event, repoPath, fromBranch, toBranch, o
   try {
     const git = simpleGit(repoPath);
     
+    // Automatically stage and commit any changes before switching branches
+    await git.add('-A');
+    
+    // Check if there are any staged changes to commit
+    const status = await git.status();
+    if (status.staged.length > 0) {
+      await git.commit(options.message || 'Auto-commit changes before merge');
+    }
+    
     // Switch to target branch
     await git.checkout(toBranch);
     
@@ -443,5 +455,26 @@ ipcMain.handle("rebase-worktree", async (event, worktreePath, fromBranch, ontoBr
   } catch (error) {
     console.error("Failed to rebase worktree:", error);
     throw new Error(`Failed to rebase worktree: ${error.message}`);
+  }
+});
+
+// Generate commit message using Claude CLI
+ipcMain.handle("generate-commit-message", async (event, worktreePath) => {
+  try {
+    // Use Claude CLI to generate commit message based on git diff
+    const { stdout } = await execAsync('claude --claude-args "generate a concise git commit message for these changes" -- git diff --staged', { 
+      cwd: worktreePath,
+      timeout: 30000 // 30 second timeout
+    });
+    
+    // Clean up the output - remove any extra whitespace or quotes
+    const message = stdout.trim().replace(/^["']|["']$/g, '');
+    
+    return message || `Merge changes from ${path.basename(worktreePath)}`;
+  } catch (error) {
+    console.warn("Claude CLI not available or failed:", error);
+    // Fallback to a simple message based on the worktree name
+    const branchName = path.basename(worktreePath).replace(/^.*-/, '');
+    return `Merge ${branchName}`;
   }
 });

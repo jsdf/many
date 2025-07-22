@@ -12,6 +12,7 @@ export interface Worktree {
 export interface RepositoryConfig {
   mainBranch: string | null
   initCommand?: string | null
+  worktreeDirectory?: string | null
 }
 
 export interface MergeOptions {
@@ -40,6 +41,7 @@ export interface ElectronAPI {
   archiveWorktree(worktreePath: string): Promise<boolean>
   mergeWorktree(repoPath: string, fromBranch: string, toBranch: string, options: MergeOptions): Promise<boolean>
   rebaseWorktree(worktreePath: string, fromBranch: string, ontoBranch: string): Promise<boolean>
+  generateCommitMessage(worktreePath: string): Promise<string>
 }
 
 declare global {

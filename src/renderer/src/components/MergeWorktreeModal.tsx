@@ -24,6 +24,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
   const [message, setMessage] = useState('')
   const [isMerging, setIsMerging] = useState(false)
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const defaultBranches = ['main', 'master', 'dev', 'develop', 'trunk']
@@ -121,6 +122,22 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
     }
   }
 
+  const generateCommitMessage = async () => {
+    if (!worktreePath) return
+    
+    setIsGeneratingMessage(true)
+    setError(null)
+    
+    try {
+      const generatedMessage = await window.electronAPI.generateCommitMessage(worktreePath)
+      setMessage(generatedMessage)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to generate commit message')
+    } finally {
+      setIsGeneratingMessage(false)
+    }
+  }
+
   return (
     <div className="modal show" onClick={handleBackdropClick}>
       <div className="modal-content">
@@ -160,14 +177,25 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
             
             <div className="form-group">
               <label htmlFor="merge-message">Merge message:</label>
-              <input
-                type="text"
-                id="merge-message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Merge commit message..."
-                disabled={isMerging}
-              />
+              <div className="input-with-button">
+                <input
+                  type="text"
+                  id="merge-message"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Merge commit message..."
+                  disabled={isMerging || isGeneratingMessage}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={generateCommitMessage}
+                  disabled={isMerging || isGeneratingMessage}
+                  title="Generate commit message using Claude CLI"
+                >
+                  {isGeneratingMessage ? 'Generating...' : 'Generate'}
+                </button>
+              </div>
             </div>
             
             <div className="form-group">

@@ -297,6 +297,20 @@ body {
     min-width: auto;
 }
 
+.input-with-button {
+    display: flex;
+    gap: 8px;
+}
+
+.input-with-button input {
+    flex: 1;
+}
+
+.input-with-button .btn {
+    white-space: nowrap;
+    min-width: auto;
+}
+
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
