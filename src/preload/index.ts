@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSelectedRepo: (repoPath: string | null) => ipcRenderer.invoke('set-selected-repo', repoPath),
   openDirectory: (dirPath: string) => ipcRenderer.invoke('open-directory', dirPath),
   openTerminal: (dirPath: string) => ipcRenderer.invoke('open-terminal', dirPath),
-  openVSCode: (dirPath: string) => ipcRenderer.invoke('open-vscode', dirPath)
+  openVSCode: (dirPath: string) => ipcRenderer.invoke('open-vscode', dirPath),
+  getRepoConfig: (repoPath: string) => ipcRenderer.invoke('get-repo-config', repoPath),
+  saveRepoConfig: (repoPath: string, config: any) => ipcRenderer.invoke('save-repo-config', repoPath, config)
 })

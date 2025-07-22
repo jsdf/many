@@ -41,16 +41,25 @@ body {
 
 .repo-selector {
     margin-bottom: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .repo-selector select {
-    width: 100%;
+    flex: 1;
     padding: 8px 12px;
     background: #3c3c3c;
     border: 1px solid #565656;
     border-radius: 4px;
     color: #ffffff;
     font-size: 14px;
+}
+
+.repo-config-btn {
+    min-width: 36px;
+    padding: 8px;
+    font-size: 16px;
 }
 
 .worktree-list {

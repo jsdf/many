@@ -16,6 +16,7 @@ const dataFilePath = path.join(userDataPath, "app-data.json");
 // Default app data structure
 const defaultAppData = {
   repositories: [],
+  repositoryConfigs: {},
   selectedRepo: null,
   windowBounds: { width: 1200, height: 800 },
 };
@@ -272,6 +273,30 @@ ipcMain.handle("select-folder", async () => {
   }
 
   return result.filePaths[0];
+});
+
+// Get repository configuration
+ipcMain.handle("get-repo-config", async (event, repoPath) => {
+  try {
+    const appData = await loadAppData();
+    return appData.repositoryConfigs[repoPath] || { mainBranch: null };
+  } catch (error) {
+    console.error("Failed to get repo config:", error);
+    return { mainBranch: null };
+  }
+});
+
+// Save repository configuration
+ipcMain.handle("save-repo-config", async (event, repoPath, config) => {
+  try {
+    const appData = await loadAppData();
+    appData.repositoryConfigs[repoPath] = config;
+    await saveAppData(appData);
+    return true;
+  } catch (error) {
+    console.error("Failed to save repo config:", error);
+    throw new Error(`Failed to save repository config: ${error.message}`);
+  }
 });
 
 // Open worktree directory in file manager

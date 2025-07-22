@@ -10,6 +10,7 @@ interface SidebarProps {
   onWorktreeSelect: (worktree: Worktree | null) => void
   onAddRepo: () => void
   onCreateWorktree: () => void
+  onConfigRepo: () => void
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -20,7 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRepoSelect,
   onWorktreeSelect,
   onAddRepo,
-  onCreateWorktree
+  onCreateWorktree,
+  onConfigRepo
 }) => {
   return (
     <div className="sidebar">
@@ -43,6 +45,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             </option>
           ))}
         </select>
+        {currentRepo && (
+          <button 
+            onClick={onConfigRepo}
+            className="btn btn-secondary repo-config-btn"
+            title="Configure repository settings"
+          >
+            ⚙️
+          </button>
+        )}
       </div>
       
       <div className="worktree-list">

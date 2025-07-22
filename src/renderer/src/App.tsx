@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Repository, Worktree } from './types'
+import { Repository, Worktree, RepositoryConfig } from './types'
 import Sidebar from './components/Sidebar'
 import MainContent from './components/MainContent'
 import CreateWorktreeModal from './components/CreateWorktreeModal'
@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [selectedWorktree, setSelectedWorktree] = useState<Worktree | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAddRepoModal, setShowAddRepoModal] = useState(false)
+  const [showRepoConfigModal, setShowRepoConfigModal] = useState(false)
 
   useEffect(() => {
     loadSavedRepos()
@@ -94,6 +95,20 @@ const App: React.FC = () => {
     }
   }
 
+  const saveRepoConfig = async (config: RepositoryConfig) => {
+    if (!currentRepo) {
+      throw new Error('No repository selected')
+    }
+
+    try {
+      await window.electronAPI.saveRepoConfig(currentRepo, config)
+      setShowRepoConfigModal(false)
+    } catch (error) {
+      console.error('Failed to save repo config:', error)
+      throw error
+    }
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -105,6 +120,7 @@ const App: React.FC = () => {
         onWorktreeSelect={setSelectedWorktree}
         onAddRepo={() => setShowAddRepoModal(true)}
         onCreateWorktree={() => setShowCreateModal(true)}
+        onConfigRepo={() => setShowRepoConfigModal(true)}
       />
       
       <MainContent selectedWorktree={selectedWorktree} />
@@ -119,8 +135,18 @@ const App: React.FC = () => {
 
       {showAddRepoModal && (
         <AddRepoModal
+          mode="add"
           onClose={() => setShowAddRepoModal(false)}
           onAdd={addRepository}
+        />
+      )}
+
+      {showRepoConfigModal && (
+        <AddRepoModal
+          mode="config"
+          currentRepo={currentRepo}
+          onClose={() => setShowRepoConfigModal(false)}
+          onSaveConfig={saveRepoConfig}
         />
       )}
     </div>

@@ -33,18 +33,28 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
       
       setIsLoadingBranches(true)
       try {
-        const repoBranches = await window.electronAPI.getBranches(currentRepo)
+        const [repoBranches, repoConfig] = await Promise.all([
+          window.electronAPI.getBranches(currentRepo),
+          window.electronAPI.getRepoConfig(currentRepo)
+        ])
         setBranches(repoBranches)
         
-        // Auto-select a sensible default base branch
-        const defaultBranch = defaultBranches.find(branch => 
-          repoBranches.includes(branch)
-        )
-        if (defaultBranch) {
-          setBaseBranch(defaultBranch)
-        } else if (repoBranches.length > 0) {
-          setBaseBranch(repoBranches[0])
+        // Use configured main branch if available, otherwise sensible defaults
+        let selectedBranch = ''
+        if (repoConfig.mainBranch && repoBranches.includes(repoConfig.mainBranch)) {
+          selectedBranch = repoConfig.mainBranch
+        } else {
+          const defaultBranch = defaultBranches.find(branch => 
+            repoBranches.includes(branch)
+          )
+          if (defaultBranch) {
+            selectedBranch = defaultBranch
+          } else if (repoBranches.length > 0) {
+            selectedBranch = repoBranches[0]
+          }
         }
+        
+        setBaseBranch(selectedBranch)
       } catch (error) {
         console.error('Failed to load branches:', error)
         setError('Failed to load branches')

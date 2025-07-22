@@ -9,6 +9,10 @@ export interface Worktree {
   branch?: string
 }
 
+export interface RepositoryConfig {
+  mainBranch: string | null
+}
+
 export interface ElectronAPI {
   getSavedRepos(): Promise<Repository[]>
   saveRepo(path: string): Promise<void>
@@ -22,6 +26,8 @@ export interface ElectronAPI {
   openDirectory(dirPath: string): Promise<boolean>
   openTerminal(dirPath: string): Promise<boolean>
   openVSCode(dirPath: string): Promise<boolean>
+  getRepoConfig(repoPath: string): Promise<RepositoryConfig>
+  saveRepoConfig(repoPath: string, config: RepositoryConfig): Promise<boolean>
 }
 
 declare global {
