@@ -13,6 +13,14 @@ export interface RepositoryConfig {
   mainBranch: string | null
 }
 
+export interface MergeOptions {
+  squash: boolean
+  noFF: boolean
+  message: string
+  deleteWorktree: boolean
+  worktreePath?: string
+}
+
 export interface ElectronAPI {
   getSavedRepos(): Promise<Repository[]>
   saveRepo(path: string): Promise<void>
@@ -28,6 +36,8 @@ export interface ElectronAPI {
   openVSCode(dirPath: string): Promise<boolean>
   getRepoConfig(repoPath: string): Promise<RepositoryConfig>
   saveRepoConfig(repoPath: string, config: RepositoryConfig): Promise<boolean>
+  archiveWorktree(worktreePath: string): Promise<boolean>
+  mergeWorktree(repoPath: string, fromBranch: string, toBranch: string, options: MergeOptions): Promise<boolean>
 }
 
 declare global {

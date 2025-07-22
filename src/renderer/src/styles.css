@@ -369,3 +369,85 @@ body {
     background: rgba(255, 107, 107, 0.1);
     border-radius: 4px;
 }
+
+/* Branch display */
+.branch-display {
+    background: #3c3c3c;
+    border: 1px solid #565656;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 14px;
+    color: #8c8c8c;
+}
+
+/* Checkbox group */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+/* Worktree action buttons */
+.worktree-actions .action-buttons {
+    margin-bottom: 20px;
+}
+
+.worktree-management-actions {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #3c3c3c;
+}
+
+.worktree-management-actions h3 {
+    color: #ffffff;
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+
+.management-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.management-buttons .btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-warning {
+    background: #ff6b35;
+    color: #ffffff;
+    border: 1px solid #ff6b35;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: #e55a2b;
+    border-color: #e55a2b;
+}
+
+.btn-success {
+    background: #4CAF50;
+    color: #ffffff;
+    border: 1px solid #4CAF50;
+}
+
+.btn-success:hover:not(:disabled) {
+    background: #45a049;
+    border-color: #45a049;
+}

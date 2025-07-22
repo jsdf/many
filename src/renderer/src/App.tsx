@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Repository, Worktree, RepositoryConfig } from './types'
+import { Repository, Worktree, RepositoryConfig, MergeOptions } from './types'
 import Sidebar from './components/Sidebar'
 import MainContent from './components/MainContent'
 import CreateWorktreeModal from './components/CreateWorktreeModal'
 import AddRepoModal from './components/AddRepoModal'
+import MergeWorktreeModal from './components/MergeWorktreeModal'
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -14,6 +15,8 @@ const App: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAddRepoModal, setShowAddRepoModal] = useState(false)
   const [showRepoConfigModal, setShowRepoConfigModal] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null)
 
   useEffect(() => {
     loadSavedRepos()
@@ -109,6 +112,56 @@ const App: React.FC = () => {
     }
   }
 
+  const archiveWorktree = async (worktree: Worktree) => {
+    try {
+      await window.electronAPI.archiveWorktree(worktree.path)
+      
+      // Refresh the worktree list
+      if (currentRepo) {
+        const updatedWorktrees = await window.electronAPI.getWorktrees(currentRepo)
+        setWorktrees(updatedWorktrees)
+        
+        // Clear selection if the archived worktree was selected
+        if (selectedWorktree === worktree) {
+          setSelectedWorktree(null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to archive worktree:', error)
+      throw error
+    }
+  }
+
+  const openMergeModal = (worktree: Worktree) => {
+    setWorktreeToMerge(worktree)
+    setShowMergeModal(true)
+  }
+
+  const mergeWorktree = async (toBranch: string, options: MergeOptions) => {
+    if (!currentRepo || !worktreeToMerge) {
+      throw new Error('No repository or worktree selected')
+    }
+
+    try {
+      await window.electronAPI.mergeWorktree(
+        currentRepo, 
+        worktreeToMerge.branch!, 
+        toBranch, 
+        options
+      )
+      
+      // Refresh the worktree list
+      const updatedWorktrees = await window.electronAPI.getWorktrees(currentRepo)
+      setWorktrees(updatedWorktrees)
+      
+      setShowMergeModal(false)
+      setWorktreeToMerge(null)
+    } catch (error) {
+      console.error('Failed to merge worktree:', error)
+      throw error
+    }
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -123,7 +176,12 @@ const App: React.FC = () => {
         onConfigRepo={() => setShowRepoConfigModal(true)}
       />
       
-      <MainContent selectedWorktree={selectedWorktree} />
+      <MainContent 
+        selectedWorktree={selectedWorktree} 
+        currentRepo={currentRepo}
+        onArchiveWorktree={archiveWorktree}
+        onMergeWorktree={openMergeModal}
+      />
 
       {showCreateModal && (
         <CreateWorktreeModal
@@ -147,6 +205,19 @@ const App: React.FC = () => {
           currentRepo={currentRepo}
           onClose={() => setShowRepoConfigModal(false)}
           onSaveConfig={saveRepoConfig}
+        />
+      )}
+
+      {showMergeModal && worktreeToMerge && (
+        <MergeWorktreeModal
+          currentRepo={currentRepo}
+          fromBranch={worktreeToMerge.branch!}
+          worktreePath={worktreeToMerge.path}
+          onClose={() => {
+            setShowMergeModal(false)
+            setWorktreeToMerge(null)
+          }}
+          onMerge={mergeWorktree}
         />
       )}
     </div>

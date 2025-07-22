@@ -14,5 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openTerminal: (dirPath: string) => ipcRenderer.invoke('open-terminal', dirPath),
   openVSCode: (dirPath: string) => ipcRenderer.invoke('open-vscode', dirPath),
   getRepoConfig: (repoPath: string) => ipcRenderer.invoke('get-repo-config', repoPath),
-  saveRepoConfig: (repoPath: string, config: any) => ipcRenderer.invoke('save-repo-config', repoPath, config)
+  saveRepoConfig: (repoPath: string, config: any) => ipcRenderer.invoke('save-repo-config', repoPath, config),
+  archiveWorktree: (worktreePath: string) => ipcRenderer.invoke('archive-worktree', worktreePath),
+  mergeWorktree: (repoPath: string, fromBranch: string, toBranch: string, options: any) => ipcRenderer.invoke('merge-worktree', repoPath, fromBranch, toBranch, options)
 })

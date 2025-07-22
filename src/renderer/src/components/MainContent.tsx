@@ -3,9 +3,17 @@ import { Worktree } from '../types'
 
 interface MainContentProps {
   selectedWorktree: Worktree | null
+  currentRepo: string | null
+  onArchiveWorktree: (worktree: Worktree) => Promise<void>
+  onMergeWorktree: (worktree: Worktree) => void
 }
 
-const MainContent: React.FC<MainContentProps> = ({ selectedWorktree }) => {
+const MainContent: React.FC<MainContentProps> = ({ 
+  selectedWorktree, 
+  currentRepo, 
+  onArchiveWorktree, 
+  onMergeWorktree 
+}) => {
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,6 +41,23 @@ const MainContent: React.FC<MainContentProps> = ({ selectedWorktree }) => {
   const openVSCode = () => handleAction('vscode', () => 
     window.electronAPI.openVSCode(selectedWorktree!.path)
   )
+
+  const archiveWorktree = async () => {
+    if (!selectedWorktree) return
+    
+    const confirmed = confirm(`Are you sure you want to archive the worktree "${selectedWorktree.branch}"?\n\nThis will remove the working directory but keep the branch in git.`)
+    if (!confirmed) return
+
+    await handleAction('archive', async () => {
+      await onArchiveWorktree(selectedWorktree)
+      return true
+    })
+  }
+
+  const mergeWorktree = () => {
+    if (!selectedWorktree) return
+    onMergeWorktree(selectedWorktree)
+  }
 
   if (selectedWorktree) {
     return (
@@ -73,6 +98,27 @@ const MainContent: React.FC<MainContentProps> = ({ selectedWorktree }) => {
             </div>
             
             {error && <p className="error-message">{error}</p>}
+          </div>
+
+          <div className="worktree-management-actions">
+            <h3>Worktree Management</h3>
+            <div className="management-buttons">
+              <button 
+                className="btn btn-success"
+                onClick={mergeWorktree}
+                disabled={!selectedWorktree?.branch}
+              >
+                🔀 Merge Changes
+              </button>
+              
+              <button 
+                className="btn btn-warning"
+                onClick={archiveWorktree}
+                disabled={isLoading === 'archive'}
+              >
+                📦 {isLoading === 'archive' ? 'Archiving...' : 'Archive Worktree'}
+              </button>
+            </div>
           </div>
           
           {/* TODO: Add integrated terminal, review tool, etc. */}

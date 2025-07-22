@@ -350,3 +350,66 @@ ipcMain.handle("open-vscode", async (event, dirPath) => {
     throw new Error(`Failed to open VS Code. Make sure 'code' command is installed: ${error.message}`);
   }
 });
+
+// Archive worktree (removes the working tree but keeps the branch)
+ipcMain.handle("archive-worktree", async (event, worktreePath) => {
+  try {
+    // Get the repository path from the worktree path
+    const repoPath = path.dirname(worktreePath);
+    const git = simpleGit(repoPath);
+    
+    // Remove the worktree
+    await git.raw(['worktree', 'remove', worktreePath]);
+    
+    return true;
+  } catch (error) {
+    console.error("Failed to archive worktree:", error);
+    throw new Error(`Failed to archive worktree: ${error.message}`);
+  }
+});
+
+// Merge worktree branch with options
+ipcMain.handle("merge-worktree", async (event, repoPath, fromBranch, toBranch, options) => {
+  try {
+    const git = simpleGit(repoPath);
+    
+    // Switch to target branch
+    await git.checkout(toBranch);
+    
+    // Prepare merge command
+    const mergeArgs = ['merge'];
+    
+    if (options.squash) {
+      mergeArgs.push('--squash');
+    }
+    
+    if (options.noFF) {
+      mergeArgs.push('--no-ff');
+    }
+    
+    if (options.message) {
+      mergeArgs.push('-m', options.message);
+    }
+    
+    mergeArgs.push(fromBranch);
+    
+    // Execute merge
+    await git.raw(mergeArgs);
+    
+    // If squash merge, we need to commit
+    if (options.squash) {
+      const commitMessage = options.message || `Merge ${fromBranch} (squashed)`;
+      await git.commit(commitMessage);
+    }
+    
+    // Archive worktree if requested
+    if (options.deleteWorktree && options.worktreePath) {
+      await git.raw(['worktree', 'remove', options.worktreePath]);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Failed to merge worktree:", error);
+    throw new Error(`Failed to merge worktree: ${error.message}`);
+  }
+});
