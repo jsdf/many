@@ -15,7 +15,8 @@ export interface ElectronAPI {
   getSelectedRepo(): Promise<string | null>
   setSelectedRepo(path: string | null): Promise<void>
   getWorktrees(repoPath: string): Promise<Worktree[]>
-  createWorktree(repoPath: string, branchName: string): Promise<{ path: string }>
+  getBranches(repoPath: string): Promise<string[]>
+  createWorktree(repoPath: string, branchName: string, baseBranch?: string): Promise<{ path: string }>
   getGitUsername(repoPath: string): Promise<string>
   selectFolder(): Promise<string | null>
   openDirectory(dirPath: string): Promise<boolean>

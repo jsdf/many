@@ -124,7 +124,25 @@ ipcMain.handle("get-worktrees", async (event, repoPath) => {
   }
 });
 
-ipcMain.handle("create-worktree", async (event, repoPath, branchName) => {
+// Get available branches for a repository
+ipcMain.handle("get-branches", async (event, repoPath) => {
+  try {
+    const git = simpleGit(repoPath);
+    const branches = await git.branch(['--all']);
+    
+    // Filter and clean branch names
+    const localBranches = branches.all
+      .filter(branch => !branch.startsWith('remotes/'))
+      .map(branch => branch.replace('*', '').trim())
+      .filter(branch => branch.length > 0);
+    
+    return localBranches;
+  } catch (error) {
+    throw new Error(`Failed to get branches: ${error.message}`);
+  }
+});
+
+ipcMain.handle("create-worktree", async (event, repoPath, branchName, baseBranch) => {
   try {
     const git = simpleGit(repoPath);
 
@@ -160,13 +178,14 @@ ipcMain.handle("create-worktree", async (event, repoPath, branchName) => {
         sanitizedBranchName,
       ]);
     } else {
-      // Create new branch and worktree in one step (avoids checking out in main repo)
+      // Create new branch and worktree in one step, based on the specified base branch
       await git.raw([
         "worktree",
         "add",
         "-b",
         sanitizedBranchName,
         worktreePath,
+        baseBranch || "HEAD"
       ]);
     }
 

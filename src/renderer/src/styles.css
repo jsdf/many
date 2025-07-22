@@ -258,7 +258,8 @@ body {
     font-weight: 500;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     width: 100%;
     padding: 10px 12px;
     background: #3c3c3c;
@@ -282,7 +283,8 @@ body {
     min-width: auto;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
     outline: none;
     border-color: #0e639c;
 }

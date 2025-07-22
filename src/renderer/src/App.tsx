@@ -75,13 +75,13 @@ const App: React.FC = () => {
     }
   }
 
-  const createWorktree = async (branchName: string) => {
+  const createWorktree = async (branchName: string, baseBranch: string) => {
     if (!currentRepo) {
       throw new Error('Please select a repository first')
     }
 
     try {
-      const result = await window.electronAPI.createWorktree(currentRepo, branchName)
+      const result = await window.electronAPI.createWorktree(currentRepo, branchName, baseBranch)
       console.log('Created worktree:', result)
       
       // Refresh the worktree list
@@ -111,6 +111,7 @@ const App: React.FC = () => {
 
       {showCreateModal && (
         <CreateWorktreeModal
+          currentRepo={currentRepo}
           onClose={() => setShowCreateModal(false)}
           onCreate={createWorktree}
         />
