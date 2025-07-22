@@ -68,8 +68,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={`worktree-item ${selectedWorktree === worktree ? 'active' : ''}`}
               onClick={() => onWorktreeSelect(worktree)}
             >
-              <div className="worktree-path">{worktree.path}</div>
               <div className="worktree-branch">{worktree.branch || 'detached HEAD'}</div>
+              <div className="worktree-dirname">{worktree.path.split('/').pop()}</div>
             </div>
           ))
         )}
