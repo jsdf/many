@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { MergeOptions } from '../types'
+import { MergeOptions, GitStatus } from '../types'
 
 interface MergeWorktreeModalProps {
   currentRepo: string | null
@@ -25,6 +25,8 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
   const [isMerging, setIsMerging] = useState(false)
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false)
 
   const defaultBranches = ['main', 'master', 'dev', 'develop', 'trunk']
 
@@ -71,8 +73,22 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
         
         setToBranch(selectedBranch)
         
-        // Set default commit message
-        setMessage(`Merge ${fromBranch}`)
+        // Set default commit message using git log
+        if (selectedBranch) {
+          try {
+            const commitLog = await window.electronAPI.getCommitLog(worktreePath, selectedBranch)
+            if (commitLog) {
+              setMessage(commitLog)
+            } else {
+              setMessage(`Merge ${fromBranch}`)
+            }
+          } catch (error) {
+            console.error('Failed to get commit log:', error)
+            setMessage(`Merge ${fromBranch}`)
+          }
+        } else {
+          setMessage(`Merge ${fromBranch}`)
+        }
       } catch (error) {
         console.error('Failed to load branches:', error)
         setError('Failed to load branches')
@@ -83,6 +99,25 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
 
     loadBranches()
   }, [currentRepo, fromBranch])
+
+  useEffect(() => {
+    const loadGitStatus = async () => {
+      if (!worktreePath) return
+      
+      setIsLoadingStatus(true)
+      try {
+        const status = await window.electronAPI.getWorktreeStatus(worktreePath)
+        setGitStatus(status)
+      } catch (error) {
+        console.error('Failed to load git status:', error)
+        // Don't set error state for git status, just log it
+      } finally {
+        setIsLoadingStatus(false)
+      }
+    }
+
+    loadGitStatus()
+  }, [worktreePath])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -159,15 +194,36 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
               </select>
             </div>
             
+            {gitStatus && gitStatus.hasChanges && (
+              <div className="warning-message">
+                <strong>⚠️ Uncommitted changes detected</strong>
+                <p>
+                  There are uncommitted changes in the worktree. Please commit or stash your changes before merging.
+                </p>
+                {gitStatus.modified.length > 0 && (
+                  <p>Modified files: {gitStatus.modified.join(', ')}</p>
+                )}
+                {gitStatus.not_added.length > 0 && (
+                  <p>Untracked files: {gitStatus.not_added.join(', ')}</p>
+                )}
+                {gitStatus.created.length > 0 && (
+                  <p>Created files: {gitStatus.created.join(', ')}</p>
+                )}
+                {gitStatus.deleted.length > 0 && (
+                  <p>Deleted files: {gitStatus.deleted.join(', ')}</p>
+                )}
+              </div>
+            )}
+            
             <div className="form-group">
               <label htmlFor="merge-message">Merge message:</label>
-              <input
-                type="text"
+              <textarea
                 id="merge-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Merge commit message..."
                 disabled={isMerging}
+                rows={4}
               />
             </div>
             
@@ -218,7 +274,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
             <button 
               type="submit" 
               className="btn btn-primary"
-              disabled={isMerging || !toBranch.trim() || !message.trim() || isLoadingBranches}
+              disabled={isMerging || !toBranch.trim() || !message.trim() || isLoadingBranches || (gitStatus && gitStatus.hasChanges)}
             >
               {isMerging ? 'Merging...' : 'Merge'}
             </button>

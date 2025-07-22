@@ -405,15 +405,6 @@ ipcMain.handle(
     try {
       const git = simpleGit(repoPath);
 
-      // Automatically stage and commit any changes before switching branches
-      await git.add("-A");
-
-      // Check if there are any staged changes to commit
-      const status = await git.status();
-      if (status.staged.length > 0) {
-        await git.commit(options.message || "Auto-commit changes before merge");
-      }
-
       // Switch to target branch
       await git.checkout(toBranch);
 
@@ -452,7 +443,7 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to merge worktree:", error);
-      throw new Error(`Failed to merge worktree: ${error.message}`);
+      throw new Error(`Failed to merge worktree: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 );
@@ -474,8 +465,44 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to rebase worktree:", error);
-      throw new Error(`Failed to rebase worktree: ${error.message}`);
+      throw new Error(`Failed to rebase worktree: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 );
 
+// Get git status for a worktree
+ipcMain.handle("get-worktree-status", async (event, worktreePath) => {
+  try {
+    const git = simpleGit(worktreePath);
+    const status = await git.status();
+    
+    return {
+      modified: status.modified,
+      not_added: status.not_added,
+      deleted: status.deleted,
+      created: status.created,
+      staged: status.staged,
+      hasChanges: status.modified.length > 0 || status.not_added.length > 0 || status.deleted.length > 0 || status.created.length > 0,
+      hasStaged: status.staged.length > 0
+    };
+  } catch (error) {
+    console.error("Failed to get worktree status:", error);
+    throw new Error(`Failed to get worktree status: ${error instanceof Error ? error.message : String(error)}`);
+  }
+});
+
+// Get git log for merge commit message
+ipcMain.handle("get-commit-log", async (event, worktreePath, baseBranch) => {
+  try {
+    const git = simpleGit(worktreePath);
+    
+    // Get commits between base branch and HEAD with just the commit messages
+    const logOutput = await git.raw(["log", `${baseBranch}^..HEAD`, "--pretty=format:%s"]);
+    
+    return logOutput.trim();
+  } catch (error) {
+    console.error("Failed to get commit log:", error);
+    // Return fallback message if git log fails
+    return "";
+  }
+});

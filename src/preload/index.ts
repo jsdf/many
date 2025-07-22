@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   archiveWorktree: (worktreePath: string) => ipcRenderer.invoke('archive-worktree', worktreePath),
   mergeWorktree: (repoPath: string, fromBranch: string, toBranch: string, options: any) => ipcRenderer.invoke('merge-worktree', repoPath, fromBranch, toBranch, options),
   rebaseWorktree: (worktreePath: string, fromBranch: string, ontoBranch: string) => ipcRenderer.invoke('rebase-worktree', worktreePath, fromBranch, ontoBranch),
+  getWorktreeStatus: (worktreePath: string) => ipcRenderer.invoke('get-worktree-status', worktreePath),
+  getCommitLog: (worktreePath: string, baseBranch: string) => ipcRenderer.invoke('get-commit-log', worktreePath, baseBranch),
 })

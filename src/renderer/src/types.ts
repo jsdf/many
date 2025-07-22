@@ -23,6 +23,16 @@ export interface MergeOptions {
   worktreePath?: string
 }
 
+export interface GitStatus {
+  modified: string[]
+  not_added: string[]
+  deleted: string[]
+  created: string[]
+  staged: string[]
+  hasChanges: boolean
+  hasStaged: boolean
+}
+
 export interface ElectronAPI {
   getSavedRepos(): Promise<Repository[]>
   saveRepo(path: string): Promise<void>
@@ -41,6 +51,8 @@ export interface ElectronAPI {
   archiveWorktree(worktreePath: string): Promise<boolean>
   mergeWorktree(repoPath: string, fromBranch: string, toBranch: string, options: MergeOptions): Promise<boolean>
   rebaseWorktree(worktreePath: string, fromBranch: string, ontoBranch: string): Promise<boolean>
+  getWorktreeStatus(worktreePath: string): Promise<GitStatus>
+  getCommitLog(worktreePath: string, baseBranch: string): Promise<string>
 }
 
 declare global {
