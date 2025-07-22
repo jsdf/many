@@ -18,6 +18,9 @@ export interface ElectronAPI {
   createWorktree(repoPath: string, branchName: string): Promise<{ path: string }>
   getGitUsername(repoPath: string): Promise<string>
   selectFolder(): Promise<string | null>
+  openDirectory(dirPath: string): Promise<boolean>
+  openTerminal(dirPath: string): Promise<boolean>
+  openVSCode(dirPath: string): Promise<boolean>
 }
 
 declare global {

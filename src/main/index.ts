@@ -1,7 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import path from "path";
 import { promises as fs } from "fs";
+import { exec } from "child_process";
+import { promisify } from "util";
 import simpleGit from "simple-git";
+
+const execAsync = promisify(exec);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -249,4 +253,56 @@ ipcMain.handle("select-folder", async () => {
   }
 
   return result.filePaths[0];
+});
+
+// Open worktree directory in file manager
+ipcMain.handle("open-directory", async (event, dirPath) => {
+  try {
+    await shell.openPath(dirPath);
+    return true;
+  } catch (error) {
+    console.error("Failed to open directory:", error);
+    throw new Error(`Failed to open directory: ${error.message}`);
+  }
+});
+
+// Open terminal in worktree directory
+ipcMain.handle("open-terminal", async (event, dirPath) => {
+  try {
+    const platform = process.platform;
+    
+    if (platform === "darwin") {
+      // macOS - open Terminal.app
+      await execAsync(`open -a Terminal "${dirPath}"`);
+    } else if (platform === "win32") {
+      // Windows - open Command Prompt
+      await execAsync(`start cmd /K cd /d "${dirPath}"`);
+    } else {
+      // Linux - try common terminal emulators
+      try {
+        await execAsync(`gnome-terminal --working-directory="${dirPath}"`);
+      } catch {
+        try {
+          await execAsync(`xfce4-terminal --working-directory="${dirPath}"`);
+        } catch {
+          await execAsync(`konsole --workdir "${dirPath}"`);
+        }
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error("Failed to open terminal:", error);
+    throw new Error(`Failed to open terminal: ${error.message}`);
+  }
+});
+
+// Open worktree in VS Code
+ipcMain.handle("open-vscode", async (event, dirPath) => {
+  try {
+    await execAsync(`code "${dirPath}"`);
+    return true;
+  } catch (error) {
+    console.error("Failed to open VS Code:", error);
+    throw new Error(`Failed to open VS Code. Make sure 'code' command is installed: ${error.message}`);
+  }
 });

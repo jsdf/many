@@ -308,3 +308,53 @@ body {
 .modal-footer .btn {
     min-width: 80px;
 }
+
+/* Worktree Details */
+.worktree-details {
+    padding: 30px;
+}
+
+.worktree-info {
+    background: #252526;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.worktree-info p {
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.worktree-info p:last-child {
+    margin-bottom: 0;
+}
+
+.worktree-actions h3 {
+    color: #ffffff;
+    font-size: 18px;
+    margin-bottom: 15px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 140px;
+    justify-content: center;
+}
+
+.error-message {
+    color: #ff6b6b;
+    font-size: 13px;
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 4px;
+}
