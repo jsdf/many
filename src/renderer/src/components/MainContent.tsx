@@ -6,13 +6,15 @@ interface MainContentProps {
   currentRepo: string | null
   onArchiveWorktree: (worktree: Worktree) => Promise<void>
   onMergeWorktree: (worktree: Worktree) => void
+  onRebaseWorktree: (worktree: Worktree) => void
 }
 
 const MainContent: React.FC<MainContentProps> = ({ 
   selectedWorktree, 
   currentRepo, 
   onArchiveWorktree, 
-  onMergeWorktree 
+  onMergeWorktree,
+  onRebaseWorktree 
 }) => {
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -57,6 +59,11 @@ const MainContent: React.FC<MainContentProps> = ({
   const mergeWorktree = () => {
     if (!selectedWorktree) return
     onMergeWorktree(selectedWorktree)
+  }
+
+  const rebaseWorktree = () => {
+    if (!selectedWorktree) return
+    onRebaseWorktree(selectedWorktree)
   }
 
   if (selectedWorktree) {
@@ -109,6 +116,14 @@ const MainContent: React.FC<MainContentProps> = ({
                 disabled={!selectedWorktree?.branch}
               >
                 🔀 Merge Changes
+              </button>
+              
+              <button 
+                className="btn btn-info"
+                onClick={rebaseWorktree}
+                disabled={!selectedWorktree?.branch}
+              >
+                🌿 Rebase Branch
               </button>
               
               <button 

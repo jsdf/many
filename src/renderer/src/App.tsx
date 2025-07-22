@@ -5,6 +5,7 @@ import MainContent from './components/MainContent'
 import CreateWorktreeModal from './components/CreateWorktreeModal'
 import AddRepoModal from './components/AddRepoModal'
 import MergeWorktreeModal from './components/MergeWorktreeModal'
+import RebaseWorktreeModal from './components/RebaseWorktreeModal'
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -17,6 +18,8 @@ const App: React.FC = () => {
   const [showRepoConfigModal, setShowRepoConfigModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null)
+  const [showRebaseModal, setShowRebaseModal] = useState(false)
+  const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(null)
 
   useEffect(() => {
     loadSavedRepos()
@@ -137,6 +140,11 @@ const App: React.FC = () => {
     setShowMergeModal(true)
   }
 
+  const openRebaseModal = (worktree: Worktree) => {
+    setWorktreeToRebase(worktree)
+    setShowRebaseModal(true)
+  }
+
   const mergeWorktree = async (toBranch: string, options: MergeOptions) => {
     if (!currentRepo || !worktreeToMerge) {
       throw new Error('No repository or worktree selected')
@@ -162,6 +170,26 @@ const App: React.FC = () => {
     }
   }
 
+  const rebaseWorktree = async (ontoBranch: string) => {
+    if (!currentRepo || !worktreeToRebase) {
+      throw new Error('No repository or worktree selected')
+    }
+
+    try {
+      await window.electronAPI.rebaseWorktree(
+        worktreeToRebase.path, 
+        worktreeToRebase.branch!, 
+        ontoBranch
+      )
+      
+      setShowRebaseModal(false)
+      setWorktreeToRebase(null)
+    } catch (error) {
+      console.error('Failed to rebase worktree:', error)
+      throw error
+    }
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -181,6 +209,7 @@ const App: React.FC = () => {
         currentRepo={currentRepo}
         onArchiveWorktree={archiveWorktree}
         onMergeWorktree={openMergeModal}
+        onRebaseWorktree={openRebaseModal}
       />
 
       {showCreateModal && (
@@ -218,6 +247,19 @@ const App: React.FC = () => {
             setWorktreeToMerge(null)
           }}
           onMerge={mergeWorktree}
+        />
+      )}
+
+      {showRebaseModal && worktreeToRebase && (
+        <RebaseWorktreeModal
+          currentRepo={currentRepo}
+          fromBranch={worktreeToRebase.branch!}
+          worktreePath={worktreeToRebase.path}
+          onClose={() => {
+            setShowRebaseModal(false)
+            setWorktreeToRebase(null)
+          }}
+          onRebase={rebaseWorktree}
         />
       )}
     </div>

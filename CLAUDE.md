@@ -136,12 +136,25 @@ The application uses secure IPC handlers in main process:
 
 ### File Structure Conventions
 
-- `src/main.js` - Main process, IPC handlers, Git operations
-- `src/preload.js` - Security bridge, API exposure
-- `src/renderer.js` - UI logic, event handling, state management
-- `src/index.html` - UI structure and modals
-- `src/styles.css` - Dark theme styling, responsive design
-- `src/many-shodan.png` - Application icon
+The application uses a modern Electron + React + TypeScript architecture:
+
+**Main Process**:
+- `src/main/index.ts` - Main process, IPC handlers, Git operations
+
+**Preload Scripts**:
+- `src/preload/index.ts` - Security bridge, API exposure
+
+**Renderer Process (React + TypeScript)**:
+- `src/renderer/src/App.tsx` - Main application component and state management
+- `src/renderer/src/components/` - React components:
+  - `Sidebar.tsx` - Repository selector, worktree list
+  - `MainContent.tsx` - Worktree details and actions
+  - `CreateWorktreeModal.tsx` - Worktree creation dialog
+  - `AddRepoModal.tsx` - Repository addition and configuration
+  - `MergeWorktreeModal.tsx` - Branch merging interface
+- `src/renderer/src/types.ts` - TypeScript type definitions
+- `src/renderer/index.html` - Main HTML structure
+- `src/renderer/src/styles.css` - Dark theme styling, responsive design
 
 ### AI Integration Pattern
 

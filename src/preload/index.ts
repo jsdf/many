@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRepoConfig: (repoPath: string) => ipcRenderer.invoke('get-repo-config', repoPath),
   saveRepoConfig: (repoPath: string, config: any) => ipcRenderer.invoke('save-repo-config', repoPath, config),
   archiveWorktree: (worktreePath: string) => ipcRenderer.invoke('archive-worktree', worktreePath),
-  mergeWorktree: (repoPath: string, fromBranch: string, toBranch: string, options: any) => ipcRenderer.invoke('merge-worktree', repoPath, fromBranch, toBranch, options)
+  mergeWorktree: (repoPath: string, fromBranch: string, toBranch: string, options: any) => ipcRenderer.invoke('merge-worktree', repoPath, fromBranch, toBranch, options),
+  rebaseWorktree: (worktreePath: string, fromBranch: string, ontoBranch: string) => ipcRenderer.invoke('rebase-worktree', worktreePath, fromBranch, ontoBranch)
 })

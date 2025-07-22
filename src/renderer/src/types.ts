@@ -38,6 +38,7 @@ export interface ElectronAPI {
   saveRepoConfig(repoPath: string, config: RepositoryConfig): Promise<boolean>
   archiveWorktree(worktreePath: string): Promise<boolean>
   mergeWorktree(repoPath: string, fromBranch: string, toBranch: string, options: MergeOptions): Promise<boolean>
+  rebaseWorktree(worktreePath: string, fromBranch: string, ontoBranch: string): Promise<boolean>
 }
 
 declare global {

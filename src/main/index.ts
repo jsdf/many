@@ -413,3 +413,22 @@ ipcMain.handle("merge-worktree", async (event, repoPath, fromBranch, toBranch, o
     throw new Error(`Failed to merge worktree: ${error.message}`);
   }
 });
+
+// Rebase worktree branch onto another branch
+ipcMain.handle("rebase-worktree", async (event, worktreePath, fromBranch, ontoBranch) => {
+  try {
+    // Use the worktree-specific git instance
+    const git = simpleGit(worktreePath);
+    
+    // Ensure we're on the correct branch
+    await git.checkout(fromBranch);
+    
+    // Execute rebase
+    await git.raw(['rebase', ontoBranch]);
+    
+    return true;
+  } catch (error) {
+    console.error("Failed to rebase worktree:", error);
+    throw new Error(`Failed to rebase worktree: ${error.message}`);
+  }
+});
