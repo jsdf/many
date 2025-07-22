@@ -129,88 +129,94 @@ ipcMain.handle("get-worktrees", async (event, repoPath) => {
 ipcMain.handle("get-branches", async (event, repoPath) => {
   try {
     const git = simpleGit(repoPath);
-    const branches = await git.branch(['--all']);
-    
+    const branches = await git.branch(["--all"]);
+
     // Filter and clean branch names
     const localBranches = branches.all
-      .filter(branch => !branch.startsWith('remotes/'))
-      .map(branch => branch.replace('*', '').trim())
-      .filter(branch => branch.length > 0);
-    
+      .filter((branch) => !branch.startsWith("remotes/"))
+      .map((branch) => branch.replace("*", "").trim())
+      .filter((branch) => branch.length > 0);
+
     return localBranches;
   } catch (error) {
     throw new Error(`Failed to get branches: ${error.message}`);
   }
 });
 
-ipcMain.handle("create-worktree", async (event, repoPath, branchName, baseBranch) => {
-  try {
-    const git = simpleGit(repoPath);
+ipcMain.handle(
+  "create-worktree",
+  async (event, repoPath, branchName, baseBranch) => {
+    try {
+      const git = simpleGit(repoPath);
 
-    // Use branch name as-is, no sanitization
-    const sanitizedBranchName = branchName.replace(/[^a-zA-Z0-9\-_\/]/g, "-");
-    
-    // Get repository configuration to determine worktree directory
-    const configData = await loadAppData();
-    const repoConfiguration = configData.repositoryConfigs[repoPath];
-    const worktreeBaseDir = repoConfiguration?.worktreeDirectory || path.join(repoPath, "..");
-    
-    const worktreePath = path.join(
-      worktreeBaseDir,
-      `${path.basename(repoPath)}-${sanitizedBranchName.replace(/\//g, "-")}`
-    );
+      // Use branch name as-is, no sanitization
+      const sanitizedBranchName = branchName.replace(/[^a-zA-Z0-9\-_\/]/g, "-");
 
-    // Check if branch already exists
-    const branches = await git.branch();
-    const branchExists = branches.all.includes(sanitizedBranchName);
+      // Get repository configuration to determine worktree directory
+      const configData = await loadAppData();
+      const repoConfiguration = configData.repositoryConfigs[repoPath];
+      const worktreeBaseDir =
+        repoConfiguration?.worktreeDirectory || path.join(repoPath, "..");
 
-    if (branchExists) {
-      // Branch exists, create worktree with detached HEAD then checkout branch
-      // This works whether the branch is checked out elsewhere or not
-      const branchCommit = await git.raw(["rev-parse", sanitizedBranchName]);
-      await git.raw([
-        "worktree",
-        "add",
-        "--detach",
-        worktreePath,
-        branchCommit.trim(),
-      ]);
+      const worktreePath = path.join(
+        worktreeBaseDir,
+        `${path.basename(repoPath)}-${sanitizedBranchName.replace(/\//g, "-")}`
+      );
 
-      // After creating detached worktree, checkout the branch within the worktree
-      const worktreeGit = simpleGit(worktreePath);
-      await worktreeGit.checkout([
-        "-B",
-        sanitizedBranchName,
-        sanitizedBranchName,
-      ]);
-    } else {
-      // Create new branch and worktree in one step, based on the specified base branch
-      await git.raw([
-        "worktree",
-        "add",
-        "-b",
-        sanitizedBranchName,
-        worktreePath,
-        baseBranch || "HEAD"
-      ]);
-    }
+      // Check if branch already exists
+      const branches = await git.branch();
+      const branchExists = branches.all.includes(sanitizedBranchName);
 
-    // Execute initialization command if configured
-    if (repoConfiguration?.initCommand) {
-      try {
-        console.log(`Running initialization command: ${repoConfiguration.initCommand}`);
-        await execAsync(repoConfiguration.initCommand, { cwd: worktreePath });
-      } catch (error) {
-        console.warn(`Initialization command failed: ${error.message}`);
-        // Don't fail worktree creation if init command fails
+      if (branchExists) {
+        // Branch exists, create worktree with detached HEAD then checkout branch
+        // This works whether the branch is checked out elsewhere or not
+        const branchCommit = await git.raw(["rev-parse", sanitizedBranchName]);
+        await git.raw([
+          "worktree",
+          "add",
+          "--detach",
+          worktreePath,
+          branchCommit.trim(),
+        ]);
+
+        // After creating detached worktree, checkout the branch within the worktree
+        const worktreeGit = simpleGit(worktreePath);
+        await worktreeGit.checkout([
+          "-B",
+          sanitizedBranchName,
+          sanitizedBranchName,
+        ]);
+      } else {
+        // Create new branch and worktree in one step, based on the specified base branch
+        await git.raw([
+          "worktree",
+          "add",
+          "-b",
+          sanitizedBranchName,
+          worktreePath,
+          baseBranch || "HEAD",
+        ]);
       }
-    }
 
-    return { path: worktreePath, branch: sanitizedBranchName };
-  } catch (error) {
-    throw new Error(`Failed to create worktree: ${error.message}`);
+      // Execute initialization command if configured
+      if (repoConfiguration?.initCommand) {
+        try {
+          console.log(
+            `Running initialization command: ${repoConfiguration.initCommand}`
+          );
+          await execAsync(repoConfiguration.initCommand, { cwd: worktreePath });
+        } catch (error) {
+          console.warn(`Initialization command failed: ${error.message}`);
+          // Don't fail worktree creation if init command fails
+        }
+      }
+
+      return { path: worktreePath, branch: sanitizedBranchName };
+    } catch (error) {
+      throw new Error(`Failed to create worktree: ${error.message}`);
+    }
   }
-});
+);
 
 ipcMain.handle("get-git-username", async (event, repoPath) => {
   try {
@@ -295,7 +301,13 @@ ipcMain.handle("select-folder", async () => {
 ipcMain.handle("get-repo-config", async (event, repoPath) => {
   try {
     const appData = await loadAppData();
-    return appData.repositoryConfigs[repoPath] || { mainBranch: null, initCommand: null, worktreeDirectory: null };
+    return (
+      appData.repositoryConfigs[repoPath] || {
+        mainBranch: null,
+        initCommand: null,
+        worktreeDirectory: null,
+      }
+    );
   } catch (error) {
     console.error("Failed to get repo config:", error);
     return { mainBranch: null, initCommand: null, worktreeDirectory: null };
@@ -330,7 +342,7 @@ ipcMain.handle("open-directory", async (event, dirPath) => {
 ipcMain.handle("open-terminal", async (event, dirPath) => {
   try {
     const platform = process.platform;
-    
+
     if (platform === "darwin") {
       // macOS - open Terminal.app
       await execAsync(`open -a Terminal "${dirPath}"`);
@@ -363,7 +375,9 @@ ipcMain.handle("open-vscode", async (event, dirPath) => {
     return true;
   } catch (error) {
     console.error("Failed to open VS Code:", error);
-    throw new Error(`Failed to open VS Code. Make sure 'code' command is installed: ${error.message}`);
+    throw new Error(
+      `Failed to open VS Code. Make sure 'code' command is installed: ${error.message}`
+    );
   }
 });
 
@@ -373,10 +387,10 @@ ipcMain.handle("archive-worktree", async (event, worktreePath) => {
     // Get the repository path from the worktree path
     const repoPath = path.dirname(worktreePath);
     const git = simpleGit(repoPath);
-    
+
     // Remove the worktree
-    await git.raw(['worktree', 'remove', worktreePath]);
-    
+    await git.raw(["worktree", "remove", worktreePath]);
+
     return true;
   } catch (error) {
     console.error("Failed to archive worktree:", error);
@@ -385,96 +399,83 @@ ipcMain.handle("archive-worktree", async (event, worktreePath) => {
 });
 
 // Merge worktree branch with options
-ipcMain.handle("merge-worktree", async (event, repoPath, fromBranch, toBranch, options) => {
-  try {
-    const git = simpleGit(repoPath);
-    
-    // Automatically stage and commit any changes before switching branches
-    await git.add('-A');
-    
-    // Check if there are any staged changes to commit
-    const status = await git.status();
-    if (status.staged.length > 0) {
-      await git.commit(options.message || 'Auto-commit changes before merge');
+ipcMain.handle(
+  "merge-worktree",
+  async (event, repoPath, fromBranch, toBranch, options) => {
+    try {
+      const git = simpleGit(repoPath);
+
+      // Automatically stage and commit any changes before switching branches
+      await git.add("-A");
+
+      // Check if there are any staged changes to commit
+      const status = await git.status();
+      if (status.staged.length > 0) {
+        await git.commit(options.message || "Auto-commit changes before merge");
+      }
+
+      // Switch to target branch
+      await git.checkout(toBranch);
+
+      // Prepare merge command
+      const mergeArgs = ["merge"];
+
+      if (options.squash) {
+        mergeArgs.push("--squash");
+      }
+
+      if (options.noFF) {
+        mergeArgs.push("--no-ff");
+      }
+
+      if (options.message) {
+        mergeArgs.push("-m", options.message);
+      }
+
+      mergeArgs.push(fromBranch);
+
+      // Execute merge
+      await git.raw(mergeArgs);
+
+      // If squash merge, we need to commit
+      if (options.squash) {
+        const commitMessage =
+          options.message || `Merge ${fromBranch} (squashed)`;
+        await git.commit(commitMessage);
+      }
+
+      // Archive worktree if requested
+      if (options.deleteWorktree && options.worktreePath) {
+        await git.raw(["worktree", "remove", options.worktreePath]);
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Failed to merge worktree:", error);
+      throw new Error(`Failed to merge worktree: ${error.message}`);
     }
-    
-    // Switch to target branch
-    await git.checkout(toBranch);
-    
-    // Prepare merge command
-    const mergeArgs = ['merge'];
-    
-    if (options.squash) {
-      mergeArgs.push('--squash');
-    }
-    
-    if (options.noFF) {
-      mergeArgs.push('--no-ff');
-    }
-    
-    if (options.message) {
-      mergeArgs.push('-m', options.message);
-    }
-    
-    mergeArgs.push(fromBranch);
-    
-    // Execute merge
-    await git.raw(mergeArgs);
-    
-    // If squash merge, we need to commit
-    if (options.squash) {
-      const commitMessage = options.message || `Merge ${fromBranch} (squashed)`;
-      await git.commit(commitMessage);
-    }
-    
-    // Archive worktree if requested
-    if (options.deleteWorktree && options.worktreePath) {
-      await git.raw(['worktree', 'remove', options.worktreePath]);
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Failed to merge worktree:", error);
-    throw new Error(`Failed to merge worktree: ${error.message}`);
   }
-});
+);
 
 // Rebase worktree branch onto another branch
-ipcMain.handle("rebase-worktree", async (event, worktreePath, fromBranch, ontoBranch) => {
-  try {
-    // Use the worktree-specific git instance
-    const git = simpleGit(worktreePath);
-    
-    // Ensure we're on the correct branch
-    await git.checkout(fromBranch);
-    
-    // Execute rebase
-    await git.raw(['rebase', ontoBranch]);
-    
-    return true;
-  } catch (error) {
-    console.error("Failed to rebase worktree:", error);
-    throw new Error(`Failed to rebase worktree: ${error.message}`);
-  }
-});
+ipcMain.handle(
+  "rebase-worktree",
+  async (event, worktreePath, fromBranch, ontoBranch) => {
+    try {
+      // Use the worktree-specific git instance
+      const git = simpleGit(worktreePath);
 
-// Generate commit message using Claude CLI
-ipcMain.handle("generate-commit-message", async (event, worktreePath) => {
-  try {
-    // Use Claude CLI to generate commit message based on git diff
-    const { stdout } = await execAsync('claude --claude-args "generate a concise git commit message for these changes" -- git diff --staged', { 
-      cwd: worktreePath,
-      timeout: 30000 // 30 second timeout
-    });
-    
-    // Clean up the output - remove any extra whitespace or quotes
-    const message = stdout.trim().replace(/^["']|["']$/g, '');
-    
-    return message || `Merge changes from ${path.basename(worktreePath)}`;
-  } catch (error) {
-    console.warn("Claude CLI not available or failed:", error);
-    // Fallback to a simple message based on the worktree name
-    const branchName = path.basename(worktreePath).replace(/^.*-/, '');
-    return `Merge ${branchName}`;
+      // Ensure we're on the correct branch
+      await git.checkout(fromBranch);
+
+      // Execute rebase
+      await git.raw(["rebase", ontoBranch]);
+
+      return true;
+    } catch (error) {
+      console.error("Failed to rebase worktree:", error);
+      throw new Error(`Failed to rebase worktree: ${error.message}`);
+    }
   }
-});
+);
+
