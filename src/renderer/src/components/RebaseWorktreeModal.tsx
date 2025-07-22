@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react'
 
+const formatBranchName = (branch?: string) => {
+  if (!branch) return 'detached HEAD'
+  return branch.replace(/^refs\/heads\//, '')
+}
+
 interface RebaseWorktreeModalProps {
   currentRepo: string | null
   fromBranch: string
@@ -46,11 +51,11 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
         ])
 
         // Filter out the current branch since we can't rebase onto ourselves
-        const availableBranches = repoBranches.filter(branch => branch !== fromBranch)
+        const availableBranches = repoBranches.filter(branch => branch !== fromBranch).map(formatBranchName)
         setBranches(availableBranches)
         
         // Set default target branch
-        let defaultBranch = repoConfig.mainBranch || 'main'
+        let defaultBranch = formatBranchName(repoConfig.mainBranch) || 'main'
         
         // If the configured main branch doesn't exist or is the current branch, find an alternative
         if (!availableBranches.includes(defaultBranch)) {
@@ -63,7 +68,7 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
         setError('Failed to load branch list')
         
         // Set fallback default branches
-        const fallbackBranches = defaultBranches.filter(branch => branch !== fromBranch)
+        const fallbackBranches = defaultBranches.filter(branch => branch !== formatBranchName(fromBranch))
         setBranches(fallbackBranches)
         setOntoBranch(fallbackBranches[0] || '')
       } finally {
@@ -82,7 +87,7 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
       return
     }
 
-    if (ontoBranch === fromBranch) {
+    if (ontoBranch === formatBranchName(fromBranch)) {
       setError('Cannot rebase branch onto itself')
       return
     }
@@ -109,7 +114,7 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
         
         <div className="modal-content">
           <p>
-            Rebase <strong>{fromBranch}</strong> onto another branch.
+            Rebase <strong>{formatBranchName(fromBranch)}</strong> onto another branch.
           </p>
           
           <form onSubmit={handleRebase}>

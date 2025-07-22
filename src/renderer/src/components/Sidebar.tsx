@@ -1,6 +1,11 @@
 import React from 'react'
 import { Repository, Worktree } from '../types'
 
+const formatBranchName = (branch?: string) => {
+  if (!branch) return 'detached HEAD'
+  return branch.replace(/^refs\/heads\//, '')
+}
+
 interface SidebarProps {
   repositories: Repository[]
   currentRepo: string | null
@@ -68,8 +73,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={`worktree-item ${selectedWorktree === worktree ? 'active' : ''}`}
               onClick={() => onWorktreeSelect(worktree)}
             >
-              <div className="worktree-branch">{worktree.branch || 'detached HEAD'}</div>
-              <div className="worktree-dirname">{worktree.path.split('/').pop()}</div>
+              <div className="worktree-branch">{formatBranchName(worktree.branch)}</div>
+              <div className="worktree-dirname">{worktree.path}</div>
             </div>
           ))
         )}

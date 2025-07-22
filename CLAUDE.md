@@ -43,9 +43,9 @@ be sure to run these in the background e.g. with `&` because they are long runni
 
 ### Building and Distribution
 
-- `npm run build` - Build distributable application using electron-builder
-- `npm run pack` - Package application without creating installer
-- `npm run dist` - Create full distribution packages
+- `npm run build` - Compile the application source code (no installers)
+- `npm run pack` - Build and package application without creating installer
+- `npm run dist` - Build and create full distribution packages (DMG, zip, etc.)
 
 ### Setup
 

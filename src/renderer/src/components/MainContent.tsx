@@ -1,6 +1,11 @@
 import React, { useState } from 'react'
 import { Worktree } from '../types'
 
+const formatBranchName = (branch?: string) => {
+  if (!branch) return 'detached HEAD'
+  return branch.replace(/^refs\/heads\//, '')
+}
+
 interface MainContentProps {
   selectedWorktree: Worktree | null
   currentRepo: string | null
@@ -47,7 +52,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const archiveWorktree = async () => {
     if (!selectedWorktree) return
     
-    const confirmed = confirm(`Are you sure you want to archive the worktree "${selectedWorktree.branch}"?\n\nThis will remove the working directory but keep the branch in git.`)
+    const confirmed = confirm(`Are you sure you want to archive the worktree "${formatBranchName(selectedWorktree.branch)}"?\n\nThis will remove the working directory but keep the branch in git.`)
     if (!confirmed) return
 
     await handleAction('archive', async () => {
@@ -73,7 +78,7 @@ const MainContent: React.FC<MainContentProps> = ({
           <h2>Worktree Details</h2>
           <div className="worktree-info">
             <p><strong>Path:</strong> {selectedWorktree.path}</p>
-            <p><strong>Branch:</strong> {selectedWorktree.branch || 'detached HEAD'}</p>
+            <p><strong>Branch:</strong> {formatBranchName(selectedWorktree.branch)}</p>
           </div>
           
           <div className="worktree-actions">

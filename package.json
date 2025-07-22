@@ -6,9 +6,9 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
-    "prebuild": "electron-vite build",
-    "build": "electron-builder",
-    "pack": "electron-builder --dir"
+    "build": "electron-vite build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
   },
   "keywords": [
     "electron",
