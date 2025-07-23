@@ -13,6 +13,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
   const [isCreating, setIsCreating] = useState(false)
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedExistingBranch, setSelectedExistingBranch] = useState('')
 
   const defaultBranches = ['main', 'master', 'dev', 'develop', 'trunk']
 
@@ -69,13 +70,21 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!branchName.trim()) {
-      setError('Please enter a branch name')
+    const hasNewBranchName = branchName.trim().length > 0
+    const hasExistingBranchSelected = selectedExistingBranch.length > 0
+    
+    if (!hasNewBranchName && !hasExistingBranchSelected) {
+      setError('Please enter a new branch name or select an existing branch')
+      return
+    }
+    
+    if (hasNewBranchName && hasExistingBranchSelected) {
+      setError('Please use either a new branch name or select an existing branch, not both')
       return
     }
 
-    if (!baseBranch) {
-      setError('Please select a base branch')
+    if (hasNewBranchName && !baseBranch) {
+      setError('Please select a base branch for the new branch')
       return
     }
 
@@ -83,7 +92,12 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
     setError(null)
 
     try {
-      await onCreate(branchName.trim(), baseBranch)
+      if (hasNewBranchName) {
+        await onCreate(branchName.trim(), baseBranch)
+      } else {
+        // For existing branch, pass the existing branch name as both branch and base
+        await onCreate(selectedExistingBranch, selectedExistingBranch)
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to create worktree')
     } finally {
@@ -107,7 +121,20 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label htmlFor="base-branch-select">Base branch:</label>
+              <label htmlFor="branch-input">New branch name:</label>
+              <input
+                type="text"
+                id="branch-input"
+                value={branchName}
+                onChange={(e) => setBranchName(e.target.value)}
+                placeholder="e.g., username/feature-name, fix-bug, add-feature..."
+                autoFocus
+                disabled={isCreating}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="base-branch-select">Base branch (for new branch):</label>
               <select
                 id="base-branch-select"
                 value={baseBranch}
@@ -129,17 +156,26 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
             </div>
             
             <div className="form-group">
-              <label htmlFor="branch-input">New branch name:</label>
-              <input
-                type="text"
-                id="branch-input"
-                value={branchName}
-                onChange={(e) => setBranchName(e.target.value)}
-                placeholder="e.g., username/feature-name, fix-bug, add-feature..."
-                autoFocus
-                disabled={isCreating}
-              />
+              <label>— OR —</label>
             </div>
+            
+            <div className="form-group">
+              <label htmlFor="existing-branch-select">Select existing branch:</label>
+              <select
+                id="existing-branch-select"
+                value={selectedExistingBranch}
+                onChange={(e) => setSelectedExistingBranch(e.target.value)}
+                disabled={isCreating || isLoadingBranches}
+              >
+                <option value="">Choose an existing branch...</option>
+                {!isLoadingBranches && branches.map(branch => (
+                  <option key={branch} value={branch}>
+                    {branch}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
             {error && <p className="error-message">{error}</p>}
           </div>
           <div className="modal-footer">
@@ -154,7 +190,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
             <button 
               type="submit" 
               className="btn btn-primary"
-              disabled={isCreating || !branchName.trim() || !baseBranch || isLoadingBranches}
+              disabled={isCreating || isLoadingBranches || (!branchName.trim() && !selectedExistingBranch)}
             >
               {isCreating ? 'Creating...' : 'Create Worktree'}
             </button>

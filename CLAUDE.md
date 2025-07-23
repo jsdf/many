@@ -12,7 +12,7 @@ Features/TODO
 - [x] lists worktrees in the left sidebar
 - [x] clicking a worktree in the sidebar shows it in the main pane
 - [x] create worktree (along with a corresponding git branch)
-- [ ] create a worktree from an existing git branch
+- [x] create a worktree from an existing git branch
 - [x] archive worktree (deletes the file tree, though it still exists as a branch in git)
   - [x] checks if branch is fully merged into main branch before archiving
   - [x] prompts user for confirmation if branch is not merged
