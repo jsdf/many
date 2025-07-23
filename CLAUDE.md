@@ -10,6 +10,7 @@ Features/TODO
 
 - [x] add/manage repos
 - [x] lists worktrees in the left sidebar
+  - [ ] show repo base/main worktree first and show a tag which says 'base'
 - [x] clicking a worktree in the sidebar shows it in the main pane
 - [x] create worktree (along with a corresponding git branch)
 - [x] create a worktree from an existing git branch
@@ -29,9 +30,21 @@ Features/TODO
 - [ ] per repo settings
   - [x] command to init a new worktree (e.g. `npm install`)
   - [ ] commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
+- [ ] watch git repo for changes and live update
+  - [ ] worktrees list/checked out branch name
+  - [ ] git changes on worktree
+- bugs
+  - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
+  - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
+  - [ ] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
 - chores
   - [ ] split components and css into reasonable modules
+    - [ ] too many components in MainContent.tsx
   - [ ] split backend into reasonable modules
+    - [ ] git stuff should be in its own file
+    - [ ] external app actions should be in their own file
+- large improvements
+  - [ ] convert to using tailwind and a headless ui framework (radix? shadcn?)
 
 don't forget to update this list if you finish implementing a feature
 

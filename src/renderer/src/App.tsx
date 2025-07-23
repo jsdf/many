@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
 import Sidebar from "./components/Sidebar";
-import MainContent from "./components/MainContent";
+import MainContent, { cleanupWorktreeState } from "./components/MainContent";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -157,6 +157,12 @@ const App: React.FC = () => {
     }
 
     try {
+      // Clean up terminals associated with this worktree
+      await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
+      
+      // Clean up frontend terminal state
+      cleanupWorktreeState(worktree.path);
+      
       await window.electronAPI.archiveWorktree(currentRepo, worktree.path);
 
       // Refresh the worktree list
@@ -183,6 +189,12 @@ const App: React.FC = () => {
 
         if (confirmed) {
           try {
+            // Clean up terminals associated with this worktree
+            await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
+            
+            // Clean up frontend terminal state
+            cleanupWorktreeState(worktree.path);
+            
             // Retry with force option
             await window.electronAPI.archiveWorktree(
               currentRepo,
@@ -218,6 +230,12 @@ const App: React.FC = () => {
 
         if (confirmed) {
           try {
+            // Clean up terminals associated with this worktree
+            await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
+            
+            // Clean up frontend terminal state
+            cleanupWorktreeState(worktree.path);
+            
             // Retry with force option
             await window.electronAPI.archiveWorktree(
               currentRepo,

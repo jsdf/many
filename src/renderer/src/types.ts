@@ -33,12 +33,25 @@ export interface GitStatus {
   hasStaged: boolean;
 }
 
+export interface TerminalConfig {
+  id: string;
+  title: string;
+  type: 'terminal' | 'claude';
+  initialCommand?: string;
+}
+
+export interface WorktreeTerminals {
+  terminals: TerminalConfig[];
+  nextTerminalId: number;
+}
+
 export interface TerminalSessionOptions {
   terminalId: string;
   workingDirectory?: string;
   cols: number;
   rows: number;
   initialCommand?: string;
+  worktreePath?: string;
 }
 
 export interface ElectronAPI {
@@ -95,6 +108,12 @@ export interface ElectronAPI {
   sendTerminalData(terminalId: string, data: string): Promise<void>;
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
   closeTerminal(terminalId: string): Promise<void>;
+  terminalSessionExists(terminalId: string): Promise<boolean>;
+  
+  // Worktree terminal management
+  getWorktreeTerminals(worktreePath: string): Promise<WorktreeTerminals>;
+  saveWorktreeTerminals(worktreePath: string, terminalConfig: WorktreeTerminals): Promise<boolean>;
+  cleanupWorktreeTerminals(worktreePath: string): Promise<boolean>;
   onTerminalData(
     terminalId: string,
     callback: (data: string) => void

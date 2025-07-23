@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     cols: number;
     rows: number;
     initialCommand?: string;
+    worktreePath?: string;
   }) => ipcRenderer.invoke("create-terminal-session", options),
 
   sendTerminalData: (terminalId: string, data: string) =>
@@ -34,6 +35,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   closeTerminal: (terminalId: string) =>
     ipcRenderer.invoke("close-terminal", terminalId),
+
+  terminalSessionExists: (terminalId: string) =>
+    ipcRenderer.invoke("terminal-session-exists", terminalId),
+
+  // Worktree terminal management
+  getWorktreeTerminals: (worktreePath: string) =>
+    ipcRenderer.invoke("get-worktree-terminals", worktreePath),
+  saveWorktreeTerminals: (worktreePath: string, terminalConfig: any) =>
+    ipcRenderer.invoke("save-worktree-terminals", worktreePath, terminalConfig),
+  cleanupWorktreeTerminals: (worktreePath: string) =>
+    ipcRenderer.invoke("cleanup-worktree-terminals", worktreePath),
 
   // Terminal event listeners
   onTerminalData: (terminalId: string, callback: (data: string) => void) => {

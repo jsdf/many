@@ -30,11 +30,24 @@ interface RepositoryConfig {
   worktreeDirectory: string | null;
 }
 
+interface TerminalConfig {
+  id: string;
+  title: string;
+  type: 'terminal' | 'claude';
+  initialCommand?: string;
+}
+
+interface WorktreeTerminals {
+  terminals: TerminalConfig[];
+  nextTerminalId: number;
+}
+
 interface AppData {
   repositories: Repository[];
   repositoryConfigs: Record<string, RepositoryConfig>;
   selectedRepo: string | null;
   windowBounds: { width: number; height: number; x?: number; y?: number };
+  worktreeTerminals: Record<string, WorktreeTerminals>; // worktreePath -> terminal configs
 }
 
 // Get user data directory for storing app data
@@ -47,6 +60,7 @@ const defaultAppData: AppData = {
   repositoryConfigs: {},
   selectedRepo: null,
   windowBounds: { width: 1200, height: 800 },
+  worktreeTerminals: {},
 };
 
 // Load app data from disk
@@ -349,6 +363,46 @@ ipcMain.handle("resize-terminal", async (event, terminalId, cols, rows) => {
 
 ipcMain.handle("close-terminal", async (event, terminalId) => {
   terminalManager.closeTerminal(terminalId);
+});
+
+ipcMain.handle("terminal-session-exists", async (event, terminalId) => {
+  return terminalManager.sessionExists(terminalId);
+});
+
+// Worktree terminal management
+ipcMain.handle("get-worktree-terminals", async (event, worktreePath) => {
+  try {
+    const appData = await loadAppData();
+    return appData.worktreeTerminals[worktreePath] || { terminals: [], nextTerminalId: 1 };
+  } catch (error) {
+    console.error("Failed to get worktree terminals:", error);
+    return { terminals: [], nextTerminalId: 1 };
+  }
+});
+
+ipcMain.handle("save-worktree-terminals", async (event, worktreePath, terminalConfig) => {
+  try {
+    const appData = await loadAppData();
+    appData.worktreeTerminals[worktreePath] = terminalConfig;
+    await saveAppData(appData);
+    return true;
+  } catch (error) {
+    console.error("Failed to save worktree terminals:", error);
+    return false;
+  }
+});
+
+ipcMain.handle("cleanup-worktree-terminals", async (event, worktreePath) => {
+  try {
+    terminalManager.cleanupWorktreeTerminals(worktreePath);
+    const appData = await loadAppData();
+    delete appData.worktreeTerminals[worktreePath];
+    await saveAppData(appData);
+    return true;
+  } catch (error) {
+    console.error("Failed to cleanup worktree terminals:", error);
+    return false;
+  }
 });
 
 // Quick Actions IPC handlers

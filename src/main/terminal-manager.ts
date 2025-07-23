@@ -6,6 +6,8 @@ import path from "path";
 export interface TerminalSession {
   ptyProcess: pty.IPty;
   workingDirectory: string;
+  worktreePath?: string; // Associate terminal with specific worktree
+  outputBuffer: string; // Store terminal output for reconnection
 }
 
 export interface TerminalSessionOptions {
@@ -14,6 +16,7 @@ export interface TerminalSessionOptions {
   cols: number;
   rows: number;
   initialCommand?: string;
+  worktreePath?: string; // Associate terminal with specific worktree
 }
 
 export class TerminalManager {
@@ -30,7 +33,24 @@ export class TerminalManager {
 
   async createTerminalSession(options: TerminalSessionOptions): Promise<{ terminalId: string }> {
     try {
-      const { terminalId, workingDirectory, cols, rows, initialCommand } = options;
+      const { terminalId, workingDirectory, cols, rows, initialCommand, worktreePath } = options;
+      
+      // Check if session already exists - if so, send buffer and return it
+      if (this.terminalSessions.has(terminalId)) {
+        console.log(`Terminal session ${terminalId} already exists, reusing...`);
+        const existingSession = this.terminalSessions.get(terminalId)!;
+        
+        // Send buffered output to new connection after a short delay
+        setTimeout(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed() && existingSession.outputBuffer) {
+            console.log(`Replaying ${existingSession.outputBuffer.length} characters of buffered output for ${terminalId}`);
+            this.mainWindow.webContents.send(`terminal-data-${terminalId}`, existingSession.outputBuffer);
+          }
+        }, 100);
+        
+        return { terminalId };
+      }
+      
       const cwd = workingDirectory || os.homedir();
 
       // Determine shell
@@ -75,13 +95,21 @@ export class TerminalManager {
       // Create terminal session
       const session: TerminalSession = {
         ptyProcess,
-        workingDirectory: cwd
+        workingDirectory: cwd,
+        worktreePath,
+        outputBuffer: ""
       };
 
       this.terminalSessions.set(terminalId, session);
 
       // Handle PTY data
       ptyProcess.onData((data) => {
+        // Store data in buffer for reconnection (limit buffer size to prevent memory issues)
+        session.outputBuffer += data;
+        if (session.outputBuffer.length > 50000) { // Keep last 50KB
+          session.outputBuffer = session.outputBuffer.slice(-50000);
+        }
+        
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send(`terminal-data-${terminalId}`, data);
         }
@@ -147,6 +175,27 @@ export class TerminalManager {
       }
     } catch (error) {
       console.error(`Failed to close terminal ${terminalId}:`, error);
+    }
+  }
+
+  getTerminalsForWorktree(worktreePath: string): string[] {
+    const terminalIds: string[] = [];
+    for (const [terminalId, session] of this.terminalSessions) {
+      if (session.worktreePath === worktreePath) {
+        terminalIds.push(terminalId);
+      }
+    }
+    return terminalIds;
+  }
+
+  sessionExists(terminalId: string): boolean {
+    return this.terminalSessions.has(terminalId);
+  }
+
+  cleanupWorktreeTerminals(worktreePath: string): void {
+    const terminalsToClose = this.getTerminalsForWorktree(worktreePath);
+    for (const terminalId of terminalsToClose) {
+      this.closeTerminal(terminalId);
     }
   }
 

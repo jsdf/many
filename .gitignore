@@ -119,3 +119,6 @@ build/Release
 .dynamodb/
 
 .claude/
+
+# VS Code settings
+.vscode/

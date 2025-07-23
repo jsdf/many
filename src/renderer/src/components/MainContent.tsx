@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Worktree } from "../types";
+import { Worktree, TerminalConfig, WorktreeTerminals } from "../types";
 import TilingLayout, { Tile } from "./TilingLayout";
 import Terminal from "./Terminal";
 
@@ -156,6 +156,18 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   );
 };
 
+// Global state to maintain terminals across worktree switches
+const globalTerminalState = new Map<string, {
+  tiles: Tile[];
+  terminalConfig: WorktreeTerminals;
+}>();
+
+// Function to clean up worktree from global state
+const cleanupWorktreeState = (worktreePath: string) => {
+  console.log(`Cleaning up terminal state for worktree: ${worktreePath}`);
+  globalTerminalState.delete(worktreePath);
+};
+
 const MainContent: React.FC<MainContentProps> = ({
   selectedWorktree,
   onArchiveWorktree,
@@ -163,109 +175,262 @@ const MainContent: React.FC<MainContentProps> = ({
   onRebaseWorktree,
 }) => {
   const [tiles, setTiles] = useState<Tile[]>([]);
-  const [nextTerminalId, setNextTerminalId] = useState(1);
+  const [isLoadingTerminals, setIsLoadingTerminals] = useState(false);
 
-  // Initialize tiles when a worktree is selected
+  // Switch to worktree's terminal state or initialize if needed
   React.useEffect(() => {
-    if (selectedWorktree && tiles.length === 0) {
-      const mainContentTile: Tile = {
-        id: "main-content",
-        type: "content",
-        title: "Worktree Details",
-        component: (
-          <WorktreeDetails
-            worktree={selectedWorktree}
-            onArchiveWorktree={onArchiveWorktree}
-            onMergeWorktree={onMergeWorktree}
-            onRebaseWorktree={onRebaseWorktree}
-          />
-        ),
-      };
+    const loadWorktreeTerminals = async () => {
+      if (!selectedWorktree) {
+        setTiles([]);
+        return;
+      }
 
-      // Create the first terminal
-      const firstTerminalTile: Tile = {
-        id: "terminal-1",
-        type: "terminal",
-        title: "Terminal 1",
-        component: (
-          <Terminal
-            workingDirectory={selectedWorktree.path}
-            terminalId="terminal-1"
-            onTitleChange={(title) => updateTileTitle("terminal-1", title)}
-          />
-        ),
-      };
+      setIsLoadingTerminals(true);
+      try {
+        // Check if we already have this worktree's terminals in global state
+        let worktreeState = globalTerminalState.get(selectedWorktree.path);
+        
+        if (!worktreeState) {
+          // Initialize new worktree state
+          const savedConfig = await window.electronAPI.getWorktreeTerminals(selectedWorktree.path);
+          
+          // Create main content tile
+          const mainContentTile: Tile = {
+            id: `main-content-${selectedWorktree.path}`,
+            type: "content",
+            title: "Worktree Details",
+            component: (
+              <WorktreeDetails
+                worktree={selectedWorktree}
+                onArchiveWorktree={onArchiveWorktree}
+                onMergeWorktree={onMergeWorktree}
+                onRebaseWorktree={onRebaseWorktree}
+              />
+            ),
+          };
 
-      setTiles([mainContentTile, firstTerminalTile]);
-      setNextTerminalId(2);
-    } else if (!selectedWorktree) {
-      setTiles([]);
-      setNextTerminalId(1);
-    }
+          const terminalTiles: Tile[] = [];
+          
+          if (savedConfig.terminals.length === 0) {
+            // Create default terminal if none exist
+            const defaultTerminal: TerminalConfig = {
+              id: `${selectedWorktree.path}-terminal-1`,
+              title: "Terminal 1",
+              type: "terminal",
+            };
+            
+            const defaultTile: Tile = {
+              id: defaultTerminal.id,
+              type: "terminal",
+              title: defaultTerminal.title,
+              component: (
+                <Terminal
+                  workingDirectory={selectedWorktree.path}
+                  terminalId={defaultTerminal.id}
+                  onTitleChange={(title) => updateTileTitle(defaultTerminal.id, title)}
+                  initialCommand={defaultTerminal.initialCommand}
+                  worktreePath={selectedWorktree.path}
+                />
+              ),
+            };
+            terminalTiles.push(defaultTile);
+            
+            // Save the default terminal
+            const newConfig = {
+              terminals: [defaultTerminal],
+              nextTerminalId: 2,
+            };
+            await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, newConfig);
+            
+            worktreeState = {
+              tiles: [mainContentTile, ...terminalTiles],
+              terminalConfig: newConfig,
+            };
+          } else {
+            // Restore saved terminals
+            for (const terminal of savedConfig.terminals) {
+              const tile: Tile = {
+                id: terminal.id,
+                type: "terminal",
+                title: terminal.title,
+                component: (
+                  <Terminal
+                    workingDirectory={selectedWorktree.path}
+                    terminalId={terminal.id}
+                    onTitleChange={(title) => updateTileTitle(terminal.id, title)}
+                    initialCommand={terminal.initialCommand}
+                    worktreePath={selectedWorktree.path}
+                  />
+                ),
+              };
+              terminalTiles.push(tile);
+            }
+            
+            worktreeState = {
+              tiles: [mainContentTile, ...terminalTiles],
+              terminalConfig: savedConfig,
+            };
+          }
+          
+          // Store in global state
+          globalTerminalState.set(selectedWorktree.path, worktreeState);
+        }
+        
+        // Set tiles to the worktree's state
+        setTiles(worktreeState.tiles);
+        
+      } catch (error) {
+        console.error("Failed to load worktree terminals:", error);
+        // Fallback to basic setup
+        const mainContentTile: Tile = {
+          id: `main-content-${selectedWorktree.path}`,
+          type: "content",
+          title: "Worktree Details",
+          component: (
+            <WorktreeDetails
+              worktree={selectedWorktree}
+              onArchiveWorktree={onArchiveWorktree}
+              onMergeWorktree={onMergeWorktree}
+              onRebaseWorktree={onRebaseWorktree}
+            />
+          ),
+        };
+        setTiles([mainContentTile]);
+      } finally {
+        setIsLoadingTerminals(false);
+      }
+    };
+
+    loadWorktreeTerminals();
   }, [selectedWorktree, onArchiveWorktree, onMergeWorktree, onRebaseWorktree]);
 
   const updateTileTitle = useCallback((tileId: string, newTitle: string) => {
+    if (!selectedWorktree) return;
+    
+    // Update local tiles
     setTiles((prevTiles) =>
       prevTiles.map((tile) =>
         tile.id === tileId ? { ...tile, title: newTitle } : tile
       )
     );
-  }, []);
+    
+    // Update global state
+    const worktreeState = globalTerminalState.get(selectedWorktree.path);
+    if (worktreeState) {
+      worktreeState.tiles = worktreeState.tiles.map((tile) =>
+        tile.id === tileId ? { ...tile, title: newTitle } : tile
+      );
+      globalTerminalState.set(selectedWorktree.path, worktreeState);
+    }
+  }, [selectedWorktree]);
 
-  const handleCloseTile = useCallback((tileId: string) => {
+  const handleCloseTile = useCallback(async (tileId: string) => {
+    if (!selectedWorktree) return;
+
+    // Update local tiles
     setTiles((prevTiles) => prevTiles.filter((tile) => tile.id !== tileId));
 
-    // If it's a terminal, clean up the session
-    if (tileId.startsWith("terminal-")) {
+    // If it's a terminal, clean up the session and update persistent state
+    if (tileId.includes("terminal-") || tileId.includes("claude-")) {
       window.electronAPI.closeTerminal?.(tileId);
+      
+      // Update global state
+      const worktreeState = globalTerminalState.get(selectedWorktree.path);
+      if (worktreeState) {
+        worktreeState.tiles = worktreeState.tiles.filter((tile) => tile.id !== tileId);
+        worktreeState.terminalConfig.terminals = worktreeState.terminalConfig.terminals.filter(t => t.id !== tileId);
+        globalTerminalState.set(selectedWorktree.path, worktreeState);
+        
+        // Save to persistent storage
+        await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, worktreeState.terminalConfig);
+      }
     }
-  }, []);
+  }, [selectedWorktree]);
 
   const handleSplitTile = useCallback(
-    (tileId: string, direction: "horizontal" | "vertical") => {
+    async (tileId: string, direction: "horizontal" | "vertical") => {
       if (!selectedWorktree) return;
 
-      const newTerminalId = `terminal-${nextTerminalId}`;
+      const worktreeState = globalTerminalState.get(selectedWorktree.path);
+      if (!worktreeState) return;
+      
+      const newTerminalId = `${selectedWorktree.path}-terminal-${worktreeState.terminalConfig.nextTerminalId}`;
+      const newTerminal: TerminalConfig = {
+        id: newTerminalId,
+        title: `Terminal ${worktreeState.terminalConfig.nextTerminalId}`,
+        type: "terminal",
+      };
+      
       const newTile: Tile = {
         id: newTerminalId,
         type: "terminal",
-        title: `Terminal ${nextTerminalId}`,
+        title: newTerminal.title,
         component: (
           <Terminal
             workingDirectory={selectedWorktree.path}
             terminalId={newTerminalId}
             onTitleChange={(title) => updateTileTitle(newTerminalId, title)}
+            worktreePath={selectedWorktree.path}
           />
         ),
       };
 
+      // Update local tiles
       setTiles((prevTiles) => [...prevTiles, newTile]);
-      setNextTerminalId((prev) => prev + 1);
+      
+      // Update global state
+      worktreeState.tiles.push(newTile);
+      worktreeState.terminalConfig.terminals.push(newTerminal);
+      worktreeState.terminalConfig.nextTerminalId += 1;
+      globalTerminalState.set(selectedWorktree.path, worktreeState);
+      
+      // Save to persistent storage
+      await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, worktreeState.terminalConfig);
     },
-    [selectedWorktree, nextTerminalId, updateTileTitle]
+    [selectedWorktree, updateTileTitle]
   );
 
-  const handleAddClaudeTerminal = useCallback(() => {
+  const handleAddClaudeTerminal = useCallback(async () => {
     if (!selectedWorktree) return;
 
-    const claudeTerminalId = `claude-${nextTerminalId}`;
+    const worktreeState = globalTerminalState.get(selectedWorktree.path);
+    if (!worktreeState) return;
+
+    const claudeTerminalId = `${selectedWorktree.path}-claude-${worktreeState.terminalConfig.nextTerminalId}`;
+    const claudeTerminal: TerminalConfig = {
+      id: claudeTerminalId,
+      title: "Claude Terminal",
+      type: "claude",
+      initialCommand: "claude",
+    };
+    
     const claudeTile: Tile = {
       id: claudeTerminalId,
       type: "terminal",
-      title: `Claude Terminal`,
+      title: claudeTerminal.title,
       component: (
         <Terminal
           workingDirectory={selectedWorktree.path}
           terminalId={claudeTerminalId}
           onTitleChange={(title) => updateTileTitle(claudeTerminalId, title)}
-          initialCommand="claude"
+          initialCommand={claudeTerminal.initialCommand}
+          worktreePath={selectedWorktree.path}
         />
       ),
     };
 
+    // Update local tiles
     setTiles((prevTiles) => [...prevTiles, claudeTile]);
-    setNextTerminalId((prev) => prev + 1);
-  }, [selectedWorktree, nextTerminalId, updateTileTitle]);
+    
+    // Update global state
+    worktreeState.tiles.push(claudeTile);
+    worktreeState.terminalConfig.terminals.push(claudeTerminal);
+    worktreeState.terminalConfig.nextTerminalId += 1;
+    globalTerminalState.set(selectedWorktree.path, worktreeState);
+    
+    // Save to persistent storage
+    await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, worktreeState.terminalConfig);
+  }, [selectedWorktree, updateTileTitle]);
 
   if (!selectedWorktree) {
     return (
@@ -333,3 +498,4 @@ const MainContent: React.FC<MainContentProps> = ({
 };
 
 export default MainContent;
+export { cleanupWorktreeState };

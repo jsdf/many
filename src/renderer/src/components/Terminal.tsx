@@ -9,6 +9,7 @@ interface TerminalProps {
   onTitleChange?: (title: string) => void;
   terminalId?: string;
   initialCommand?: string;
+  worktreePath?: string;
 }
 
 const Terminal: React.FC<TerminalProps> = ({
@@ -16,6 +17,7 @@ const Terminal: React.FC<TerminalProps> = ({
   onTitleChange,
   terminalId = "terminal-" + Math.random().toString(36).substr(2, 9),
   initialCommand,
+  worktreePath,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -95,7 +97,8 @@ const Terminal: React.FC<TerminalProps> = ({
       terminalId,
       setIsConnected,
       onTitleChange,
-      initialCommand
+      initialCommand,
+      worktreePath
     );
 
     return () => {
@@ -104,7 +107,7 @@ const Terminal: React.FC<TerminalProps> = ({
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [workingDirectory, terminalId, onTitleChange, initialCommand]);
+  }, [workingDirectory, terminalId, onTitleChange, initialCommand, worktreePath]);
 
   // Handle container resize
   useEffect(() => {
@@ -148,7 +151,8 @@ async function connectToTerminal(
   terminalId: string,
   setIsConnected: (connected: boolean) => void,
   onTitleChange?: (title: string) => void,
-  initialCommand?: string
+  initialCommand?: string,
+  worktreePath?: string
 ) {
   try {
     // Request a new terminal session from the main process
@@ -158,6 +162,7 @@ async function connectToTerminal(
       cols: xterm.cols,
       rows: xterm.rows,
       initialCommand: initialCommand,
+      worktreePath: worktreePath,
     });
 
     setIsConnected(true);
