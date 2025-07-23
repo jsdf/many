@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
 import Sidebar from "./components/Sidebar";
-import MainContent, { cleanupWorktreeState } from "./components/MainContent";
+import MainContent from "./components/MainContent";
+import { cleanupWorktreeState } from "./hooks/useWorktreeTerminals";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -10,7 +11,6 @@ import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [currentRepo, setCurrentRepo] = useState<string | null>(null);
-  const [currentUsername, setCurrentUsername] = useState<string>("user");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [selectedWorktree, setSelectedWorktree] = useState<Worktree | null>(
     null
@@ -63,8 +63,6 @@ const App: React.FC = () => {
 
     try {
       await window.electronAPI.setSelectedRepo(repoPath);
-      const username = await window.electronAPI.getGitUsername(repoPath);
-      setCurrentUsername(username);
       const repoWorktrees = await window.electronAPI.getWorktrees(repoPath);
       setWorktrees(repoWorktrees);
     } catch (error) {
