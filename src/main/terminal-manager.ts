@@ -42,38 +42,51 @@ export class TerminalManager {
     this.mainWindow = mainWindow;
   }
 
-  async createTerminalSession(options: TerminalSessionOptions): Promise<{ terminalId: string }> {
+  async createTerminalSession(
+    options: TerminalSessionOptions
+  ): Promise<{ terminalId: string }> {
     try {
-      const { terminalId, workingDirectory, cols, rows, initialCommand, worktreePath } = options;
-      
+      const {
+        terminalId,
+        workingDirectory,
+        cols,
+        rows,
+        initialCommand,
+        worktreePath,
+      } = options;
+
       // Check if session already exists - if so, send buffer and return it
       if (this.terminalSessions.has(terminalId)) {
-        console.log(`Terminal session ${terminalId} already exists, reusing...`);
         const existingSession = this.terminalSessions.get(terminalId)!;
-        
+
         // Send buffered output to new connection after a short delay
         setTimeout(() => {
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
             const bufferedOutput = this.getBufferedOutput(existingSession);
             if (bufferedOutput) {
-              console.log(`Replaying ${bufferedOutput.length} characters of buffered output for ${terminalId}`);
-              this.mainWindow.webContents.send(`terminal-data-${terminalId}`, bufferedOutput);
+              this.mainWindow.webContents.send(
+                `terminal-data-${terminalId}`,
+                bufferedOutput
+              );
             }
           }
         }, 100);
-        
+
         return { terminalId };
       }
-      
+
       const cwd = workingDirectory || os.homedir();
 
       // Determine shell
-      const shell = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash';
-      const shellArgs = process.platform === 'win32' ? [] : ['-l']; // -l for login shell
+      const shell =
+        process.platform === "win32"
+          ? "powershell.exe"
+          : process.env.SHELL || "/bin/bash";
+      const shellArgs = process.platform === "win32" ? [] : ["-l"]; // -l for login shell
 
       // Create PTY process with clean environment
       const ptyProcess = pty.spawn(shell, shellArgs, {
-        name: 'xterm-color',
+        name: "xterm-color",
         cols: cols || 80,
         rows: rows || 24,
         cwd: cwd,
@@ -83,17 +96,17 @@ export class TerminalManager {
           HOME: process.env.HOME,
           USER: process.env.USER,
           SHELL: process.env.SHELL,
-          TERM: 'xterm-256color',
-          LANG: process.env.LANG || 'en_US.UTF-8',
+          TERM: "xterm-256color",
+          LANG: process.env.LANG || "en_US.UTF-8",
           LC_ALL: process.env.LC_ALL,
-          
+
           // macOS specific
           TMPDIR: process.env.TMPDIR,
-          
+
           // Common development tools
           EDITOR: process.env.EDITOR,
           PAGER: process.env.PAGER,
-          
+
           // Git configuration - pass through all Git-related environment variables
           GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
           GIT_CONFIG_SYSTEM: process.env.GIT_CONFIG_SYSTEM,
@@ -101,9 +114,9 @@ export class TerminalManager {
           GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL,
           GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
           GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL,
-          
+
           // Excludes npm_config_prefix and other Electron/Node variables
-        }
+        },
       });
 
       // Create terminal session
@@ -115,7 +128,7 @@ export class TerminalManager {
         currentBlock: null,
         nextBlockId: 1,
         maxBlocks: 100, // Keep up to 100 blocks (~100KB with 1KB blocks)
-        maxBlockSize: 1000 // 1KB per block
+        maxBlockSize: 1000, // 1KB per block
       };
 
       this.terminalSessions.set(terminalId, session);
@@ -124,7 +137,7 @@ export class TerminalManager {
       ptyProcess.onData((data) => {
         // Store data in block-based buffer for reconnection
         this.appendToSession(session, data);
-        
+
         // Send real-time data to frontend (unchanged API)
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send(`terminal-data-${terminalId}`, data);
@@ -133,7 +146,9 @@ export class TerminalManager {
 
       // Handle PTY exit
       ptyProcess.onExit(({ exitCode, signal }) => {
-        console.log(`Terminal ${terminalId} exited with code ${exitCode}, signal ${signal}`);
+        console.log(
+          `Terminal ${terminalId} exited with code ${exitCode}, signal ${signal}`
+        );
         this.terminalSessions.delete(terminalId);
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send(`terminal-exit-${terminalId}`);
@@ -145,14 +160,18 @@ export class TerminalManager {
         setTimeout(() => {
           const currentSession = this.terminalSessions.get(terminalId);
           if (currentSession) {
-            currentSession.ptyProcess.write(initialCommand + '\r');
+            currentSession.ptyProcess.write(initialCommand + "\r");
           }
         }, 100);
       }
 
       return { terminalId };
     } catch (error) {
-      throw new Error(`Failed to create terminal session: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create terminal session: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -165,7 +184,6 @@ export class TerminalManager {
 
       // Send data directly to PTY process
       session.ptyProcess.write(data);
-      
     } catch (error) {
       console.error(`Failed to send data to terminal ${terminalId}:`, error);
     }
@@ -213,7 +231,7 @@ export class TerminalManager {
       id: session.nextBlockId++,
       data: "",
       isComplete: false,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     return block;
   }
@@ -246,17 +264,17 @@ export class TerminalManager {
   // Get all buffered output as a single string (for current frontend API compatibility)
   private getBufferedOutput(session: TerminalSession): string {
     let output = "";
-    
+
     // Add all complete blocks
     for (const block of session.outputBlocks) {
       output += block.data;
     }
-    
+
     // Add current incomplete block
     if (session.currentBlock && session.currentBlock.data) {
       output += session.currentBlock.data;
     }
-    
+
     return output;
   }
 
@@ -273,7 +291,10 @@ export class TerminalManager {
       try {
         session.ptyProcess.kill();
       } catch (error) {
-        console.error(`Error killing PTY process for terminal ${terminalId}:`, error);
+        console.error(
+          `Error killing PTY process for terminal ${terminalId}:`,
+          error
+        );
       }
     }
     this.terminalSessions.clear();

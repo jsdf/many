@@ -39,12 +39,14 @@ Features/TODO
   - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
 - chores
   - [ ] split components and css into reasonable modules
-    - [ ] too many components in MainContent.tsx
-  - [ ] split backend into reasonable modules
-    - [ ] git stuff should be in its own file
-    - [ ] external app actions should be in their own file
+    - [x] too many components in MainContent.tsx
+    - [ ] split styles.css based on components which use classes
+  - [x] split backend into reasonable modules
+    - [x] git stuff should be in its own file
+    - [x] external app actions should be in their own file
+  - [ ] clean up repetitive code in App.tsx archiveWorktree() function
 - large improvements
-  - [ ] convert to using tailwind and a headless ui framework (radix? shadcn?)
+  - [ ] convert to using tailwind and a headless ui framework (shadcn?)
 
 don't forget to update this list if you finish implementing a feature
 

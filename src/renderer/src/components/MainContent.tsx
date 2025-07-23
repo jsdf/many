@@ -30,8 +30,6 @@ const MainContent: React.FC<MainContentProps> = ({
     selectedWorktree,
   });
 
-  console.log("main content render", selectedWorktree?.path, terminalTileData);
-
   // Convert tile data to actual tiles with React components
   const tiles = useMemo(() => {
     if (!selectedWorktree) return [];

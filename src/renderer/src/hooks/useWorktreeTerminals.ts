@@ -6,7 +6,6 @@ const globalTerminalState = new Map<string, WorktreeTerminals>();
 
 // Function to clean up worktree from global state
 export const cleanupWorktreeState = (worktreePath: string) => {
-  console.log(`Cleaning up terminal state for worktree: ${worktreePath}`);
   globalTerminalState.delete(worktreePath);
 };
 
@@ -24,30 +23,36 @@ export interface TileData {
 export const useWorktreeTerminals = ({
   selectedWorktree,
 }: UseWorktreeTerminalsProps) => {
-  const [terminalConfig, setTerminalConfig] = useState<WorktreeTerminals>({ terminals: [], nextTerminalId: 1 });
+  const [terminalConfig, setTerminalConfig] = useState<WorktreeTerminals>({
+    terminals: [],
+    nextTerminalId: 1,
+  });
   const [isLoadingTerminals, setIsLoadingTerminals] = useState(false);
 
   // Function to update tile title
-  const updateTileTitle = useCallback((tileId: string, newTitle: string) => {
-    if (!selectedWorktree) return;
-    
-    // Update local config
-    setTerminalConfig(prev => ({
-      ...prev,
-      terminals: prev.terminals.map(terminal =>
-        terminal.id === tileId ? { ...terminal, title: newTitle } : terminal
-      )
-    }));
-    
-    // Update global state
-    const globalConfig = globalTerminalState.get(selectedWorktree.path);
-    if (globalConfig) {
-      globalConfig.terminals = globalConfig.terminals.map(terminal =>
-        terminal.id === tileId ? { ...terminal, title: newTitle } : terminal
-      );
-      globalTerminalState.set(selectedWorktree.path, globalConfig);
-    }
-  }, [selectedWorktree]);
+  const updateTileTitle = useCallback(
+    (tileId: string, newTitle: string) => {
+      if (!selectedWorktree) return;
+
+      // Update local config
+      setTerminalConfig((prev) => ({
+        ...prev,
+        terminals: prev.terminals.map((terminal) =>
+          terminal.id === tileId ? { ...terminal, title: newTitle } : terminal
+        ),
+      }));
+
+      // Update global state
+      const globalConfig = globalTerminalState.get(selectedWorktree.path);
+      if (globalConfig) {
+        globalConfig.terminals = globalConfig.terminals.map((terminal) =>
+          terminal.id === tileId ? { ...terminal, title: newTitle } : terminal
+        );
+        globalTerminalState.set(selectedWorktree.path, globalConfig);
+      }
+    },
+    [selectedWorktree]
+  );
 
   // Load terminal configuration for the selected worktree
   useEffect(() => {
@@ -61,11 +66,13 @@ export const useWorktreeTerminals = ({
       try {
         // Check if we already have this worktree's terminal config in global state
         let config = globalTerminalState.get(selectedWorktree.path);
-        
+
         if (!config) {
           // Load from persistent storage
-          config = await window.electronAPI.getWorktreeTerminals(selectedWorktree.path);
-          
+          config = await window.electronAPI.getWorktreeTerminals(
+            selectedWorktree.path
+          );
+
           if (config.terminals.length === 0) {
             // Create default terminal if none exist
             const defaultTerminal: TerminalConfig = {
@@ -73,22 +80,24 @@ export const useWorktreeTerminals = ({
               title: "Terminal 1",
               type: "terminal",
             };
-            
+
             config = {
               terminals: [defaultTerminal],
               nextTerminalId: 2,
             };
-            
+
             // Save the default terminal
-            await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, config);
+            await window.electronAPI.saveWorktreeTerminals(
+              selectedWorktree.path,
+              config
+            );
           }
-          
+
           // Store in global state
           globalTerminalState.set(selectedWorktree.path, config);
         }
-        
+
         setTerminalConfig(config);
-        
       } catch (error) {
         console.error("Failed to load worktree terminals:", error);
         // Fallback to basic setup
@@ -103,7 +112,7 @@ export const useWorktreeTerminals = ({
 
   // Generate terminal tile data only
   const terminalTileData: TileData[] = [];
-  
+
   if (selectedWorktree) {
     // Add terminal tile data
     for (const terminal of terminalConfig.terminals) {
@@ -116,25 +125,31 @@ export const useWorktreeTerminals = ({
     }
   }
 
-  const handleCloseTile = useCallback(async (tileId: string) => {
-    if (!selectedWorktree) return;
+  const handleCloseTile = useCallback(
+    async (tileId: string) => {
+      if (!selectedWorktree) return;
 
-    // If it's a terminal, clean up the session and update configuration
-    if (tileId.includes("terminal-") || tileId.includes("claude-")) {
-      window.electronAPI.closeTerminal?.(tileId);
-      
-      const newConfig = {
-        ...terminalConfig,
-        terminals: terminalConfig.terminals.filter(t => t.id !== tileId)
-      };
-      
-      setTerminalConfig(newConfig);
-      globalTerminalState.set(selectedWorktree.path, newConfig);
-      
-      // Save to persistent storage
-      await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, newConfig);
-    }
-  }, [selectedWorktree, terminalConfig]);
+      // If it's a terminal, clean up the session and update configuration
+      if (tileId.includes("terminal-") || tileId.includes("claude-")) {
+        window.electronAPI.closeTerminal?.(tileId);
+
+        const newConfig = {
+          ...terminalConfig,
+          terminals: terminalConfig.terminals.filter((t) => t.id !== tileId),
+        };
+
+        setTerminalConfig(newConfig);
+        globalTerminalState.set(selectedWorktree.path, newConfig);
+
+        // Save to persistent storage
+        await window.electronAPI.saveWorktreeTerminals(
+          selectedWorktree.path,
+          newConfig
+        );
+      }
+    },
+    [selectedWorktree, terminalConfig]
+  );
 
   const handleSplitTile = useCallback(
     async (_tileId: string, _direction: "horizontal" | "vertical") => {
@@ -146,7 +161,7 @@ export const useWorktreeTerminals = ({
         title: `Terminal ${terminalConfig.nextTerminalId}`,
         type: "terminal",
       };
-      
+
       const newConfig = {
         terminals: [...terminalConfig.terminals, newTerminal],
         nextTerminalId: terminalConfig.nextTerminalId + 1,
@@ -154,9 +169,12 @@ export const useWorktreeTerminals = ({
 
       setTerminalConfig(newConfig);
       globalTerminalState.set(selectedWorktree.path, newConfig);
-      
+
       // Save to persistent storage
-      await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, newConfig);
+      await window.electronAPI.saveWorktreeTerminals(
+        selectedWorktree.path,
+        newConfig
+      );
     },
     [selectedWorktree, terminalConfig]
   );
@@ -171,7 +189,7 @@ export const useWorktreeTerminals = ({
       type: "claude",
       initialCommand: "claude",
     };
-    
+
     const newConfig = {
       terminals: [...terminalConfig.terminals, claudeTerminal],
       nextTerminalId: terminalConfig.nextTerminalId + 1,
@@ -179,9 +197,12 @@ export const useWorktreeTerminals = ({
 
     setTerminalConfig(newConfig);
     globalTerminalState.set(selectedWorktree.path, newConfig);
-    
+
     // Save to persistent storage
-    await window.electronAPI.saveWorktreeTerminals(selectedWorktree.path, newConfig);
+    await window.electronAPI.saveWorktreeTerminals(
+      selectedWorktree.path,
+      newConfig
+    );
   }, [selectedWorktree, terminalConfig]);
 
   return {

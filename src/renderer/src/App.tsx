@@ -72,18 +72,23 @@ const App: React.FC = () => {
         let worktreeToSelect: Worktree | null = null;
 
         // First, try to get the most recently used worktree
-        const recentWorktreePath = await window.electronAPI.getRecentWorktree(repoPath);
+        const recentWorktreePath = await window.electronAPI.getRecentWorktree(
+          repoPath
+        );
         if (recentWorktreePath) {
-          worktreeToSelect = repoWorktrees.find(wt => wt.path === recentWorktreePath) || null;
+          worktreeToSelect =
+            repoWorktrees.find((wt) => wt.path === recentWorktreePath) || null;
         }
 
         // If no recent worktree or it no longer exists, select the base/main worktree
         if (!worktreeToSelect) {
-          worktreeToSelect = repoWorktrees.find(wt => 
-            wt.branch === 'main' || 
-            wt.branch === 'master' || 
-            wt.path.endsWith(repoPath) // This is typically the base worktree
-          ) || repoWorktrees[0]; // Fall back to first worktree
+          worktreeToSelect =
+            repoWorktrees.find(
+              (wt) =>
+                wt.branch === "main" ||
+                wt.branch === "master" ||
+                wt.path.endsWith(repoPath) // This is typically the base worktree
+            ) || repoWorktrees[0]; // Fall back to first worktree
         }
 
         setSelectedWorktree(worktreeToSelect);
@@ -148,7 +153,6 @@ const App: React.FC = () => {
             rows: 24,
             initialCommand: result.initCommand,
           });
-          console.log("Created setup terminal for new worktree");
         } catch (error) {
           console.warn("Failed to create setup terminal:", error);
           // Don't fail the whole worktree creation if terminal creation fails
@@ -176,7 +180,7 @@ const App: React.FC = () => {
 
   const handleWorktreeSelect = async (worktree: Worktree | null) => {
     setSelectedWorktree(worktree);
-    
+
     // Track the most recently selected worktree for this repo
     if (worktree && currentRepo) {
       try {
@@ -195,10 +199,10 @@ const App: React.FC = () => {
     try {
       // Clean up terminals associated with this worktree
       await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
-      
+
       // Clean up frontend terminal state
       cleanupWorktreeState(worktree.path);
-      
+
       await window.electronAPI.archiveWorktree(currentRepo, worktree.path);
 
       // Refresh the worktree list
@@ -227,10 +231,10 @@ const App: React.FC = () => {
           try {
             // Clean up terminals associated with this worktree
             await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
-            
+
             // Clean up frontend terminal state
             cleanupWorktreeState(worktree.path);
-            
+
             // Retry with force option
             await window.electronAPI.archiveWorktree(
               currentRepo,
@@ -268,10 +272,10 @@ const App: React.FC = () => {
           try {
             // Clean up terminals associated with this worktree
             await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
-            
+
             // Clean up frontend terminal state
             cleanupWorktreeState(worktree.path);
-            
+
             // Retry with force option
             await window.electronAPI.archiveWorktree(
               currentRepo,
