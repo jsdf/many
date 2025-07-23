@@ -68,8 +68,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-repo-config", repoPath),
   saveRepoConfig: (repoPath: string, config: any) =>
     ipcRenderer.invoke("save-repo-config", repoPath, config),
-  archiveWorktree: (worktreePath: string) =>
-    ipcRenderer.invoke("archive-worktree", worktreePath),
+  archiveWorktree: (repoPath: string, worktreePath: string, force?: boolean) =>
+    ipcRenderer.invoke("archive-worktree", repoPath, worktreePath, force),
+  checkBranchMerged: (repoPath: string, branchName: string) =>
+    ipcRenderer.invoke("check-branch-merged", repoPath, branchName),
   mergeWorktree: (
     repoPath: string,
     fromBranch: string,

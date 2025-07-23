@@ -536,22 +536,177 @@ ipcMain.handle("open-vscode", async (event, dirPath) => {
   }
 });
 
-// Archive worktree (removes the working tree but keeps the branch)
-ipcMain.handle("archive-worktree", async (event, worktreePath) => {
+// Check if a branch is fully merged into the main/default branch
+ipcMain.handle("check-branch-merged", async (event, repoPath, branchName) => {
   try {
-    // Get the repository path from the worktree path
-    const repoPath = path.dirname(worktreePath);
     const git = simpleGit(repoPath);
 
-    // Remove the worktree
-    await git.raw(["worktree", "remove", worktreePath]);
+    // Get repository config to find the main branch
+    const appData = await loadAppData();
+    const repoConfig = appData.repositoryConfigs[repoPath] || {
+      mainBranch: null,
+      initCommand: null,
+      worktreeDirectory: null,
+    };
 
-    return true;
+    // Determine the main branch
+    let mainBranch = repoConfig.mainBranch;
+
+    if (!mainBranch) {
+      // Try to detect the default branch if not configured
+      try {
+        // Get the default branch from remote origin
+        const remoteResult = await git.raw([
+          "symbolic-ref",
+          "refs/remotes/origin/HEAD",
+        ]);
+        mainBranch = remoteResult.trim().replace("refs/remotes/origin/", "");
+      } catch {
+        // Fall back to common default branch names
+        const branches = await git.branch();
+        if (branches.all.includes("main")) {
+          mainBranch = "main";
+        } else if (branches.all.includes("master")) {
+          mainBranch = "master";
+        } else if (branches.all.includes("develop")) {
+          mainBranch = "develop";
+        } else {
+          // Use the current branch if no default found
+          mainBranch = branches.current;
+        }
+      }
+    }
+
+    // Check if branch is fully merged into main branch
+    try {
+      // Use git merge-base to check if the branch is an ancestor of main
+      const mergeBase = await git.raw(["merge-base", branchName, mainBranch]);
+      const branchCommit = await git.raw(["rev-parse", branchName]);
+
+      // If the merge base equals the branch commit, the branch is fully merged
+      const isFullyMerged = mergeBase.trim() === branchCommit.trim();
+
+      return {
+        isFullyMerged,
+        mainBranch,
+        branchName,
+      };
+    } catch (error) {
+      // If we can't determine merge status, assume it's not merged for safety
+      return {
+        isFullyMerged: false,
+        mainBranch,
+        branchName,
+        error: `Could not determine merge status: ${getErrorMessage(error)}`,
+      };
+    }
   } catch (error) {
-    console.error("Failed to archive worktree:", error);
-    throw new Error(`Failed to archive worktree: ${getErrorMessage(error)}`);
+    console.error("Failed to check branch merge status:", error);
+    throw new Error(
+      `Failed to check branch merge status: ${getErrorMessage(error)}`
+    );
   }
 });
+
+// Archive worktree (removes the working tree but keeps the branch)
+ipcMain.handle(
+  "archive-worktree",
+  async (event, repoPath, worktreePath, force = false) => {
+    try {
+      const git = simpleGit(repoPath);
+
+      if (!force) {
+        // Get the branch name for this worktree by parsing worktree list
+        const worktreeList = await git.raw(["worktree", "list", "--porcelain"]);
+
+        // Parse worktree list to find the branch for this worktree
+        interface WorktreeInfo {
+          path?: string;
+          commit?: string;
+          branch?: string;
+          bare?: boolean;
+        }
+
+        const parsed: WorktreeInfo[] = [];
+        const lines = worktreeList.split("\n");
+        let current: WorktreeInfo = {};
+
+        for (const line of lines) {
+          if (line.startsWith("worktree ")) {
+            if (current.path) parsed.push(current);
+            current = { path: line.substring(9) };
+          } else if (line.startsWith("HEAD ")) {
+            current.commit = line.substring(5);
+          } else if (line.startsWith("branch ")) {
+            current.branch = line.substring(7);
+          } else if (line.startsWith("bare")) {
+            current.bare = true;
+          }
+        }
+        if (current.path) parsed.push(current);
+
+        const currentWorktree = parsed.find((w) => w.path === worktreePath);
+
+        if (currentWorktree && currentWorktree.branch) {
+          // Get repository config to find the main branch
+          const appData = await loadAppData();
+          const repoConfig = appData.repositoryConfigs[repoPath] || {
+            mainBranch: null,
+            initCommand: null,
+            worktreeDirectory: null,
+          };
+
+          // Only check merge status if main branch is configured
+          if (repoConfig.mainBranch) {
+            try {
+              // Use git merge-base to check if the branch is an ancestor of main
+              const mergeBase = await git.raw([
+                "merge-base",
+                currentWorktree.branch,
+                repoConfig.mainBranch,
+              ]);
+              const branchCommit = await git.raw([
+                "rev-parse",
+                currentWorktree.branch,
+              ]);
+
+              // If the merge base equals the branch commit, the branch is fully merged
+              const isFullyMerged = mergeBase.trim() === branchCommit.trim();
+
+              if (!isFullyMerged) {
+                // Return a special error that the frontend can handle for user confirmation
+                const error = new Error(
+                  `UNMERGED_BRANCH:Branch '${currentWorktree.branch}' is not fully merged into '${repoConfig.mainBranch}'.`
+                );
+                error.name = "UnmergedBranchError";
+                throw error;
+              }
+            } catch (mergeCheckError: unknown) {
+              const errorMsg = getErrorMessage(mergeCheckError);
+              if (errorMsg.includes("UNMERGED_BRANCH:")) {
+                throw mergeCheckError;
+              }
+              // If we can't determine merge status, return a warning that the frontend can handle
+              const error = new Error(
+                `MERGE_CHECK_FAILED:Could not determine if branch '${currentWorktree.branch}' is merged into '${repoConfig.mainBranch}'.`
+              );
+              error.name = "MergeCheckFailedError";
+              throw error;
+            }
+          }
+        }
+      }
+
+      // Remove the worktree
+      await git.raw(["worktree", "remove", worktreePath]);
+
+      return true;
+    } catch (error) {
+      console.error("Failed to archive worktree:", error);
+      throw error; // Re-throw to preserve error type for frontend handling
+    }
+  }
+);
 
 // Merge worktree branch with options
 ipcMain.handle(

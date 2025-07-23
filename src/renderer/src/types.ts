@@ -60,7 +60,20 @@ export interface ElectronAPI {
   openInEditor(folderPath: string): Promise<boolean>;
   getRepoConfig(repoPath: string): Promise<RepositoryConfig>;
   saveRepoConfig(repoPath: string, config: RepositoryConfig): Promise<boolean>;
-  archiveWorktree(worktreePath: string): Promise<boolean>;
+  archiveWorktree(
+    repoPath: string,
+    worktreePath: string,
+    force?: boolean
+  ): Promise<boolean>;
+  checkBranchMerged(
+    repoPath: string,
+    branchName: string
+  ): Promise<{
+    isFullyMerged: boolean;
+    mainBranch: string;
+    branchName: string;
+    error?: string;
+  }>;
   mergeWorktree(
     repoPath: string,
     fromBranch: string,

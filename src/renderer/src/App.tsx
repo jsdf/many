@@ -1,194 +1,287 @@
-import React, { useState, useEffect } from 'react'
-import { Repository, Worktree, RepositoryConfig, MergeOptions } from './types'
-import Sidebar from './components/Sidebar'
-import MainContent from './components/MainContent'
-import CreateWorktreeModal from './components/CreateWorktreeModal'
-import AddRepoModal from './components/AddRepoModal'
-import MergeWorktreeModal from './components/MergeWorktreeModal'
-import RebaseWorktreeModal from './components/RebaseWorktreeModal'
+import React, { useState, useEffect } from "react";
+import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
+import Sidebar from "./components/Sidebar";
+import MainContent from "./components/MainContent";
+import CreateWorktreeModal from "./components/CreateWorktreeModal";
+import AddRepoModal from "./components/AddRepoModal";
+import MergeWorktreeModal from "./components/MergeWorktreeModal";
+import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 
 const App: React.FC = () => {
-  const [repositories, setRepositories] = useState<Repository[]>([])
-  const [currentRepo, setCurrentRepo] = useState<string | null>(null)
-  const [currentUsername, setCurrentUsername] = useState<string>('user')
-  const [worktrees, setWorktrees] = useState<Worktree[]>([])
-  const [selectedWorktree, setSelectedWorktree] = useState<Worktree | null>(null)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showAddRepoModal, setShowAddRepoModal] = useState(false)
-  const [showRepoConfigModal, setShowRepoConfigModal] = useState(false)
-  const [showMergeModal, setShowMergeModal] = useState(false)
-  const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null)
-  const [showRebaseModal, setShowRebaseModal] = useState(false)
-  const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(null)
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [currentRepo, setCurrentRepo] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string>("user");
+  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
+  const [selectedWorktree, setSelectedWorktree] = useState<Worktree | null>(
+    null
+  );
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddRepoModal, setShowAddRepoModal] = useState(false);
+  const [showRepoConfigModal, setShowRepoConfigModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null);
+  const [showRebaseModal, setShowRebaseModal] = useState(false);
+  const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(
+    null
+  );
 
   useEffect(() => {
-    loadSavedRepos()
-    restoreSelectedRepo()
-  }, [])
+    loadSavedRepos();
+    restoreSelectedRepo();
+  }, []);
 
   const loadSavedRepos = async () => {
     try {
-      const repos = await window.electronAPI.getSavedRepos()
-      setRepositories(repos)
+      const repos = await window.electronAPI.getSavedRepos();
+      setRepositories(repos);
     } catch (error) {
-      console.error('Failed to load saved repos:', error)
+      console.error("Failed to load saved repos:", error);
     }
-  }
+  };
 
   const restoreSelectedRepo = async () => {
     try {
-      const selectedRepo = await window.electronAPI.getSelectedRepo()
+      const selectedRepo = await window.electronAPI.getSelectedRepo();
       if (selectedRepo) {
-        setCurrentRepo(selectedRepo)
-        await selectRepo(selectedRepo)
+        setCurrentRepo(selectedRepo);
+        await selectRepo(selectedRepo);
       }
     } catch (error) {
-      console.error('Failed to restore selected repo:', error)
+      console.error("Failed to restore selected repo:", error);
     }
-  }
+  };
 
   const selectRepo = async (repoPath: string | null) => {
     if (!repoPath) {
-      setCurrentRepo(null)
-      setWorktrees([])
-      await window.electronAPI.setSelectedRepo(null)
-      return
+      setCurrentRepo(null);
+      setWorktrees([]);
+      await window.electronAPI.setSelectedRepo(null);
+      return;
     }
 
-    setCurrentRepo(repoPath)
+    setCurrentRepo(repoPath);
 
     try {
-      await window.electronAPI.setSelectedRepo(repoPath)
-      const username = await window.electronAPI.getGitUsername(repoPath)
-      setCurrentUsername(username)
-      const repoWorktrees = await window.electronAPI.getWorktrees(repoPath)
-      setWorktrees(repoWorktrees)
+      await window.electronAPI.setSelectedRepo(repoPath);
+      const username = await window.electronAPI.getGitUsername(repoPath);
+      setCurrentUsername(username);
+      const repoWorktrees = await window.electronAPI.getWorktrees(repoPath);
+      setWorktrees(repoWorktrees);
     } catch (error) {
-      console.error('Failed to load repo data:', error)
-      alert('Failed to load repository data. Please check the path.')
+      console.error("Failed to load repo data:", error);
+      alert("Failed to load repository data. Please check the path.");
     }
-  }
+  };
 
   const addRepository = async (repoPath: string) => {
     try {
-      await window.electronAPI.saveRepo(repoPath)
-      await loadSavedRepos()
-      setShowAddRepoModal(false)
-      setCurrentRepo(repoPath)
-      await selectRepo(repoPath)
+      await window.electronAPI.saveRepo(repoPath);
+      await loadSavedRepos();
+      setShowAddRepoModal(false);
+      setCurrentRepo(repoPath);
+      await selectRepo(repoPath);
     } catch (error) {
-      console.error('Failed to add repository:', error)
-      throw new Error('Failed to add repository. Please check the path.')
+      console.error("Failed to add repository:", error);
+      throw new Error("Failed to add repository. Please check the path.");
     }
-  }
+  };
 
   const createWorktree = async (branchName: string, baseBranch: string) => {
     if (!currentRepo) {
-      throw new Error('Please select a repository first')
+      throw new Error("Please select a repository first");
     }
 
     try {
-      const result = await window.electronAPI.createWorktree(currentRepo, branchName, baseBranch)
-      console.log('Created worktree:', result)
-      
+      const result = await window.electronAPI.createWorktree(
+        currentRepo,
+        branchName,
+        baseBranch
+      );
+      console.log("Created worktree:", result);
+
       // Refresh the worktree list
-      const updatedWorktrees = await window.electronAPI.getWorktrees(currentRepo)
-      setWorktrees(updatedWorktrees)
-      setShowCreateModal(false)
+      const updatedWorktrees = await window.electronAPI.getWorktrees(
+        currentRepo
+      );
+      setWorktrees(updatedWorktrees);
+      setShowCreateModal(false);
     } catch (error) {
-      console.error('Failed to create worktree:', error)
-      throw error
+      console.error("Failed to create worktree:", error);
+      throw error;
     }
-  }
+  };
 
   const saveRepoConfig = async (config: RepositoryConfig) => {
     if (!currentRepo) {
-      throw new Error('No repository selected')
+      throw new Error("No repository selected");
     }
 
     try {
-      await window.electronAPI.saveRepoConfig(currentRepo, config)
-      setShowRepoConfigModal(false)
+      await window.electronAPI.saveRepoConfig(currentRepo, config);
+      setShowRepoConfigModal(false);
     } catch (error) {
-      console.error('Failed to save repo config:', error)
-      throw error
+      console.error("Failed to save repo config:", error);
+      throw error;
     }
-  }
+  };
 
   const archiveWorktree = async (worktree: Worktree) => {
+    if (!currentRepo) {
+      throw new Error("No repository selected");
+    }
+
     try {
-      await window.electronAPI.archiveWorktree(worktree.path)
-      
+      await window.electronAPI.archiveWorktree(currentRepo, worktree.path);
+
       // Refresh the worktree list
       if (currentRepo) {
-        const updatedWorktrees = await window.electronAPI.getWorktrees(currentRepo)
-        setWorktrees(updatedWorktrees)
-        
+        const updatedWorktrees = await window.electronAPI.getWorktrees(
+          currentRepo
+        );
+        setWorktrees(updatedWorktrees);
+
         // Clear selection if the archived worktree was selected
         if (selectedWorktree === worktree) {
-          setSelectedWorktree(null)
+          setSelectedWorktree(null);
         }
       }
-    } catch (error) {
-      console.error('Failed to archive worktree:', error)
-      throw error
+    } catch (error: any) {
+      console.error("Failed to archive worktree:", error);
+
+      // Handle special merge check errors with user confirmation
+      if (error?.message?.includes("UNMERGED_BRANCH:")) {
+        const branchInfo = error.message.replace("UNMERGED_BRANCH:", "");
+        const confirmed = confirm(
+          `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
+        );
+
+        if (confirmed) {
+          try {
+            // Retry with force option
+            await window.electronAPI.archiveWorktree(
+              currentRepo,
+              worktree.path,
+              true
+            );
+
+            // Refresh the worktree list
+            if (currentRepo) {
+              const updatedWorktrees = await window.electronAPI.getWorktrees(
+                currentRepo
+              );
+              setWorktrees(updatedWorktrees);
+
+              // Clear selection if the archived worktree was selected
+              if (selectedWorktree === worktree) {
+                setSelectedWorktree(null);
+              }
+            }
+            return; // Success, exit the function
+          } catch (forceError) {
+            console.error("Failed to force archive worktree:", forceError);
+            throw forceError;
+          }
+        } else {
+          return; // User cancelled, exit without error
+        }
+      } else if (error?.message?.includes("MERGE_CHECK_FAILED:")) {
+        const branchInfo = error.message.replace("MERGE_CHECK_FAILED:", "");
+        const confirmed = confirm(
+          `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
+        );
+
+        if (confirmed) {
+          try {
+            // Retry with force option
+            await window.electronAPI.archiveWorktree(
+              currentRepo,
+              worktree.path,
+              true
+            );
+
+            // Refresh the worktree list
+            if (currentRepo) {
+              const updatedWorktrees = await window.electronAPI.getWorktrees(
+                currentRepo
+              );
+              setWorktrees(updatedWorktrees);
+
+              // Clear selection if the archived worktree was selected
+              if (selectedWorktree === worktree) {
+                setSelectedWorktree(null);
+              }
+            }
+            return; // Success, exit the function
+          } catch (forceError) {
+            console.error("Failed to force archive worktree:", forceError);
+            throw forceError;
+          }
+        } else {
+          return; // User cancelled, exit without error
+        }
+      }
+
+      // Re-throw other errors
+      throw error;
     }
-  }
+  };
 
   const openMergeModal = (worktree: Worktree) => {
-    setWorktreeToMerge(worktree)
-    setShowMergeModal(true)
-  }
+    setWorktreeToMerge(worktree);
+    setShowMergeModal(true);
+  };
 
   const openRebaseModal = (worktree: Worktree) => {
-    setWorktreeToRebase(worktree)
-    setShowRebaseModal(true)
-  }
+    setWorktreeToRebase(worktree);
+    setShowRebaseModal(true);
+  };
 
   const mergeWorktree = async (toBranch: string, options: MergeOptions) => {
     if (!currentRepo || !worktreeToMerge) {
-      throw new Error('No repository or worktree selected')
+      throw new Error("No repository or worktree selected");
     }
 
     try {
       await window.electronAPI.mergeWorktree(
-        currentRepo, 
-        worktreeToMerge.branch!, 
-        toBranch, 
+        currentRepo,
+        worktreeToMerge.branch!,
+        toBranch,
         options
-      )
-      
+      );
+
       // Refresh the worktree list
-      const updatedWorktrees = await window.electronAPI.getWorktrees(currentRepo)
-      setWorktrees(updatedWorktrees)
-      
-      setShowMergeModal(false)
-      setWorktreeToMerge(null)
+      const updatedWorktrees = await window.electronAPI.getWorktrees(
+        currentRepo
+      );
+      setWorktrees(updatedWorktrees);
+
+      setShowMergeModal(false);
+      setWorktreeToMerge(null);
     } catch (error) {
-      console.error('Failed to merge worktree:', error)
-      throw error
+      console.error("Failed to merge worktree:", error);
+      throw error;
     }
-  }
+  };
 
   const rebaseWorktree = async (ontoBranch: string) => {
     if (!currentRepo || !worktreeToRebase) {
-      throw new Error('No repository or worktree selected')
+      throw new Error("No repository or worktree selected");
     }
 
     try {
       await window.electronAPI.rebaseWorktree(
-        worktreeToRebase.path, 
-        worktreeToRebase.branch!, 
+        worktreeToRebase.path,
+        worktreeToRebase.branch!,
         ontoBranch
-      )
-      
-      setShowRebaseModal(false)
-      setWorktreeToRebase(null)
+      );
+
+      setShowRebaseModal(false);
+      setWorktreeToRebase(null);
     } catch (error) {
-      console.error('Failed to rebase worktree:', error)
-      throw error
+      console.error("Failed to rebase worktree:", error);
+      throw error;
     }
-  }
+  };
 
   return (
     <div className="app">
@@ -203,9 +296,9 @@ const App: React.FC = () => {
         onCreateWorktree={() => setShowCreateModal(true)}
         onConfigRepo={() => setShowRepoConfigModal(true)}
       />
-      
-      <MainContent 
-        selectedWorktree={selectedWorktree} 
+
+      <MainContent
+        selectedWorktree={selectedWorktree}
         currentRepo={currentRepo}
         onArchiveWorktree={archiveWorktree}
         onMergeWorktree={openMergeModal}
@@ -243,8 +336,8 @@ const App: React.FC = () => {
           fromBranch={worktreeToMerge.branch!}
           worktreePath={worktreeToMerge.path}
           onClose={() => {
-            setShowMergeModal(false)
-            setWorktreeToMerge(null)
+            setShowMergeModal(false);
+            setWorktreeToMerge(null);
           }}
           onMerge={mergeWorktree}
         />
@@ -256,14 +349,14 @@ const App: React.FC = () => {
           fromBranch={worktreeToRebase.branch!}
           worktreePath={worktreeToRebase.path}
           onClose={() => {
-            setShowRebaseModal(false)
-            setWorktreeToRebase(null)
+            setShowRebaseModal(false);
+            setWorktreeToRebase(null);
           }}
           onRebase={rebaseWorktree}
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default App
+export default App;
