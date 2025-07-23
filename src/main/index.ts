@@ -1,13 +1,17 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import path from "path";
 import { promises as fs } from "fs";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { spawn } from "child_process";
 import simpleGit from "simple-git";
+import { TerminalManager } from "./terminal-manager";
 
 const execAsync = promisify(exec);
 
 let mainWindow: BrowserWindow | null = null;
+let terminalManager: TerminalManager;
 
 // Get user data directory for storing app data
 const userDataPath = app.getPath("userData");
@@ -57,6 +61,9 @@ async function createWindow() {
       preload: path.join(__dirname, "../preload/index.js"),
     },
   });
+
+  // Initialize terminal manager with main window
+  terminalManager = new TerminalManager(mainWindow);
 
   // Save window bounds when moved or resized
   mainWindow.on("moved", saveWindowBounds);
@@ -297,6 +304,112 @@ ipcMain.handle("select-folder", async () => {
   return result.filePaths[0];
 });
 
+// Terminal-related IPC handlers
+ipcMain.handle("create-terminal-session", async (event, options) => {
+  return terminalManager.createTerminalSession(options);
+});
+
+ipcMain.handle("send-terminal-data", async (event, terminalId, data) => {
+  return terminalManager.sendTerminalData(terminalId, data);
+});
+
+ipcMain.handle("resize-terminal", async (event, terminalId, cols, rows) => {
+  terminalManager.resizeTerminal(terminalId, cols, rows);
+});
+
+ipcMain.handle("close-terminal", async (event, terminalId) => {
+  terminalManager.closeTerminal(terminalId);
+});
+
+// Quick Actions IPC handlers
+ipcMain.handle("open-in-file-manager", async (_, folderPath) => {
+  try {
+    await shell.openPath(folderPath);
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to open in file manager:", error);
+    throw new Error(`Failed to open folder: ${errorMessage}`);
+  }
+});
+
+ipcMain.handle("open-in-editor", async (_, folderPath) => {
+  try {
+    // Try to open with VS Code first, then fall back to default editor
+    const editors = ["code", "cursor", "subl", "atom"];
+
+    for (const editor of editors) {
+      try {
+        spawn(editor, [folderPath], { detached: true, stdio: "ignore" });
+        return true;
+      } catch (error) {
+        // Continue to next editor
+        continue;
+      }
+    }
+
+    // Fallback to system default
+    await shell.openPath(folderPath);
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to open in editor:", error);
+    throw new Error(`Failed to open in editor: ${errorMessage}`);
+  }
+});
+
+ipcMain.handle("open-in-terminal", async (_, folderPath) => {
+  try {
+    const platform = process.platform;
+
+    if (platform === "darwin") {
+      // macOS - open Terminal.app
+      spawn("open", ["-a", "Terminal", folderPath], {
+        detached: true,
+        stdio: "ignore",
+      });
+    } else if (platform === "win32") {
+      // Windows - open Command Prompt
+      spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${folderPath}"`], {
+        detached: true,
+        stdio: "ignore",
+      });
+    } else {
+      // Linux - try common terminals
+      const terminals = ["gnome-terminal", "konsole", "xterm"];
+      for (const terminal of terminals) {
+        try {
+          if (terminal === "gnome-terminal") {
+            spawn(terminal, ["--working-directory", folderPath], {
+              detached: true,
+              stdio: "ignore",
+            });
+          } else {
+            spawn(terminal, ["-e", "bash"], {
+              cwd: folderPath,
+              detached: true,
+              stdio: "ignore",
+            });
+          }
+          break;
+        } catch (error) {
+          continue;
+        }
+      }
+    }
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to open in terminal:", error);
+    throw new Error(`Failed to open terminal: ${errorMessage}`);
+  }
+});
+
+// Clean up terminals when app is about to quit
+app.on("before-quit", () => {
+  terminalManager?.cleanup();
+});
+
 // Get repository configuration
 ipcMain.handle("get-repo-config", async (event, repoPath) => {
   try {
@@ -443,7 +556,11 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to merge worktree:", error);
-      throw new Error(`Failed to merge worktree: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to merge worktree: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 );
@@ -465,7 +582,11 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to rebase worktree:", error);
-      throw new Error(`Failed to rebase worktree: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to rebase worktree: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 );
@@ -475,19 +596,27 @@ ipcMain.handle("get-worktree-status", async (event, worktreePath) => {
   try {
     const git = simpleGit(worktreePath);
     const status = await git.status();
-    
+
     return {
       modified: status.modified,
       not_added: status.not_added,
       deleted: status.deleted,
       created: status.created,
       staged: status.staged,
-      hasChanges: status.modified.length > 0 || status.not_added.length > 0 || status.deleted.length > 0 || status.created.length > 0,
-      hasStaged: status.staged.length > 0
+      hasChanges:
+        status.modified.length > 0 ||
+        status.not_added.length > 0 ||
+        status.deleted.length > 0 ||
+        status.created.length > 0,
+      hasStaged: status.staged.length > 0,
     };
   } catch (error) {
     console.error("Failed to get worktree status:", error);
-    throw new Error(`Failed to get worktree status: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to get worktree status: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 });
 
@@ -495,10 +624,14 @@ ipcMain.handle("get-worktree-status", async (event, worktreePath) => {
 ipcMain.handle("get-commit-log", async (event, worktreePath, baseBranch) => {
   try {
     const git = simpleGit(worktreePath);
-    
+
     // Get commits between base branch and HEAD with just the commit messages
-    const logOutput = await git.raw(["log", `${baseBranch}^..HEAD`, "--pretty=format:%s"]);
-    
+    const logOutput = await git.raw([
+      "log",
+      `${baseBranch}^..HEAD`,
+      "--pretty=format:%s",
+    ]);
+
     return logOutput.trim();
   } catch (error) {
     console.error("Failed to get commit log:", error);

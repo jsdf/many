@@ -1,23 +1,96 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  getWorktrees: (repoPath: string) => ipcRenderer.invoke('get-worktrees', repoPath),
-  getBranches: (repoPath: string) => ipcRenderer.invoke('get-branches', repoPath),
-  createWorktree: (repoPath: string, branchName: string, baseBranch?: string) => ipcRenderer.invoke('create-worktree', repoPath, branchName, baseBranch),
-  getGitUsername: (repoPath: string) => ipcRenderer.invoke('get-git-username', repoPath),
-  getSavedRepos: () => ipcRenderer.invoke('get-saved-repos'),
-  saveRepo: (repoPath: string) => ipcRenderer.invoke('save-repo', repoPath),
-  selectFolder: () => ipcRenderer.invoke('select-folder'),
-  getSelectedRepo: () => ipcRenderer.invoke('get-selected-repo'),
-  setSelectedRepo: (repoPath: string | null) => ipcRenderer.invoke('set-selected-repo', repoPath),
-  openDirectory: (dirPath: string) => ipcRenderer.invoke('open-directory', dirPath),
-  openTerminal: (dirPath: string) => ipcRenderer.invoke('open-terminal', dirPath),
-  openVSCode: (dirPath: string) => ipcRenderer.invoke('open-vscode', dirPath),
-  getRepoConfig: (repoPath: string) => ipcRenderer.invoke('get-repo-config', repoPath),
-  saveRepoConfig: (repoPath: string, config: any) => ipcRenderer.invoke('save-repo-config', repoPath, config),
-  archiveWorktree: (worktreePath: string) => ipcRenderer.invoke('archive-worktree', worktreePath),
-  mergeWorktree: (repoPath: string, fromBranch: string, toBranch: string, options: any) => ipcRenderer.invoke('merge-worktree', repoPath, fromBranch, toBranch, options),
-  rebaseWorktree: (worktreePath: string, fromBranch: string, ontoBranch: string) => ipcRenderer.invoke('rebase-worktree', worktreePath, fromBranch, ontoBranch),
-  getWorktreeStatus: (worktreePath: string) => ipcRenderer.invoke('get-worktree-status', worktreePath),
-  getCommitLog: (worktreePath: string, baseBranch: string) => ipcRenderer.invoke('get-commit-log', worktreePath, baseBranch),
-})
+contextBridge.exposeInMainWorld("electronAPI", {
+  // Git and worktree APIs
+  getWorktrees: (repoPath: string) =>
+    ipcRenderer.invoke("get-worktrees", repoPath),
+  getBranches: (repoPath: string) =>
+    ipcRenderer.invoke("get-branches", repoPath),
+  createWorktree: (repoPath: string, branchName: string, baseBranch?: string) =>
+    ipcRenderer.invoke("create-worktree", repoPath, branchName, baseBranch),
+  getGitUsername: (repoPath: string) =>
+    ipcRenderer.invoke("get-git-username", repoPath),
+  getSavedRepos: () => ipcRenderer.invoke("get-saved-repos"),
+  saveRepo: (repoPath: string) => ipcRenderer.invoke("save-repo", repoPath),
+  selectFolder: () => ipcRenderer.invoke("select-folder"),
+  getSelectedRepo: () => ipcRenderer.invoke("get-selected-repo"),
+  setSelectedRepo: (repoPath: string | null) =>
+    ipcRenderer.invoke("set-selected-repo", repoPath),
+
+  // Terminal APIs
+  createTerminalSession: (options: {
+    terminalId: string;
+    workingDirectory?: string;
+    cols: number;
+    rows: number;
+    initialCommand?: string;
+  }) => ipcRenderer.invoke("create-terminal-session", options),
+
+  sendTerminalData: (terminalId: string, data: string) =>
+    ipcRenderer.invoke("send-terminal-data", terminalId, data),
+
+  resizeTerminal: (terminalId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke("resize-terminal", terminalId, cols, rows),
+
+  closeTerminal: (terminalId: string) =>
+    ipcRenderer.invoke("close-terminal", terminalId),
+
+  // Terminal event listeners
+  onTerminalData: (terminalId: string, callback: (data: string) => void) => {
+    const channel = `terminal-data-${terminalId}`;
+    const handler = (_event: any, data: string) => callback(data);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
+  },
+
+  onTerminalExit: (terminalId: string, callback: () => void) => {
+    const channel = `terminal-exit-${terminalId}`;
+    const handler = () => callback();
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
+  },
+
+  onTerminalTitle: (terminalId: string, callback: (title: string) => void) => {
+    const channel = `terminal-title-${terminalId}`;
+    const handler = (_event: any, title: string) => callback(title);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
+  },
+
+  // Quick Actions APIs
+  openInFileManager: (folderPath: string) =>
+    ipcRenderer.invoke("open-in-file-manager", folderPath),
+  openInEditor: (folderPath: string) =>
+    ipcRenderer.invoke("open-in-editor", folderPath),
+  openInTerminal: (folderPath: string) =>
+    ipcRenderer.invoke("open-in-terminal", folderPath),
+  getRepoConfig: (repoPath: string) =>
+    ipcRenderer.invoke("get-repo-config", repoPath),
+  saveRepoConfig: (repoPath: string, config: any) =>
+    ipcRenderer.invoke("save-repo-config", repoPath, config),
+  archiveWorktree: (worktreePath: string) =>
+    ipcRenderer.invoke("archive-worktree", worktreePath),
+  mergeWorktree: (
+    repoPath: string,
+    fromBranch: string,
+    toBranch: string,
+    options: any
+  ) =>
+    ipcRenderer.invoke(
+      "merge-worktree",
+      repoPath,
+      fromBranch,
+      toBranch,
+      options
+    ),
+  rebaseWorktree: (
+    worktreePath: string,
+    fromBranch: string,
+    ontoBranch: string
+  ) =>
+    ipcRenderer.invoke("rebase-worktree", worktreePath, fromBranch, ontoBranch),
+  getWorktreeStatus: (worktreePath: string) =>
+    ipcRenderer.invoke("get-worktree-status", worktreePath),
+  getCommitLog: (worktreePath: string, baseBranch: string) =>
+    ipcRenderer.invoke("get-commit-log", worktreePath, baseBranch),
+});

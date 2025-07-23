@@ -119,6 +119,7 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .btn:disabled {
@@ -153,6 +154,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: 40px;
+    width: 100%;
 }
 
 .welcome {
@@ -345,6 +347,303 @@ body {
 
 .modal-footer .btn {
     min-width: 80px;
+}
+
+/* Worktree view styles */
+.worktree-view {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    height: 100vh;
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+}
+
+.worktree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+}
+
+.worktree-title h2 {
+    margin: 0;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.worktree-title .worktree-path {
+    display: block;
+    font-size: 12px;
+    color: #8c8c8c;
+    margin-top: 2px;
+}
+
+.worktree-controls {
+    display: flex;
+    gap: 8px;
+}
+
+/* Tiling layout styles */
+.tiling-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.tiling-layout {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    position: relative;
+}
+
+.tiling-layout.single {
+    display: flex;
+}
+
+.tiling-layout.grid {
+    display: grid;
+    gap: 2px;
+    background: #3c3c3c;
+}
+
+.tiling-layout.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8c8c8c;
+    font-style: italic;
+}
+
+/* Tile styles */
+.tile {
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+    border: 1px solid #3c3c3c;
+    overflow: hidden;
+    position: relative;
+}
+
+.tile.resizing {
+    user-select: none;
+}
+
+.tile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: #2d2d2d;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+    min-height: 32px;
+}
+
+.tile-title {
+    font-size: 13px;
+    color: #ffffff;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tile-controls {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.tile:hover .tile-controls {
+    opacity: 1;
+}
+
+.tile-control-btn {
+    background: none;
+    border: none;
+    color: #8c8c8c;
+    font-size: 14px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+}
+
+.tile-control-btn:hover {
+    background: #3c3c3c;
+    color: #ffffff;
+}
+
+.tile-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.tile-divider {
+    position: absolute;
+    z-index: 10;
+    background: #3c3c3c;
+}
+
+.tile-divider.horizontal {
+    width: 100%;
+    height: 2px;
+    cursor: ns-resize;
+}
+
+.tile-divider.vertical {
+    width: 2px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.tile-divider:hover {
+    background: #0e639c;
+}
+
+/* Terminal styles */
+.terminal-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #1e1e1e;
+}
+
+.terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.status-indicator {
+    font-size: 8px;
+}
+
+.status-indicator.connected {
+    color: #0dbc79;
+}
+
+.status-indicator.disconnected {
+    color: #cd3131;
+}
+
+.terminal-path {
+    color: #8c8c8c;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+}
+
+.terminal-wrapper {
+    flex: 1;
+    background: #1e1e1e;
+}
+
+.terminal-wrapper .xterm-viewport {
+    background: transparent !important;
+}
+
+.terminal-wrapper .xterm-screen {
+    background: transparent !important;
+}
+
+/* Worktree details content */
+.worktree-details-content {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.worktree-info {
+    margin-bottom: 30px;
+}
+
+.worktree-info h2 {
+    margin-bottom: 16px;
+    font-size: 18px;
+    color: #ffffff;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    background: #2d2d2d;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.info-item {
+    display: contents;
+}
+
+.info-item label {
+    color: #8c8c8c;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.info-item span {
+    color: #ffffff;
+    font-size: 13px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+}
+
+.worktree-actions {
+    margin-bottom: 30px;
+}
+
+.worktree-actions h3 {
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+    font-size: 13px;
+    padding: 8px 12px;
+}
+
+.git-status h3 {
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.status-info {
+    background: #2d2d2d;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.status-info p {
+    color: #8c8c8c;
+    margin: 0;
+    font-style: italic;
 }
 
 /* Worktree Details */
