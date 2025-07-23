@@ -1,154 +1,172 @@
-import React, { useState, useEffect } from 'react'
-import { RepositoryConfig } from '../types'
+import React, { useState, useEffect } from "react";
+import { RepositoryConfig } from "../types";
 
 interface AddRepoModalProps {
-  mode: 'add' | 'config'
-  currentRepo?: string | null
-  onClose: () => void
-  onAdd?: (repoPath: string) => Promise<void>
-  onSaveConfig?: (config: RepositoryConfig) => Promise<void>
+  mode: "add" | "config";
+  currentRepo?: string | null;
+  onClose: () => void;
+  onAdd?: (repoPath: string) => Promise<void>;
+  onSaveConfig?: (config: RepositoryConfig) => Promise<void>;
 }
 
-const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose, onAdd, onSaveConfig }) => {
-  const [repoPath, setRepoPath] = useState('')
-  const [mainBranch, setMainBranch] = useState('')
-  const [initCommand, setInitCommand] = useState('')
-  const [worktreeDirectory, setWorktreeDirectory] = useState('')
-  const [branches, setBranches] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const AddRepoModal: React.FC<AddRepoModalProps> = ({
+  mode,
+  currentRepo,
+  onClose,
+  onAdd,
+  onSaveConfig,
+}) => {
+  const [repoPath, setRepoPath] = useState("");
+  const [mainBranch, setMainBranch] = useState("");
+  const [initCommand, setInitCommand] = useState("");
+  const [worktreeDirectory, setWorktreeDirectory] = useState("");
+  const [branches, setBranches] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const defaultBranches = ['main', 'master', 'dev', 'develop', 'trunk']
-  const isConfigMode = mode === 'config'
+  const defaultBranches = ["main", "master", "dev", "develop", "trunk"];
+  const isConfigMode = mode === "config";
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
+      if (e.key === "Escape") {
+        onClose();
       }
-    }
-    
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     const loadConfigData = async () => {
       if (isConfigMode && currentRepo) {
-        setIsLoadingBranches(true)
+        setIsLoadingBranches(true);
         try {
           // Load current config
-          const config = await window.electronAPI.getRepoConfig(currentRepo)
-          setMainBranch(config.mainBranch || '')
-          setInitCommand(config.initCommand || '')
-          setWorktreeDirectory(config.worktreeDirectory || '')
-          
+          const config = await window.electronAPI.getRepoConfig(currentRepo);
+          setMainBranch(config.mainBranch || "");
+          setInitCommand(config.initCommand || "");
+          setWorktreeDirectory(config.worktreeDirectory || "");
+
           // Load available branches
-          const repoBranches = await window.electronAPI.getBranches(currentRepo)
-          setBranches(repoBranches)
-          
+          const repoBranches = await window.electronAPI.getBranches(
+            currentRepo
+          );
+          setBranches(repoBranches);
+
           // Auto-select default if no main branch is configured
           if (!config.mainBranch) {
-            const defaultBranch = defaultBranches.find(branch => 
+            const defaultBranch = defaultBranches.find((branch) =>
               repoBranches.includes(branch)
-            )
+            );
             if (defaultBranch) {
-              setMainBranch(defaultBranch)
+              setMainBranch(defaultBranch);
             } else if (repoBranches.length > 0) {
-              setMainBranch(repoBranches[0])
+              setMainBranch(repoBranches[0]);
             }
           }
         } catch (error) {
-          console.error('Failed to load config data:', error)
-          setError('Failed to load repository data')
+          console.error("Failed to load config data:", error);
+          setError("Failed to load repository data");
         } finally {
-          setIsLoadingBranches(false)
+          setIsLoadingBranches(false);
         }
       }
-    }
+    };
 
-    loadConfigData()
-  }, [isConfigMode, currentRepo])
+    loadConfigData();
+  }, [isConfigMode, currentRepo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (isConfigMode) {
       if (!mainBranch.trim()) {
-        setError('Please select a main branch')
-        return
+        setError("Please select a main branch");
+        return;
       }
 
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
       try {
-        await onSaveConfig!({ 
+        await onSaveConfig!({
           mainBranch: mainBranch.trim(),
           initCommand: initCommand.trim() || null,
-          worktreeDirectory: worktreeDirectory.trim() || null
-        })
+          worktreeDirectory: worktreeDirectory.trim() || null,
+        });
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to save configuration')
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Failed to save configuration"
+        );
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     } else {
       if (!repoPath.trim()) {
-        setError('Please enter a repository path')
-        return
+        setError("Please enter a repository path");
+        return;
       }
 
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
       try {
-        await onAdd!(repoPath.trim())
+        await onAdd!(repoPath.trim());
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to add repository')
+        setError(
+          error instanceof Error ? error.message : "Failed to add repository"
+        );
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
-  }
+  };
 
   const handleBrowse = async () => {
     try {
-      const folderPath = await window.electronAPI.selectFolder()
+      const folderPath = await window.electronAPI.selectFolder();
       if (folderPath) {
-        setRepoPath(folderPath)
+        setRepoPath(folderPath);
       }
     } catch (error) {
-      console.error('Failed to select folder:', error)
-      setError('Failed to open folder picker')
+      console.error("Failed to select folder:", error);
+      setError("Failed to open folder picker");
     }
-  }
+  };
 
   const handleBrowseWorktreeDir = async () => {
     try {
-      const folderPath = await window.electronAPI.selectFolder()
+      const folderPath = await window.electronAPI.selectFolder();
       if (folderPath) {
-        setWorktreeDirectory(folderPath)
+        setWorktreeDirectory(folderPath);
       }
     } catch (error) {
-      console.error('Failed to select folder:', error)
-      setError('Failed to open folder picker')
+      console.error("Failed to select folder:", error);
+      setError("Failed to open folder picker");
     }
-  }
+  };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
   return (
     <div className="modal show" onClick={handleBackdropClick}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isConfigMode ? 'Repository Configuration' : 'Add Repository'}</h3>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <h3>
+            {isConfigMode ? "Repository Configuration" : "Add Repository"}
+          </h3>
+          <button className="modal-close" onClick={onClose}>
+            &times;
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
@@ -166,7 +184,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
                       <option value="">Loading branches...</option>
                     ) : (
                       <>
-                        {branches.map(branch => (
+                        {branches.map((branch) => (
                           <option key={branch} value={branch}>
                             {branch}
                           </option>
@@ -174,26 +192,44 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
                       </>
                     )}
                   </select>
-                  <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
-                    This branch will be used as the default base branch when creating new worktrees.
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#8c8c8c",
+                      marginTop: "8px",
+                    }}
+                  >
+                    This branch will be used as the default base branch when
+                    creating new worktrees.
                   </p>
                 </div>
                 <div className="form-group">
-                  <label htmlFor="init-command-input">Initialization command (optional):</label>
+                  <label htmlFor="init-command-input">
+                    Initialization command (optional):
+                  </label>
                   <input
                     type="text"
                     id="init-command-input"
                     value={initCommand}
                     onChange={(e) => setInitCommand(e.target.value)}
-                    placeholder="npm install"
+                    placeholder="e.g. npm install"
                     disabled={isLoading}
                   />
-                  <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
-                    This command will be executed in each new worktree after it's created.
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#8c8c8c",
+                      marginTop: "8px",
+                    }}
+                  >
+                    This command will be executed in each new worktree after
+                    it's created.
                   </p>
                 </div>
                 <div className="form-group">
-                  <label htmlFor="worktree-directory-input">Worktree directory (optional):</label>
+                  <label htmlFor="worktree-directory-input">
+                    Worktree directory (optional):
+                  </label>
                   <div className="path-input-group">
                     <input
                       type="text"
@@ -203,17 +239,24 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
                       placeholder="Leave empty to use parent directory of repo"
                       disabled={isLoading}
                     />
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary" 
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
                       onClick={handleBrowseWorktreeDir}
                       disabled={isLoading}
                     >
                       Browse...
                     </button>
                   </div>
-                  <p style={{ fontSize: '13px', color: '#8c8c8c', marginTop: '8px' }}>
-                    Directory where new worktrees will be created. Defaults to parent directory of the repository if not set.
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#8c8c8c",
+                      marginTop: "8px",
+                    }}
+                  >
+                    Directory where new worktrees will be created. Defaults to
+                    parent directory of the repository if not set.
                   </p>
                 </div>
               </>
@@ -230,9 +273,9 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
                     autoFocus
                     disabled={isLoading}
                   />
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
                     onClick={handleBrowse}
                     disabled={isLoading}
                   >
@@ -244,26 +287,37 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({ mode, currentRepo, onClose,
             {error && <p className="error-message">{error}</p>}
           </div>
           <div className="modal-footer">
-            <button 
-              type="button" 
-              className="btn btn-secondary" 
+            <button
+              type="button"
+              className="btn btn-secondary"
               onClick={onClose}
               disabled={isLoading}
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn btn-primary"
-              disabled={isLoading || (isConfigMode ? (!mainBranch.trim() || isLoadingBranches) : !repoPath.trim())}
+              disabled={
+                isLoading ||
+                (isConfigMode
+                  ? !mainBranch.trim() || isLoadingBranches
+                  : !repoPath.trim())
+              }
             >
-              {isLoading ? (isConfigMode ? 'Saving...' : 'Adding...') : (isConfigMode ? 'Save Configuration' : 'Add Repository')}
+              {isLoading
+                ? isConfigMode
+                  ? "Saving..."
+                  : "Adding..."
+                : isConfigMode
+                ? "Save Configuration"
+                : "Add Repository"}
             </button>
           </div>
         </form>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default AddRepoModal
+export default AddRepoModal;
