@@ -107,4 +107,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-worktree-status", worktreePath),
   getCommitLog: (worktreePath: string, baseBranch: string) =>
     ipcRenderer.invoke("get-commit-log", worktreePath, baseBranch),
+  getRecentWorktree: (repoPath: string) =>
+    ipcRenderer.invoke("get-recent-worktree", repoPath),
+  setRecentWorktree: (repoPath: string, worktreePath: string) =>
+    ipcRenderer.invoke("set-recent-worktree", repoPath, worktreePath),
 });

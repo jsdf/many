@@ -100,6 +100,8 @@ export interface ElectronAPI {
   ): Promise<boolean>;
   getWorktreeStatus(worktreePath: string): Promise<GitStatus>;
   getCommitLog(worktreePath: string, baseBranch: string): Promise<string>;
+  getRecentWorktree(repoPath: string): Promise<string | null>;
+  setRecentWorktree(repoPath: string, worktreePath: string): Promise<boolean>;
 
   // Terminal-related APIs
   createTerminalSession(

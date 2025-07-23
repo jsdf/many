@@ -42,6 +42,7 @@ interface AppData {
   repositories: Repository[];
   repositoryConfigs: Record<string, RepositoryConfig>;
   selectedRepo: string | null;
+  recentWorktrees: Record<string, string>; // repoPath -> worktreePath
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, WorktreeTerminals>; // worktreePath -> terminal configs
 }
@@ -55,6 +56,7 @@ const defaultAppData: AppData = {
   repositories: [],
   repositoryConfigs: {},
   selectedRepo: null,
+  recentWorktrees: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},
 };
@@ -407,4 +409,28 @@ ipcMain.handle("get-worktree-status", async (_, worktreePath) => {
 // Get git log for merge commit message
 ipcMain.handle("get-commit-log", async (_, worktreePath, baseBranch) => {
   return gitOps.getCommitLog(worktreePath, baseBranch);
+});
+
+// Get most recent worktree for a repository
+ipcMain.handle("get-recent-worktree", async (_, repoPath) => {
+  try {
+    const appData = await loadAppData();
+    return appData.recentWorktrees[repoPath] || null;
+  } catch (error) {
+    console.error("Failed to get recent worktree:", error);
+    return null;
+  }
+});
+
+// Set most recent worktree for a repository
+ipcMain.handle("set-recent-worktree", async (_, repoPath, worktreePath) => {
+  try {
+    const appData = await loadAppData();
+    appData.recentWorktrees[repoPath] = worktreePath;
+    await saveAppData(appData);
+    return true;
+  } catch (error) {
+    console.error("Failed to set recent worktree:", error);
+    return false;
+  }
 });

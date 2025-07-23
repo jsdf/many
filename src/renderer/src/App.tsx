@@ -55,6 +55,7 @@ const App: React.FC = () => {
     if (!repoPath) {
       setCurrentRepo(null);
       setWorktrees([]);
+      setSelectedWorktree(null);
       await window.electronAPI.setSelectedRepo(null);
       return;
     }
@@ -65,6 +66,30 @@ const App: React.FC = () => {
       await window.electronAPI.setSelectedRepo(repoPath);
       const repoWorktrees = await window.electronAPI.getWorktrees(repoPath);
       setWorktrees(repoWorktrees);
+
+      // Auto-select the most recent worktree or default to main/base branch
+      if (repoWorktrees.length > 0) {
+        let worktreeToSelect: Worktree | null = null;
+
+        // First, try to get the most recently used worktree
+        const recentWorktreePath = await window.electronAPI.getRecentWorktree(repoPath);
+        if (recentWorktreePath) {
+          worktreeToSelect = repoWorktrees.find(wt => wt.path === recentWorktreePath) || null;
+        }
+
+        // If no recent worktree or it no longer exists, select the base/main worktree
+        if (!worktreeToSelect) {
+          worktreeToSelect = repoWorktrees.find(wt => 
+            wt.branch === 'main' || 
+            wt.branch === 'master' || 
+            wt.path.endsWith(repoPath) // This is typically the base worktree
+          ) || repoWorktrees[0]; // Fall back to first worktree
+        }
+
+        setSelectedWorktree(worktreeToSelect);
+      } else {
+        setSelectedWorktree(null);
+      }
     } catch (error) {
       console.error("Failed to load repo data:", error);
       alert("Failed to load repository data. Please check the path.");
@@ -108,7 +133,7 @@ const App: React.FC = () => {
         (wt) => wt.path === result.path
       );
       if (newWorktree) {
-        setSelectedWorktree(newWorktree);
+        await handleWorktreeSelect(newWorktree);
       }
 
       setShowCreateModal(false);
@@ -146,6 +171,19 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Failed to save repo config:", error);
       throw error;
+    }
+  };
+
+  const handleWorktreeSelect = async (worktree: Worktree | null) => {
+    setSelectedWorktree(worktree);
+    
+    // Track the most recently selected worktree for this repo
+    if (worktree && currentRepo) {
+      try {
+        await window.electronAPI.setRecentWorktree(currentRepo, worktree.path);
+      } catch (error) {
+        console.error("Failed to save recent worktree:", error);
+      }
     }
   };
 
@@ -333,7 +371,7 @@ const App: React.FC = () => {
         worktrees={worktrees}
         selectedWorktree={selectedWorktree}
         onRepoSelect={selectRepo}
-        onWorktreeSelect={setSelectedWorktree}
+        onWorktreeSelect={handleWorktreeSelect}
         onAddRepo={() => setShowAddRepoModal(true)}
         onCreateWorktree={() => setShowCreateModal(true)}
         onConfigRepo={() => setShowRepoConfigModal(true)}
