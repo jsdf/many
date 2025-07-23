@@ -60,8 +60,13 @@ export class TerminalManager {
           EDITOR: process.env.EDITOR,
           PAGER: process.env.PAGER,
           
-          // Git configuration
+          // Git configuration - pass through all Git-related environment variables
           GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
+          GIT_CONFIG_SYSTEM: process.env.GIT_CONFIG_SYSTEM,
+          GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
+          GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL,
+          GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
+          GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL,
           
           // Excludes npm_config_prefix and other Electron/Node variables
         }
@@ -103,7 +108,7 @@ export class TerminalManager {
 
       return { terminalId };
     } catch (error) {
-      throw new Error(`Failed to create terminal session: ${error.message}`);
+      throw new Error(`Failed to create terminal session: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
