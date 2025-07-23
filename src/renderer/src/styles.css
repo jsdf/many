@@ -553,6 +553,7 @@ body {
 .terminal-wrapper {
     flex: 1;
     background: #1e1e1e;
+    padding: 2px;
 }
 
 .terminal-wrapper .xterm-viewport {
