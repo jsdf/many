@@ -36,7 +36,7 @@ Features/TODO
 - bugs
   - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
-  - [ ] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
+  - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
 - chores
   - [ ] split components and css into reasonable modules
     - [ ] too many components in MainContent.tsx
