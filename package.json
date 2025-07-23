@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "tsc --noEmit && electron-vite build",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },

@@ -236,22 +236,11 @@ ipcMain.handle(
         ]);
       }
 
-      // Execute initialization command if configured
-      if (repoConfiguration?.initCommand) {
-        try {
-          console.log(
-            `Running initialization command: ${repoConfiguration.initCommand}`
-          );
-          await execAsync(repoConfiguration.initCommand, { cwd: worktreePath });
-        } catch (error) {
-          console.warn(
-            `Initialization command failed: ${getErrorMessage(error)}`
-          );
-          // Don't fail worktree creation if init command fails
-        }
-      }
-
-      return { path: worktreePath, branch: sanitizedBranchName };
+      return {
+        path: worktreePath,
+        branch: sanitizedBranchName,
+        initCommand: repoConfiguration?.initCommand || null,
+      };
     } catch (error) {
       throw new Error(`Failed to create worktree: ${getErrorMessage(error)}`);
     }

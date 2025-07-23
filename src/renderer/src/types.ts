@@ -52,7 +52,7 @@ export interface ElectronAPI {
     repoPath: string,
     branchName: string,
     baseBranch?: string
-  ): Promise<{ path: string }>;
+  ): Promise<{ path: string; branch: string; initCommand?: string | null }>;
   getGitUsername(repoPath: string): Promise<string>;
   selectFolder(): Promise<string | null>;
   openInFileManager(folderPath: string): Promise<boolean>;
@@ -95,9 +95,18 @@ export interface ElectronAPI {
   sendTerminalData(terminalId: string, data: string): Promise<void>;
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
   closeTerminal(terminalId: string): Promise<void>;
-  onTerminalData(terminalId: string, callback: (data: string) => void): void;
-  onTerminalExit(terminalId: string, callback: () => void): void;
-  onTerminalTitle(terminalId: string, callback: (title: string) => void): void;
+  onTerminalData(
+    terminalId: string,
+    callback: (data: string) => void
+  ): (() => void) | undefined;
+  onTerminalExit(
+    terminalId: string,
+    callback: () => void
+  ): (() => void) | undefined;
+  onTerminalTitle(
+    terminalId: string,
+    callback: (title: string) => void
+  ): (() => void) | undefined;
 }
 
 declare global {

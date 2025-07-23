@@ -104,7 +104,33 @@ const App: React.FC = () => {
         currentRepo
       );
       setWorktrees(updatedWorktrees);
+
+      // Find the newly created worktree and select it
+      const newWorktree = updatedWorktrees.find(
+        (wt) => wt.path === result.path
+      );
+      if (newWorktree) {
+        setSelectedWorktree(newWorktree);
+      }
+
       setShowCreateModal(false);
+
+      // If there's an initialization command, create a terminal to run it immediately
+      if (result.initCommand && result.path) {
+        try {
+          await window.electronAPI.createTerminalSession({
+            terminalId: `setup-${Date.now()}`,
+            workingDirectory: result.path,
+            cols: 80,
+            rows: 24,
+            initialCommand: result.initCommand,
+          });
+          console.log("Created setup terminal for new worktree");
+        } catch (error) {
+          console.warn("Failed to create setup terminal:", error);
+          // Don't fail the whole worktree creation if terminal creation fails
+        }
+      }
     } catch (error) {
       console.error("Failed to create worktree:", error);
       throw error;
