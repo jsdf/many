@@ -55,9 +55,9 @@ export interface ElectronAPI {
   ): Promise<{ path: string }>;
   getGitUsername(repoPath: string): Promise<string>;
   selectFolder(): Promise<string | null>;
-  openInDirectory(dirPath: string): Promise<boolean>;
-  openInTerminal(dirPath: string): Promise<boolean>;
-  openInVSCode(dirPath: string): Promise<boolean>;
+  openInFileManager(folderPath: string): Promise<boolean>;
+  openInTerminal(folderPath: string): Promise<boolean>;
+  openInEditor(folderPath: string): Promise<boolean>;
   getRepoConfig(repoPath: string): Promise<RepositoryConfig>;
   saveRepoConfig(repoPath: string, config: RepositoryConfig): Promise<boolean>;
   archiveWorktree(worktreePath: string): Promise<boolean>;

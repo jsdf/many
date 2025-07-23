@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Many Worktree Manager is an Electron desktop application for managing Git worktrees. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
 
-Features
+Features/TODO
 
 - [x] add/manage repos
 - [x] lists worktrees in the left sidebar
@@ -27,6 +27,9 @@ Features
 - [ ] per repo settings
   - [x] command to init a new worktree (e.g. `npm install`)
   - [ ] commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
+- chores
+  - [ ] split components and css into reasonable modules
+  - [ ] split backend into reasonable modules
 
 don't forget to update this list if you finish implementing a feature
 
@@ -146,12 +149,15 @@ The application uses secure IPC handlers in main process:
 The application uses a modern Electron + React + TypeScript architecture:
 
 **Main Process**:
+
 - `src/main/index.ts` - Main process, IPC handlers, Git operations
 
 **Preload Scripts**:
+
 - `src/preload/index.ts` - Security bridge, API exposure
 
 **Renderer Process (React + TypeScript)**:
+
 - `src/renderer/src/App.tsx` - Main application component and state management
 - `src/renderer/src/components/` - React components:
   - `Sidebar.tsx` - Repository selector, worktree list

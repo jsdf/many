@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
-import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import path from "path";
 import { promises as fs } from "fs";
 import { exec } from "child_process";
@@ -10,15 +9,40 @@ import { TerminalManager } from "./terminal-manager";
 
 const execAsync = promisify(exec);
 
+// Utility function to safely extract error message
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 let mainWindow: BrowserWindow | null = null;
 let terminalManager: TerminalManager;
+
+// Type definitions
+interface Repository {
+  path: string;
+  name: string;
+  addedAt: string;
+}
+
+interface RepositoryConfig {
+  mainBranch: string | null;
+  initCommand: string | null;
+  worktreeDirectory: string | null;
+}
+
+interface AppData {
+  repositories: Repository[];
+  repositoryConfigs: Record<string, RepositoryConfig>;
+  selectedRepo: string | null;
+  windowBounds: { width: number; height: number; x?: number; y?: number };
+}
 
 // Get user data directory for storing app data
 const userDataPath = app.getPath("userData");
 const dataFilePath = path.join(userDataPath, "app-data.json");
 
 // Default app data structure
-const defaultAppData = {
+const defaultAppData: AppData = {
   repositories: [],
   repositoryConfigs: {},
   selectedRepo: null,
@@ -37,7 +61,7 @@ async function loadAppData() {
 }
 
 // Save app data to disk
-async function saveAppData(data: any) {
+async function saveAppData(data: AppData) {
   try {
     await fs.mkdir(userDataPath, { recursive: true });
     await fs.writeFile(dataFilePath, JSON.stringify(data, null, 2), "utf8");
@@ -108,9 +132,16 @@ ipcMain.handle("get-worktrees", async (event, repoPath) => {
     const git = simpleGit(repoPath);
     const worktrees = await git.raw(["worktree", "list", "--porcelain"]);
 
-    const parsed = [];
+    interface WorktreeInfo {
+      path?: string;
+      commit?: string;
+      branch?: string;
+      bare?: boolean;
+    }
+
+    const parsed: WorktreeInfo[] = [];
     const lines = worktrees.split("\n");
-    let current = {};
+    let current: WorktreeInfo = {};
 
     for (const line of lines) {
       if (line.startsWith("worktree ")) {
@@ -128,7 +159,7 @@ ipcMain.handle("get-worktrees", async (event, repoPath) => {
 
     return parsed;
   } catch (error) {
-    throw new Error(`Failed to get worktrees: ${error.message}`);
+    throw new Error(`Failed to get worktrees: ${getErrorMessage(error)}`);
   }
 });
 
@@ -146,7 +177,7 @@ ipcMain.handle("get-branches", async (event, repoPath) => {
 
     return localBranches;
   } catch (error) {
-    throw new Error(`Failed to get branches: ${error.message}`);
+    throw new Error(`Failed to get branches: ${getErrorMessage(error)}`);
   }
 });
 
@@ -213,14 +244,16 @@ ipcMain.handle(
           );
           await execAsync(repoConfiguration.initCommand, { cwd: worktreePath });
         } catch (error) {
-          console.warn(`Initialization command failed: ${error.message}`);
+          console.warn(
+            `Initialization command failed: ${getErrorMessage(error)}`
+          );
           // Don't fail worktree creation if init command fails
         }
       }
 
       return { path: worktreePath, branch: sanitizedBranchName };
     } catch (error) {
-      throw new Error(`Failed to create worktree: ${error.message}`);
+      throw new Error(`Failed to create worktree: ${getErrorMessage(error)}`);
     }
   }
 );
@@ -250,7 +283,9 @@ ipcMain.handle("save-repo", async (event, repoPath) => {
     const appData = await loadAppData();
 
     // Check if repo already exists
-    const exists = appData.repositories.some((repo) => repo.path === repoPath);
+    const exists = appData.repositories.some(
+      (repo: Repository) => repo.path === repoPath
+    );
     if (!exists) {
       // Get repo name from path
       const repoName = path.basename(repoPath);
@@ -265,7 +300,7 @@ ipcMain.handle("save-repo", async (event, repoPath) => {
     return true;
   } catch (error) {
     console.error("Failed to save repo:", error);
-    throw new Error(`Failed to save repository: ${error.message}`);
+    throw new Error(`Failed to save repository: ${getErrorMessage(error)}`);
   }
 });
 
@@ -287,11 +322,17 @@ ipcMain.handle("set-selected-repo", async (event, repoPath) => {
     return true;
   } catch (error) {
     console.error("Failed to set selected repo:", error);
-    throw new Error(`Failed to save selected repository: ${error.message}`);
+    throw new Error(
+      `Failed to save selected repository: ${getErrorMessage(error)}`
+    );
   }
 });
 
 ipcMain.handle("select-folder", async () => {
+  if (!mainWindow) {
+    throw new Error("Main window not available");
+  }
+
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openDirectory"],
     title: "Select Git Repository Folder",
@@ -327,9 +368,8 @@ ipcMain.handle("open-in-file-manager", async (_, folderPath) => {
     await shell.openPath(folderPath);
     return true;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Failed to open in file manager:", error);
-    throw new Error(`Failed to open folder: ${errorMessage}`);
+    throw new Error(`Failed to open folder: ${getErrorMessage(error)}`);
   }
 });
 
@@ -352,9 +392,8 @@ ipcMain.handle("open-in-editor", async (_, folderPath) => {
     await shell.openPath(folderPath);
     return true;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Failed to open in editor:", error);
-    throw new Error(`Failed to open in editor: ${errorMessage}`);
+    throw new Error(`Failed to open in editor: ${getErrorMessage(error)}`);
   }
 });
 
@@ -399,9 +438,8 @@ ipcMain.handle("open-in-terminal", async (_, folderPath) => {
     }
     return true;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Failed to open in terminal:", error);
-    throw new Error(`Failed to open terminal: ${errorMessage}`);
+    throw new Error(`Failed to open terminal: ${getErrorMessage(error)}`);
   }
 });
 
@@ -436,7 +474,9 @@ ipcMain.handle("save-repo-config", async (event, repoPath, config) => {
     return true;
   } catch (error) {
     console.error("Failed to save repo config:", error);
-    throw new Error(`Failed to save repository config: ${error.message}`);
+    throw new Error(
+      `Failed to save repository config: ${getErrorMessage(error)}`
+    );
   }
 });
 
@@ -447,7 +487,7 @@ ipcMain.handle("open-directory", async (event, dirPath) => {
     return true;
   } catch (error) {
     console.error("Failed to open directory:", error);
-    throw new Error(`Failed to open directory: ${error.message}`);
+    throw new Error(`Failed to open directory: ${getErrorMessage(error)}`);
   }
 });
 
@@ -477,7 +517,7 @@ ipcMain.handle("open-terminal", async (event, dirPath) => {
     return true;
   } catch (error) {
     console.error("Failed to open terminal:", error);
-    throw new Error(`Failed to open terminal: ${error.message}`);
+    throw new Error(`Failed to open terminal: ${getErrorMessage(error)}`);
   }
 });
 
@@ -489,7 +529,9 @@ ipcMain.handle("open-vscode", async (event, dirPath) => {
   } catch (error) {
     console.error("Failed to open VS Code:", error);
     throw new Error(
-      `Failed to open VS Code. Make sure 'code' command is installed: ${error.message}`
+      `Failed to open VS Code. Make sure 'code' command is installed: ${getErrorMessage(
+        error
+      )}`
     );
   }
 });
@@ -507,7 +549,7 @@ ipcMain.handle("archive-worktree", async (event, worktreePath) => {
     return true;
   } catch (error) {
     console.error("Failed to archive worktree:", error);
-    throw new Error(`Failed to archive worktree: ${error.message}`);
+    throw new Error(`Failed to archive worktree: ${getErrorMessage(error)}`);
   }
 });
 
@@ -556,11 +598,7 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to merge worktree:", error);
-      throw new Error(
-        `Failed to merge worktree: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      throw new Error(`Failed to merge worktree: ${getErrorMessage(error)}`);
     }
   }
 );
@@ -582,11 +620,7 @@ ipcMain.handle(
       return true;
     } catch (error) {
       console.error("Failed to rebase worktree:", error);
-      throw new Error(
-        `Failed to rebase worktree: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
+      throw new Error(`Failed to rebase worktree: ${getErrorMessage(error)}`);
     }
   }
 );
@@ -612,11 +646,7 @@ ipcMain.handle("get-worktree-status", async (event, worktreePath) => {
     };
   } catch (error) {
     console.error("Failed to get worktree status:", error);
-    throw new Error(
-      `Failed to get worktree status: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
+    throw new Error(`Failed to get worktree status: ${getErrorMessage(error)}`);
   }
 });
 
