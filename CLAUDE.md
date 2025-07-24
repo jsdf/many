@@ -44,9 +44,9 @@ Features/TODO
   - [x] split backend into reasonable modules
     - [x] git stuff should be in its own file
     - [x] external app actions should be in their own file
-  - [ ] clean up repetitive code in App.tsx archiveWorktree() function
+  - [x] clean up repetitive code in App.tsx archiveWorktree() function
 - large improvements
-  - [ ] convert to using tailwind and a headless ui framework (shadcn?)
+  - [ ] convert to using tailwind and shadcn/ui
 
 don't forget to update this list if you finish implementing a feature
 

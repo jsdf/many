@@ -196,14 +196,15 @@ const App: React.FC = () => {
       throw new Error("No repository selected");
     }
 
-    try {
+    const performArchive = async (force = false) => {
       // Clean up terminals associated with this worktree
       await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
 
       // Clean up frontend terminal state
       cleanupWorktreeState(worktree.path);
 
-      await window.electronAPI.archiveWorktree(currentRepo, worktree.path);
+      // Archive the worktree
+      await window.electronAPI.archiveWorktree(currentRepo, worktree.path, force);
 
       // Refresh the worktree list
       if (currentRepo) {
@@ -217,96 +218,38 @@ const App: React.FC = () => {
           setSelectedWorktree(null);
         }
       }
+    };
+
+    const handleMergeError = async (error: any, errorPrefix: string) => {
+      const branchInfo = error.message.replace(errorPrefix, "");
+      const confirmed = confirm(
+        `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
+      );
+
+      if (confirmed) {
+        try {
+          await performArchive(true);
+        } catch (forceError) {
+          console.error("Failed to force archive worktree:", forceError);
+          throw forceError;
+        }
+      }
+    };
+
+    try {
+      await performArchive();
     } catch (error: any) {
       console.error("Failed to archive worktree:", error);
 
       // Handle special merge check errors with user confirmation
       if (error?.message?.includes("UNMERGED_BRANCH:")) {
-        const branchInfo = error.message.replace("UNMERGED_BRANCH:", "");
-        const confirmed = confirm(
-          `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
-        );
-
-        if (confirmed) {
-          try {
-            // Clean up terminals associated with this worktree
-            await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
-
-            // Clean up frontend terminal state
-            cleanupWorktreeState(worktree.path);
-
-            // Retry with force option
-            await window.electronAPI.archiveWorktree(
-              currentRepo,
-              worktree.path,
-              true
-            );
-
-            // Refresh the worktree list
-            if (currentRepo) {
-              const updatedWorktrees = await window.electronAPI.getWorktrees(
-                currentRepo
-              );
-              setWorktrees(updatedWorktrees);
-
-              // Clear selection if the archived worktree was selected
-              if (selectedWorktree === worktree) {
-                setSelectedWorktree(null);
-              }
-            }
-            return; // Success, exit the function
-          } catch (forceError) {
-            console.error("Failed to force archive worktree:", forceError);
-            throw forceError;
-          }
-        } else {
-          return; // User cancelled, exit without error
-        }
+        await handleMergeError(error, "UNMERGED_BRANCH:");
       } else if (error?.message?.includes("MERGE_CHECK_FAILED:")) {
-        const branchInfo = error.message.replace("MERGE_CHECK_FAILED:", "");
-        const confirmed = confirm(
-          `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
-        );
-
-        if (confirmed) {
-          try {
-            // Clean up terminals associated with this worktree
-            await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
-
-            // Clean up frontend terminal state
-            cleanupWorktreeState(worktree.path);
-
-            // Retry with force option
-            await window.electronAPI.archiveWorktree(
-              currentRepo,
-              worktree.path,
-              true
-            );
-
-            // Refresh the worktree list
-            if (currentRepo) {
-              const updatedWorktrees = await window.electronAPI.getWorktrees(
-                currentRepo
-              );
-              setWorktrees(updatedWorktrees);
-
-              // Clear selection if the archived worktree was selected
-              if (selectedWorktree === worktree) {
-                setSelectedWorktree(null);
-              }
-            }
-            return; // Success, exit the function
-          } catch (forceError) {
-            console.error("Failed to force archive worktree:", forceError);
-            throw forceError;
-          }
-        } else {
-          return; // User cancelled, exit without error
-        }
+        await handleMergeError(error, "MERGE_CHECK_FAILED:");
+      } else {
+        // Re-throw other errors
+        throw error;
       }
-
-      // Re-throw other errors
-      throw error;
     }
   };
 
