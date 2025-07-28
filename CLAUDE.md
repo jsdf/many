@@ -34,9 +34,13 @@ Features/TODO
   - [ ] worktrees list/checked out branch name
   - [ ] git changes on worktree
 - bugs
+
   - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
+  - [ ] initialization command doesn't seem to work
+  - [ ] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
   - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
+
 - chores
   - [ ] split components and css into reasonable modules
     - [x] too many components in MainContent.tsx
