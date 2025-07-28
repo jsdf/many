@@ -279,8 +279,43 @@ export const archiveWorktree = async (
       }
     }
 
-    // Remove the worktree
-    await git.raw(["worktree", "remove", worktreePath]);
+    // First, try to remove the worktree using git (this handles the git cleanup)
+    try {
+      await git.raw(["worktree", "remove", "--force", worktreePath]);
+    } catch (gitError) {
+      // If git worktree remove fails, we need to manually delete the directory
+      // and then remove the worktree registration
+      console.log(`Git worktree remove failed, manually cleaning up: ${getErrorMessage(gitError)}`);
+      
+      try {
+        // Check if directory exists before trying to delete it
+        await fs.access(worktreePath);
+        
+        // Recursively delete the directory
+        await fs.rm(worktreePath, { recursive: true, force: true });
+        
+        // Now try to remove the worktree registration again
+        await git.raw(["worktree", "remove", worktreePath]);
+      } catch (manualCleanupError) {
+        // If manual cleanup also fails, try the prune command to clean up stale worktree references
+        console.log(`Manual cleanup failed, trying prune: ${getErrorMessage(manualCleanupError)}`);
+        
+        try {
+          // Remove stale worktree entries
+          await git.raw(["worktree", "prune"]);
+        } catch (pruneError) {
+          console.log(`Prune also failed: ${getErrorMessage(pruneError)}`);
+        }
+        
+        // Check if directory still exists and remove it if it does
+        try {
+          await fs.access(worktreePath);
+          await fs.rm(worktreePath, { recursive: true, force: true });
+        } catch (finalCleanupError) {
+          // Directory might already be gone, which is fine
+        }
+      }
+    }
 
     return true;
   } catch (error) {
@@ -336,7 +371,28 @@ export const mergeWorktree = async (
 
     // Archive worktree if requested
     if (options.deleteWorktree && options.worktreePath) {
-      await git.raw(["worktree", "remove", options.worktreePath]);
+      try {
+        await git.raw(["worktree", "remove", "--force", options.worktreePath]);
+      } catch (gitError) {
+        // If git worktree remove fails, manually delete the directory
+        console.log(`Git worktree remove failed during merge, manually cleaning up: ${getErrorMessage(gitError)}`);
+        
+        try {
+          await fs.access(options.worktreePath);
+          await fs.rm(options.worktreePath, { recursive: true, force: true });
+          await git.raw(["worktree", "remove", options.worktreePath]);
+        } catch (cleanupError) {
+          console.log(`Manual cleanup during merge failed: ${getErrorMessage(cleanupError)}`);
+          // Try prune to clean up stale references
+          try {
+            await git.raw(["worktree", "prune"]);
+            await fs.rm(options.worktreePath, { recursive: true, force: true });
+          } catch (finalError) {
+            // Log but don't fail the merge operation
+            console.log(`Final cleanup attempt failed: ${getErrorMessage(finalError)}`);
+          }
+        }
+      }
     }
 
     return true;

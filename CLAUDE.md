@@ -31,13 +31,15 @@ Features/TODO
   - [x] command to init a new worktree (e.g. `npm install`)
   - [ ] commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
 - [ ] watch git repo for changes and live update
+
   - [ ] worktrees list/checked out branch name
   - [ ] git changes on worktree
-- bugs
+
+- [ ] bugs
 
   - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
   - [ ] initialization command doesn't seem to work
-  - [ ] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
+  - [x] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
   - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
 
@@ -45,6 +47,7 @@ Features/TODO
   - [ ] split components and css into reasonable modules
     - [x] too many components in MainContent.tsx
     - [ ] split styles.css based on components which use classes
+    - [ ] split modal code from components which render modals
   - [x] split backend into reasonable modules
     - [x] git stuff should be in its own file
     - [x] external app actions should be in their own file
