@@ -67,10 +67,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
           </p>
         ) : (
-          worktrees.map((worktree, index) => (
+          worktrees.map((worktree) => (
             <div
-              key={index}
-              className={`worktree-item ${selectedWorktree === worktree ? 'active' : ''}`}
+              key={worktree.path}
+              className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''}`}
               onClick={() => onWorktreeSelect(worktree)}
             >
               <div className="worktree-branch">{formatBranchName(worktree.branch)}</div>

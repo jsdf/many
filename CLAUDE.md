@@ -204,3 +204,103 @@ The application converts user prompts into Git branch names:
 5. Branch and worktree creation
 
 This enables intuitive worktree creation for AI-assisted development workflows where multiple features are developed in parallel.
+
+## End-to-End Test Scenarios
+
+### Core Repository Management Tests
+
+- [ ] Add repository via folder picker dialog
+- [ ] Verify repository appears in sidebar after adding
+- [ ] Test invalid/non-git directories are rejected
+- [ ] Test duplicate repository prevention
+- [ ] Select different repositories from dropdown
+- [ ] Verify repository selection persists across app restarts
+- [ ] Test empty state when no repositories exist
+
+### Worktree Lifecycle Tests
+
+- [ ] Create worktree with custom branch name
+- [ ] Create worktree from existing branch
+- [ ] Verify AI-generated branch naming (`{username}/{sanitized-prompt}`)
+- [ ] Test branch name sanitization (special chars, length limits)
+- [ ] Verify worktree appears in sidebar immediately after creation
+- [ ] Click worktree in sidebar shows details in main pane
+- [ ] Verify worktree metadata display (branch, path, status)
+- [ ] Test very long branch names are truncated with ellipses and tooltip
+- [ ] Verify base/main worktree shows first with "base" tag
+- [ ] Archive merged worktree (should succeed without prompt)
+- [ ] Archive unmerged worktree (should show confirmation dialog)
+- [ ] Verify directory deletion after archiving
+- [ ] Test cleanup of worktree references after archiving
+
+### External Tool Integration Tests
+
+- [ ] Open worktree folder in file manager
+- [ ] Open worktree in terminal
+- [ ] Open worktree in configured editor
+- [ ] Test behavior with missing/invalid external tools
+
+### Terminal Integration Tests
+
+- [ ] Create terminal in worktree context
+- [ ] Verify terminal opens in correct worktree directory
+- [ ] Test multiple terminals per worktree
+- [ ] Switch between worktrees preserves terminal isolation
+- [ ] Test terminal memory limits (5k line history)
+- [ ] Verify clickable links in terminal output work
+- [ ] Test terminal persistence across app sessions
+
+### Configuration & Settings Tests
+
+- [ ] Configure initialization command for new worktrees
+- [ ] Test initialization command execution on worktree creation
+- [ ] Configure custom commands/scripts per repository
+- [ ] Verify settings persist per repository
+- [ ] Test settings migration/compatibility
+
+### Git Operations Tests
+
+- [ ] Create worktree creates corresponding git branch
+- [ ] Merge branch workflow via integrated review tool
+- [ ] Test merge conflict detection and handling
+- [ ] Verify branch status tracking (ahead/behind/merged)
+- [ ] Live update worktree list when git changes occur externally
+- [ ] Update branch names when changed outside app
+- [ ] Detect new/deleted worktrees from external git commands
+
+### Data Persistence Tests
+
+- [ ] Window bounds persistence across restarts
+- [ ] Repository list persistence
+- [ ] Selected repository persistence
+- [ ] Terminal history persistence per worktree
+- [ ] Worktree state persistence
+
+### Error Handling Tests
+
+- [ ] Handle corrupted `app-data.json` gracefully
+- [ ] Git command failures (network issues, permissions)
+- [ ] Missing git executable error handling
+- [ ] Worktree directory deletion outside app
+- [ ] Repository moved/deleted externally
+- [ ] Long-running operations with user feedback
+- [ ] Network connectivity issues during git operations
+
+### Performance Tests
+
+- [ ] Multiple repositories with many worktrees
+- [ ] Large terminal output handling
+- [ ] Memory usage with long-running terminals
+- [ ] Git operations on large repositories
+- [ ] App startup time with many repositories
+
+### UI/UX Tests
+
+- [ ] Add repository modal validation and error states
+- [ ] Create worktree modal validation and error states
+- [ ] Confirmation dialogs (archive, destructive actions)
+- [ ] Modal keyboard navigation and escape handling
+- [ ] Sidebar resize behavior
+- [ ] Window resizing maintains layout
+- [ ] Overflow handling in worktree list
+- [ ] Dark theme consistency across all components

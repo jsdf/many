@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
+import { Repository, Worktree, RepositoryConfig, MergeOptions, TerminalConfig } from "./types";
 import Sidebar from "./components/Sidebar";
 import MainContent from "./components/MainContent";
 import { cleanupWorktreeState } from "./hooks/useWorktreeTerminals";
@@ -143,19 +143,32 @@ const App: React.FC = () => {
 
       setShowCreateModal(false);
 
-      // If there's an initialization command, create a terminal to run it immediately
-      if (result.initCommand && result.path) {
+      // If there's an initialization command, add it as a setup terminal to the worktree
+      if (result.initCommand && result.path && newWorktree) {
         try {
-          await window.electronAPI.createTerminalSession({
-            terminalId: `setup-${Date.now()}`,
-            workingDirectory: result.path,
-            cols: 80,
-            rows: 24,
+          // Get current worktree terminals
+          const currentTerminals = await window.electronAPI.getWorktreeTerminals(result.path);
+          
+          // Create a setup terminal configuration
+          const setupTerminalId = `${result.path}-setup-${Date.now()}`;
+          const setupTerminal: TerminalConfig = {
+            id: setupTerminalId,
+            title: "Setup",
+            type: "terminal",
             initialCommand: result.initCommand,
-          });
+          };
+          
+          // Add setup terminal to the worktree's terminal configuration
+          const updatedTerminals = {
+            terminals: [setupTerminal, ...currentTerminals.terminals],
+            nextTerminalId: currentTerminals.nextTerminalId + 1,
+          };
+          
+          // Save the updated terminal configuration
+          await window.electronAPI.saveWorktreeTerminals(result.path, updatedTerminals);
         } catch (error) {
-          console.warn("Failed to create setup terminal:", error);
-          // Don't fail the whole worktree creation if terminal creation fails
+          console.warn("Failed to create setup terminal configuration:", error);
+          // Don't fail the whole worktree creation if terminal setup fails
         }
       }
     } catch (error) {
