@@ -7,11 +7,11 @@ import { registerRepositoryHandlers } from "./ipc-handlers/repository-handlers";
 import { registerGitHandlers } from "./ipc-handlers/git-handlers";
 import { registerTerminalHandlers } from "./ipc-handlers/terminal-handlers";
 import { registerExternalActionHandlers } from "./ipc-handlers/external-action-handlers";
-
+import { router } from "./api";
+import { createIPCHandler } from "electron-trpc/main";
 
 let mainWindow: BrowserWindow | null = null;
 let terminalManager: TerminalManager;
-
 
 // Get user data directory for storing app data
 const userDataPath = app.getPath("userData");
@@ -64,6 +64,8 @@ async function createWindow() {
     },
   });
 
+  createIPCHandler({ router, windows: [mainWindow] });
+
   // Initialize terminal manager with main window
   terminalManager = new TerminalManager(mainWindow);
 
@@ -110,9 +112,7 @@ app.on("activate", () => {
   }
 });
 
-
 // Clean up terminals when app is about to quit
 app.on("before-quit", () => {
   terminalManager?.cleanup();
 });
-

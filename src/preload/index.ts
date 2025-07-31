@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+// Expose electronTRPC for electron-trpc/renderer
+contextBridge.exposeInMainWorld("electronTRPC", {
+  sendMessage: (data: any) => ipcRenderer.send('electron-trpc', data),
+  onMessage: (callback: (data: any) => void) => {
+    ipcRenderer.on('electron-trpc', (_event, data) => callback(data));
+  },
+});
+
 contextBridge.exposeInMainWorld("electronAPI", {
   // Git and worktree APIs
   getWorktrees: (repoPath: string) =>

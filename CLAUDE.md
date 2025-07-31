@@ -61,7 +61,7 @@ don't forget to update this list if you finish implementing a feature
 
 ### Running the Application
 
-- `npm run build` if you want to check for errors without actually running the app
+- `npm run build` if you want to check for errors without actually running the app. but make sure to also ask the user to test because you don't have the capability to see errors inside the electron browser process.
 
 be sure to run these in the background e.g. with `&` because they are long running processes and you will time out waiting for them to finish if you run them normally
 

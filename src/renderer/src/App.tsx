@@ -7,6 +7,7 @@ import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
+import { client } from "./main";
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -24,6 +25,7 @@ const App: React.FC = () => {
   const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(
     null
   );
+  const [trpcMessage, setTrpcMessage] = useState<string>("");
 
   useEffect(() => {
     loadSavedRepos();
@@ -48,6 +50,16 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to restore selected repo:", error);
+    }
+  };
+
+  const testTrpc = async () => {
+    try {
+      const result = await client.hello.query({ name: "tRPC" });
+      setTrpcMessage(result.greeting);
+    } catch (error) {
+      console.error("tRPC test failed:", error);
+      setTrpcMessage("tRPC test failed");
     }
   };
 
@@ -325,6 +337,14 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
+      {/* tRPC Test Button - Remove after testing */}
+      <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000 }}>
+        <button onClick={testTrpc} style={{ marginRight: '10px' }}>
+          Test tRPC
+        </button>
+        {trpcMessage && <span style={{ color: 'green' }}>{trpcMessage}</span>}
+      </div>
+      
       <Sidebar
         repositories={repositories}
         currentRepo={currentRepo}
