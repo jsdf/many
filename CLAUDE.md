@@ -42,6 +42,7 @@ Features/TODO
   - [x] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
   - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
+  - [ ] tRPC serialization error: "Cannot read properties of undefined (reading 'serialize')" - affects terminal management and test button functionality
 
 - chores
   - [ ] split components and css into reasonable modules
@@ -64,14 +65,37 @@ don't forget to update this list if you finish implementing a feature
 - `npm run build` - Compile the application using esbuild (main, preload, renderer processes)
 - `npm start` - Build and launch the application in production mode
 - `npm run dev` - Launch in development mode with file watching and DevTools enabled
+- `npm run logs` - View the log output
 
-be sure to run these in the background e.g. with `&` because they are long running processes and you will time out waiting for them to finish if you run them normally
+be sure to run `start` and `dev` using `timeout` because they are long running processes and you will time out waiting for them to finish if you run them normally
 
 ### Debugging and Logging
 
 - `npm run logs` - View Electron error logs (uncaught exceptions, crashes, load errors)
 - Error log location: `~/Library/Application Support/many/electron-errors.log` (macOS)
 - The app automatically logs all main process errors, renderer crashes, and load failures with timestamps
+
+#### Logging System
+
+The application features comprehensive logging that captures errors from both main and renderer processes:
+
+**Main Process Logging:**
+- Uncaught exceptions and unhandled promise rejections
+- Renderer process crashes and load failures
+- Manual error logging via `logError(error, source)` function
+
+**Client-Side Logging:**
+- Automatic interception of `console.error` and `console.warn` calls
+- Unhandled promise rejections in renderer process
+- Global JavaScript errors and exceptions
+- Manual error logging via `logError(error, source)` utility
+- All renderer errors forwarded to main process log with `RENDERER_` prefix
+
+**Implementation:**
+- Logger initializes with proper app name to ensure logs go to `~/Library/Application Support/many/`
+- Client-side logger (`src/renderer/src/logger.ts`) auto-initializes on app start
+- Secure IPC communication between renderer and main process for log forwarding
+- Queue-based logging prevents race conditions during concurrent writes
 
 ### Testing
 
@@ -94,9 +118,10 @@ be sure to run these in the background e.g. with `&` because they are long runni
 ### Build System
 
 The project uses **esbuild** instead of Vite for faster builds:
+
 - `build.js` - Custom esbuild configuration
 - Builds main process → `dist-electron/main/index.cjs`
-- Builds preload script → `dist-electron/preload/index.cjs` 
+- Builds preload script → `dist-electron/preload/index.cjs`
 - Builds renderer → `dist/main.js` with CSS bundling
 - Uses `.cjs` extensions for main/preload to avoid ES module conflicts
 

@@ -128,6 +128,9 @@ export interface ElectronAPI {
     terminalId: string,
     callback: (title: string) => void
   ): (() => void) | undefined;
+  
+  // Logging API
+  logRendererError(error: any, source: string): Promise<void>;
 }
 
 declare global {

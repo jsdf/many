@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
 import Sidebar from "./components/Sidebar";
 import MainContent from "./components/MainContent";
-import { cleanupWorktreeState } from "./hooks/useWorktreeTerminals";
+// import { cleanupWorktreeState } from "./hooks/useWorktreeTerminals";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import { client } from "./main";
+import { logError } from "./logger";
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -30,6 +31,12 @@ const App: React.FC = () => {
   useEffect(() => {
     loadSavedRepos();
     restoreSelectedRepo();
+    
+    // Auto-test tRPC after 3 seconds for verification
+    // setTimeout(() => {
+    //   console.log("Auto-testing tRPC...");
+    //   testTrpc();
+    // }, 3000);
   }, []);
 
   const loadSavedRepos = async () => {
@@ -58,11 +65,16 @@ const App: React.FC = () => {
       console.log("Starting tRPC test...");
       const result = await client.hello.query({ name: "tRPC" });
       console.log("tRPC result:", result);
-      setTrpcMessage(result.greeting);
+      setTrpcMessage(result);
+      
+      // Test client-side logging
+      await logError("Test client-side logging functionality", "TRPC_TEST");
     } catch (error) {
       console.error("tRPC test failed:", error);
-      console.error("Error details:", error);
       setTrpcMessage(`tRPC test failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Log error to main process
+      await logError(error, "TRPC_ERROR");
     }
   };
 
@@ -202,7 +214,7 @@ const App: React.FC = () => {
       await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
 
       // Clean up frontend terminal state
-      cleanupWorktreeState(worktree.path);
+      // cleanupWorktreeState(worktree.path);
 
       // Archive the worktree
       await window.electronAPI.archiveWorktree(currentRepo, worktree.path, force);

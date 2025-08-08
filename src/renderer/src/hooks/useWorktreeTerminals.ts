@@ -54,6 +54,13 @@ export const useWorktreeTerminals = ({
         return;
       }
 
+      // Temporarily disabled to test tRPC button separately
+      console.log("Would load terminals for:", selectedWorktree.path);
+      setTerminalConfig({ terminals: [], nextTerminalId: 1 });
+      setIsLoadingTerminals(false);
+      return;
+
+      /*
       setIsLoadingTerminals(true);
       try {
         // Load terminals from backend via tRPC
@@ -85,6 +92,7 @@ export const useWorktreeTerminals = ({
       } finally {
         setIsLoadingTerminals(false);
       }
+      */
     };
 
     loadWorktreeTerminals();

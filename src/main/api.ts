@@ -26,22 +26,26 @@ const WorktreeTerminalsSchema = z.object({
   nextTerminalId: z.number(),
 });
 
-// Create the main tRPC router
+// Create a minimal tRPC router for testing
 export const router = t.router({
   hello: publicProcedure
     .input(z.object({ name: z.string().optional() }))
-    .query(({ input }) => {
-      return {
-        greeting: `Hello ${input.name ?? 'World'}!`,
-        timestamp: new Date().toISOString(),
-      };
+    .query(() => {
+      // Ultra minimal response
+      return "Hello World";
     }),
 
+  /*
   // Terminal management procedures
   getWorktreeTerminals: publicProcedure
     .input(z.object({ worktreePath: z.string() }))
     .query(({ input, ctx }) => {
-      return ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      // Ensure we return a plain object that can be serialized
+      return {
+        terminals: terminals.terminals,
+        nextTerminalId: terminals.nextTerminalId
+      };
     }),
 
   watchWorktreeTerminals: publicProcedure
@@ -49,7 +53,10 @@ export const router = t.router({
     .subscription(async function* ({ input, ctx }) {
       // For now, just yield current state once (we'll implement full subscription later)
       const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
-      yield terminals;
+      yield {
+        terminals: terminals.terminals,
+        nextTerminalId: terminals.nextTerminalId
+      };
     }),
 
   addTerminalToWorktree: publicProcedure
@@ -59,7 +66,11 @@ export const router = t.router({
     }))
     .mutation(({ input, ctx }) => {
       ctx.terminalManager.addTerminalToWorktree(input.worktreePath, input.terminal);
-      return ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      return {
+        terminals: terminals.terminals,
+        nextTerminalId: terminals.nextTerminalId
+      };
     }),
 
   removeTerminalFromWorktree: publicProcedure
@@ -69,7 +80,11 @@ export const router = t.router({
     }))
     .mutation(({ input, ctx }) => {
       ctx.terminalManager.removeTerminalFromWorktree(input.worktreePath, input.terminalId);
-      return ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      return {
+        terminals: terminals.terminals,
+        nextTerminalId: terminals.nextTerminalId
+      };
     }),
 
   createSetupTerminal: publicProcedure
@@ -79,8 +94,13 @@ export const router = t.router({
     }))
     .mutation(({ input, ctx }) => {
       ctx.terminalManager.createSetupTerminal(input.worktreePath, input.initCommand);
-      return ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
+      return {
+        terminals: terminals.terminals,
+        nextTerminalId: terminals.nextTerminalId
+      };
     }),
+  */
 });
 
 // Export the router type for client-side usage

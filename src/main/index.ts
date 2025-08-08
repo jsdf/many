@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { promises as fs } from "fs";
 import { TerminalManager } from "./terminal-manager";
@@ -86,7 +86,14 @@ async function createWindow() {
   createIPCHandler({ 
     router, 
     windows: [mainWindow],
-    createContext: async () => ({ terminalManager })
+    createContext: async () => ({ 
+      terminalManager: terminalManager
+    })
+  });
+  
+  // Add IPC handler for client-side logging
+  ipcMain.handle('log-renderer-error', async (event, error: any, source: string) => {
+    await logError(error, `RENDERER_${source}`);
   });
 
   // Register all IPC handlers

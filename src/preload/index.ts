@@ -119,4 +119,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-recent-worktree", repoPath),
   setRecentWorktree: (repoPath: string, worktreePath: string) =>
     ipcRenderer.invoke("set-recent-worktree", repoPath, worktreePath),
+  
+  // Logging API
+  logRendererError: (error: any, source: string) =>
+    ipcRenderer.invoke("log-renderer-error", error, source),
 });
