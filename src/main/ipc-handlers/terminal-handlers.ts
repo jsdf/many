@@ -25,5 +25,11 @@ export function registerTerminalHandlers(
     return terminalManager.sessionExists(terminalId);
   });
 
-  // Worktree terminal management is now handled by tRPC procedures
+  // Worktree terminal cleanup (still needed for archiving)
+  ipcMain.handle("cleanup-worktree-terminals", async (_, worktreePath) => {
+    terminalManager.cleanupWorktreeTerminals(worktreePath);
+    return true;
+  });
+
+  // Other worktree terminal management is handled by tRPC procedures
 }
