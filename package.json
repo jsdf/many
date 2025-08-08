@@ -6,7 +6,7 @@
   "main": "dist-electron/main/index.cjs",
   "scripts": {
     "start": "npm run build && electron dist-electron/main/index.cjs",
-    "dev": "node build.js --dev --watch & electron dist-electron/main/index.cjs --dev",
+    "dev": "pkill -f 'node build.js --dev --watch' 2>/dev/null || true && node build.js --dev --watch & electron dist-electron/main/index.cjs --dev",
     "build": "tsc --noEmit && node build.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",

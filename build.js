@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { build } from 'esbuild'
+import { build, context } from 'esbuild'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -125,38 +125,55 @@ function generateHTML() {
 
 async function buildAll() {
   try {
-    console.log('Building main process...')
     if (isWatch) {
-      const mainContext = await build({ ...mainConfig, watch: true })
+      console.log('Setting up watch mode...')
+      
+      // Create contexts for watch mode
+      const mainContext = await context(mainConfig)
+      const preloadContext = await context(preloadConfig)
+      const rendererContext = await context(rendererConfig)
+      
+      // Start watching
+      await mainContext.watch()
       console.log('Main process watching for changes...')
+      
+      await preloadContext.watch()
+      console.log('Preload script watching for changes...')
+      
+      await rendererContext.watch()
+      console.log('Renderer process watching for changes...')
+      
+      // Generate HTML initially
+      generateHTML()
+      console.log('HTML generated successfully')
+      console.log('Watch mode active. Press Ctrl+C to stop.')
+      
+      // Keep process alive
+      process.on('SIGINT', async () => {
+        console.log('\nStopping watch mode...')
+        await mainContext.dispose()
+        await preloadContext.dispose()
+        await rendererContext.dispose()
+        process.exit(0)
+      })
+      
     } else {
+      console.log('Building main process...')
       await build(mainConfig)
       console.log('Main process built successfully')
-    }
 
-    console.log('Building preload script...')
-    if (isWatch) {
-      const preloadContext = await build({ ...preloadConfig, watch: true })
-      console.log('Preload script watching for changes...')
-    } else {
+      console.log('Building preload script...')
       await build(preloadConfig)
       console.log('Preload script built successfully')
-    }
 
-    console.log('Generating HTML...')
-    generateHTML()
-    console.log('HTML generated successfully')
+      console.log('Generating HTML...')
+      generateHTML()
+      console.log('HTML generated successfully')
 
-    console.log('Building renderer process...')
-    if (isWatch) {
-      const rendererContext = await build({ ...rendererConfig, watch: true })
-      console.log('Renderer process watching for changes...')
-    } else {
+      console.log('Building renderer process...')
       await build(rendererConfig)
       console.log('Renderer process built successfully')
-    }
-
-    if (!isWatch) {
+      
       console.log('Build completed successfully!')
     }
   } catch (error) {
