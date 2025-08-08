@@ -9,6 +9,7 @@ export function initializeClientLogging() {
   // Store original console methods
   const originalError = console.error;
   const originalWarn = console.warn;
+  const originalLog = console.log;
 
   // Override console.error to also log to main process
   console.error = (...args: any[]) => {
@@ -43,6 +44,23 @@ export function initializeClientLogging() {
     } catch (e) {
       // Fallback if logging fails
       originalError('Failed to forward warning to main process:', e);
+    }
+  };
+
+  // Override console.log to also log to main process (for debugging)
+  console.log = (...args: any[]) => {
+    // Call original console.log first
+    originalLog.apply(console, args);
+    
+    // Forward to main process logger (only if message contains tRPC debugging)
+    try {
+      const logMessage = args.map(arg => String(arg)).join(' ');
+      if (logMessage.includes('tRPC') || logMessage.includes('electronTRPC')) {
+        window.electronAPI.logRendererError(logMessage, 'CONSOLE_LOG');
+      }
+    } catch (e) {
+      // Fallback if logging fails
+      originalError('Failed to forward log to main process:', e);
     }
   };
 

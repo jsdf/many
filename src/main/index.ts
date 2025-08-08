@@ -83,13 +83,20 @@ async function createWindow() {
   // Initialize terminal manager with main window
   terminalManager = new TerminalManager(mainWindow);
 
+  console.log("=== Setting up tRPC IPC Handler ===");
+  
   createIPCHandler({ 
     router, 
     windows: [mainWindow],
-    createContext: async () => ({ 
-      terminalManager: terminalManager
-    })
+    createContext: async () => {
+      console.log("=== tRPC createContext called ===");
+      return { 
+        terminalManager: terminalManager
+      };
+    }
   });
+  
+  console.log("=== tRPC IPC Handler setup complete ===");
   
   // Add IPC handler for client-side logging
   ipcMain.handle('log-renderer-error', async (event, error: any, source: string) => {

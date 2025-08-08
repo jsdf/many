@@ -33,10 +33,10 @@ const App: React.FC = () => {
     restoreSelectedRepo();
     
     // Auto-test tRPC after 3 seconds for verification
-    // setTimeout(() => {
-    //   console.log("Auto-testing tRPC...");
-    //   testTrpc();
-    // }, 3000);
+    setTimeout(() => {
+      console.log("Auto-testing tRPC...");
+      testTrpc();
+    }, 3000);
   }, []);
 
   const loadSavedRepos = async () => {
@@ -61,11 +61,20 @@ const App: React.FC = () => {
   };
 
   const testTrpc = async () => {
+    console.warn("=== tRPC Test Button Clicked ===");
+    setTrpcMessage("Testing...");
+    
+    // Check if electronTRPC global is available
+    console.warn("electronTRPC global check:", typeof (window as any).electronTRPC);
+    if ((window as any).electronTRPC) {
+      console.warn("electronTRPC methods:", Object.keys((window as any).electronTRPC));
+    }
+    
     try {
-      console.log("Starting tRPC test...");
+      console.warn("Starting tRPC test...");
       const result = await client.hello.query({ name: "tRPC" });
-      console.log("tRPC result:", result);
-      setTrpcMessage(result);
+      console.warn("tRPC result:", result);
+      setTrpcMessage(`Success: ${result}`);
       
       // Test client-side logging
       await logError("Test client-side logging functionality", "TRPC_TEST");

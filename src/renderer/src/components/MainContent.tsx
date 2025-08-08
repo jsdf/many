@@ -4,7 +4,7 @@ import TilingLayout, { Tile } from "./TilingLayout";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import Terminal from "./Terminal";
-// import { useWorktreeTerminals } from "../hooks/useWorktreeTerminals";
+import { useWorktreeTerminals } from "../hooks/useWorktreeTerminals";
 
 interface MainContentProps {
   selectedWorktree: Worktree | null;
@@ -26,16 +26,9 @@ const MainContent: React.FC<MainContentProps> = ({
     handleSplitTile,
     handleAddClaudeTerminal,
     updateTileTitle,
-  } = {
-    terminalTileData: [],
-    handleCloseTile: () => {},
-    handleSplitTile: () => {},
-    handleAddClaudeTerminal: () => {},
-    updateTileTitle: () => {},
-  };
-  // } = useWorktreeTerminals({
-  //   selectedWorktree,
-  // });
+  } = useWorktreeTerminals({
+    selectedWorktree,
+  });
 
   // Convert tile data to actual tiles with React components
   const tiles = useMemo(() => {

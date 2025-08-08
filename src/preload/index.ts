@@ -1,12 +1,33 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-// Expose electronTRPC for electron-trpc/renderer
+// Helper function to log from preload to main process
+function preloadLog(message: string, data?: any) {
+  try {
+    const logMessage = data ? `${message} ${JSON.stringify(data)}` : message;
+    ipcRenderer.invoke('log-renderer-error', logMessage, 'PRELOAD_LOG');
+  } catch (e) {
+    // Silent fallback if logging fails
+  }
+}
+
+preloadLog("=== Preload script starting ===");
+
+// Manual implementation of electronTRPC bridge for tRPC v10
 contextBridge.exposeInMainWorld("electronTRPC", {
-  sendMessage: (data: any) => ipcRenderer.send('electron-trpc', data),
+  sendMessage: (data: any) => {
+    preloadLog("=== electronTRPC sendMessage ===", data);
+    ipcRenderer.send('electron-trpc', data);
+  },
   onMessage: (callback: (data: any) => void) => {
-    ipcRenderer.on('electron-trpc', (_event, data) => callback(data));
+    preloadLog("=== electronTRPC onMessage setup ===");
+    ipcRenderer.on('electron-trpc', (_event, data) => {
+      preloadLog("=== electronTRPC received message ===", data);
+      callback(data);
+    });
   },
 });
+
+preloadLog("=== electronTRPC bridge exposed ===");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // Git and worktree APIs

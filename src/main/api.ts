@@ -7,7 +7,7 @@ export interface Context {
   terminalManager: TerminalManager;
 }
 
-// Initialize tRPC with context
+// Initialize tRPC with context - no transformer for simplicity
 const t = initTRPC.context<Context>().create();
 
 // Export procedure helpers
@@ -30,32 +30,23 @@ const WorktreeTerminalsSchema = z.object({
 export const router = t.router({
   hello: publicProcedure
     .input(z.object({ name: z.string().optional() }))
-    .query(() => {
-      // Ultra minimal response
-      return "Hello World";
+    .query(({ input }) => {
+      console.log("=== tRPC hello query received ===", input);
+      const name = input.name || "World";
+      const result = `Hello ${name}!`;
+      console.log("=== tRPC hello query result ===", result);
+      return result;
     }),
 
-  /*
-  // Terminal management procedures
+  // Minimal terminal management procedures without complex serialization
   getWorktreeTerminals: publicProcedure
     .input(z.object({ worktreePath: z.string() }))
     .query(({ input, ctx }) => {
       const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
-      // Ensure we return a plain object that can be serialized
+      // Return simple serializable object
       return {
-        terminals: terminals.terminals,
-        nextTerminalId: terminals.nextTerminalId
-      };
-    }),
-
-  watchWorktreeTerminals: publicProcedure
-    .input(z.object({ worktreePath: z.string() }))
-    .subscription(async function* ({ input, ctx }) {
-      // For now, just yield current state once (we'll implement full subscription later)
-      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
-      yield {
-        terminals: terminals.terminals,
-        nextTerminalId: terminals.nextTerminalId
+        terminals: terminals.terminals || [],
+        nextTerminalId: terminals.nextTerminalId || 1
       };
     }),
 
@@ -68,8 +59,8 @@ export const router = t.router({
       ctx.terminalManager.addTerminalToWorktree(input.worktreePath, input.terminal);
       const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
       return {
-        terminals: terminals.terminals,
-        nextTerminalId: terminals.nextTerminalId
+        terminals: terminals.terminals || [],
+        nextTerminalId: terminals.nextTerminalId || 1
       };
     }),
 
@@ -82,25 +73,10 @@ export const router = t.router({
       ctx.terminalManager.removeTerminalFromWorktree(input.worktreePath, input.terminalId);
       const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
       return {
-        terminals: terminals.terminals,
-        nextTerminalId: terminals.nextTerminalId
+        terminals: terminals.terminals || [],
+        nextTerminalId: terminals.nextTerminalId || 1
       };
     }),
-
-  createSetupTerminal: publicProcedure
-    .input(z.object({
-      worktreePath: z.string(),
-      initCommand: z.string(),
-    }))
-    .mutation(({ input, ctx }) => {
-      ctx.terminalManager.createSetupTerminal(input.worktreePath, input.initCommand);
-      const terminals = ctx.terminalManager.getWorktreeTerminals(input.worktreePath);
-      return {
-        terminals: terminals.terminals,
-        nextTerminalId: terminals.nextTerminalId
-      };
-    }),
-  */
 });
 
 // Export the router type for client-side usage
