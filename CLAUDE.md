@@ -73,6 +73,14 @@ be sure to run these in the background e.g. with `&` because they are long runni
 - Error log location: `~/Library/Application Support/many/electron-errors.log` (macOS)
 - The app automatically logs all main process errors, renderer crashes, and load failures with timestamps
 
+### Testing
+
+- `npm test` - Run Playwright end-to-end tests (builds first, then runs tests)
+- `npm run test:ui` - Run Playwright tests with interactive UI mode
+- `npx playwright test --headed` - Run tests in headed mode to see the app visually
+- Test screenshots are saved to `tests/screenshots/` for debugging
+- Tests automatically launch the Electron app and verify UI functionality
+
 ### Building and Distribution
 
 - `npm run build` - Compile the application source code using esbuild (no installers)
