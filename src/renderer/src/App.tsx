@@ -55,11 +55,14 @@ const App: React.FC = () => {
 
   const testTrpc = async () => {
     try {
+      console.log("Starting tRPC test...");
       const result = await client.hello.query({ name: "tRPC" });
+      console.log("tRPC result:", result);
       setTrpcMessage(result.greeting);
     } catch (error) {
       console.error("tRPC test failed:", error);
-      setTrpcMessage("tRPC test failed");
+      console.error("Error details:", error);
+      setTrpcMessage(`tRPC test failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 

@@ -11,6 +11,9 @@ import { router } from "./api";
 import { createIPCHandler } from "electron-trpc/main";
 import { logError, clearErrorLog } from "./logger";
 
+// Set app name before any path operations
+app.setName("Many");
+
 // Capture uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
