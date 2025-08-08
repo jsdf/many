@@ -6,9 +6,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('Electron app starts and shows window', async () => {
-  // Launch Electron app - pass the path to the main process
+  // Launch Electron app - pass the path to the main process (Vite output)
   const electronApp = await electron.launch({
-    args: [path.join(__dirname, '../dist-electron/main/index.cjs')],
+    args: [path.join(__dirname, '../out/main/index.cjs')],
   });
 
   // Get the first window that the app opens
@@ -58,7 +58,7 @@ test('Electron app starts and shows window', async () => {
 test('Check error logs after startup', async () => {
   // Launch app, let it start, then check logs
   const electronApp = await electron.launch({
-    args: [path.join(__dirname, '../dist-electron/main/index.cjs')],
+    args: [path.join(__dirname, '../out/main/index.cjs')],
   });
 
   const window = await electronApp.firstWindow();
