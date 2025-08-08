@@ -1,12 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { Worktree, TerminalConfig, WorktreeTerminals } from "../types";
+import { client } from "../main";
 
-// Global state to maintain only terminal configurations across worktree switches
-const globalTerminalState = new Map<string, WorktreeTerminals>();
-
-// Function to clean up worktree from global state
+// Function to clean up worktree from global state (kept for compatibility)
 export const cleanupWorktreeState = (worktreePath: string) => {
-  globalTerminalState.delete(worktreePath);
+  // No-op for now, cleanup handled by backend
 };
 
 interface UseWorktreeTerminalsProps {
@@ -42,14 +40,8 @@ export const useWorktreeTerminals = ({
         ),
       }));
 
-      // Update global state
-      const globalConfig = globalTerminalState.get(selectedWorktree.path);
-      if (globalConfig) {
-        globalConfig.terminals = globalConfig.terminals.map((terminal) =>
-          terminal.id === tileId ? { ...terminal, title: newTitle } : terminal
-        );
-        globalTerminalState.set(selectedWorktree.path, globalConfig);
-      }
+      // TODO: Implement title update via tRPC
+      // For now, just update local state
     },
     [selectedWorktree]
   );
@@ -64,40 +56,28 @@ export const useWorktreeTerminals = ({
 
       setIsLoadingTerminals(true);
       try {
-        // Check if we already have this worktree's terminal config in global state
-        let config = globalTerminalState.get(selectedWorktree.path);
+        // Load terminals from backend via tRPC
+        const config = await client.getWorktreeTerminals.query({
+          worktreePath: selectedWorktree.path
+        });
 
-        if (!config) {
-          // Load from persistent storage
-          config = await window.electronAPI.getWorktreeTerminals(
-            selectedWorktree.path
-          );
+        if (config.terminals.length === 0) {
+          // Create default terminal if none exist
+          const defaultTerminal: TerminalConfig = {
+            id: `${selectedWorktree.path}-terminal-1`,
+            title: "Terminal 1",
+            type: "terminal",
+          };
 
-          if (config.terminals.length === 0) {
-            // Create default terminal if none exist
-            const defaultTerminal: TerminalConfig = {
-              id: `${selectedWorktree.path}-terminal-1`,
-              title: "Terminal 1",
-              type: "terminal",
-            };
+          const updatedConfig = await client.addTerminalToWorktree.mutate({
+            worktreePath: selectedWorktree.path,
+            terminal: defaultTerminal
+          });
 
-            config = {
-              terminals: [defaultTerminal],
-              nextTerminalId: 2,
-            };
-
-            // Save the default terminal
-            await window.electronAPI.saveWorktreeTerminals(
-              selectedWorktree.path,
-              config
-            );
-          }
-
-          // Store in global state
-          globalTerminalState.set(selectedWorktree.path, config);
+          setTerminalConfig(updatedConfig);
+        } else {
+          setTerminalConfig(config);
         }
-
-        setTerminalConfig(config);
       } catch (error) {
         console.error("Failed to load worktree terminals:", error);
         // Fallback to basic setup
@@ -133,19 +113,13 @@ export const useWorktreeTerminals = ({
       if (tileId.includes("terminal-") || tileId.includes("claude-")) {
         window.electronAPI.closeTerminal?.(tileId);
 
-        const newConfig = {
-          ...terminalConfig,
-          terminals: terminalConfig.terminals.filter((t) => t.id !== tileId),
-        };
-
-        setTerminalConfig(newConfig);
-        globalTerminalState.set(selectedWorktree.path, newConfig);
-
-        // Save to persistent storage
-        await window.electronAPI.saveWorktreeTerminals(
-          selectedWorktree.path,
-          newConfig
-        );
+        // Remove terminal via tRPC
+        const updatedConfig = await client.removeTerminalFromWorktree.mutate({
+          worktreePath: selectedWorktree.path,
+          terminalId: tileId
+        });
+        
+        setTerminalConfig(updatedConfig);
       }
     },
     [selectedWorktree, terminalConfig]
@@ -162,19 +136,13 @@ export const useWorktreeTerminals = ({
         type: "terminal",
       };
 
-      const newConfig = {
-        terminals: [...terminalConfig.terminals, newTerminal],
-        nextTerminalId: terminalConfig.nextTerminalId + 1,
-      };
-
-      setTerminalConfig(newConfig);
-      globalTerminalState.set(selectedWorktree.path, newConfig);
-
-      // Save to persistent storage
-      await window.electronAPI.saveWorktreeTerminals(
-        selectedWorktree.path,
-        newConfig
-      );
+      // Add terminal via tRPC
+      const updatedConfig = await client.addTerminalToWorktree.mutate({
+        worktreePath: selectedWorktree.path,
+        terminal: newTerminal
+      });
+      
+      setTerminalConfig(updatedConfig);
     },
     [selectedWorktree, terminalConfig]
   );
@@ -190,19 +158,13 @@ export const useWorktreeTerminals = ({
       initialCommand: "claude",
     };
 
-    const newConfig = {
-      terminals: [...terminalConfig.terminals, claudeTerminal],
-      nextTerminalId: terminalConfig.nextTerminalId + 1,
-    };
-
-    setTerminalConfig(newConfig);
-    globalTerminalState.set(selectedWorktree.path, newConfig);
-
-    // Save to persistent storage
-    await window.electronAPI.saveWorktreeTerminals(
-      selectedWorktree.path,
-      newConfig
-    );
+    // Add Claude terminal via tRPC
+    const updatedConfig = await client.addTerminalToWorktree.mutate({
+      worktreePath: selectedWorktree.path,
+      terminal: claudeTerminal
+    });
+    
+    setTerminalConfig(updatedConfig);
   }, [selectedWorktree, terminalConfig]);
 
   return {

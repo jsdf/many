@@ -9,6 +9,19 @@ import { registerTerminalHandlers } from "./ipc-handlers/terminal-handlers";
 import { registerExternalActionHandlers } from "./ipc-handlers/external-action-handlers";
 import { router } from "./api";
 import { createIPCHandler } from "electron-trpc/main";
+import { logError, clearErrorLog } from "./logger";
+
+// Capture uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  logError(error, 'UNCAUGHT_EXCEPTION');
+});
+
+// Capture unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logError(reason, 'UNHANDLED_REJECTION');
+});
 
 let mainWindow: BrowserWindow | null = null;
 let terminalManager: TerminalManager;
@@ -60,20 +73,34 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(__dirname, "../preload/index.cjs"),
     },
   });
-
-  createIPCHandler({ router, windows: [mainWindow] });
 
   // Initialize terminal manager with main window
   terminalManager = new TerminalManager(mainWindow);
 
+  createIPCHandler({ 
+    router, 
+    windows: [mainWindow],
+    createContext: async () => ({ terminalManager })
+  });
+
   // Register all IPC handlers
   registerRepositoryHandlers(loadAppData, saveAppData, () => mainWindow);
-  registerGitHandlers(loadAppData);
-  registerTerminalHandlers(terminalManager, loadAppData, saveAppData);
+  registerGitHandlers(loadAppData, terminalManager);
+  registerTerminalHandlers(terminalManager);
   registerExternalActionHandlers();
+
+  // Log renderer process crashes
+  mainWindow.webContents.on('crashed', (event, killed) => {
+    logError(`Renderer process crashed. Killed: ${killed}`, 'RENDERER_CRASH');
+  });
+
+  // Log renderer process errors
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logError(`Failed to load: ${errorDescription} (${errorCode}) - ${validatedURL}`, 'LOAD_ERROR');
+  });
 
   // Save window bounds when moved or resized
   mainWindow.on("moved", saveWindowBounds);
@@ -100,7 +127,10 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await clearErrorLog();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   app.quit();

@@ -38,7 +38,7 @@ Features/TODO
 - [ ] bugs
 
   - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
-  - [ ] initialization command doesn't seem to work
+  - [x] initialization command doesn't seem to work
   - [x] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
   - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
@@ -61,22 +61,36 @@ don't forget to update this list if you finish implementing a feature
 
 ### Running the Application
 
-- `npm run build` if you want to check for errors without actually running the app. but make sure to also ask the user to test because you don't have the capability to see errors inside the electron browser process.
+- `npm run build` - Compile the application using esbuild (main, preload, renderer processes)
+- `npm start` - Build and launch the application in production mode
+- `npm run dev` - Launch in development mode with file watching and DevTools enabled
 
 be sure to run these in the background e.g. with `&` because they are long running processes and you will time out waiting for them to finish if you run them normally
 
-- `npm start` - Launch the application in production mode
-- `npm run dev` - Launch in development mode with DevTools enabled
+### Debugging and Logging
+
+- `npm run logs` - View Electron error logs (uncaught exceptions, crashes, load errors)
+- Error log location: `~/Library/Application Support/many/electron-errors.log` (macOS)
+- The app automatically logs all main process errors, renderer crashes, and load failures with timestamps
 
 ### Building and Distribution
 
-- `npm run build` - Compile the application source code (no installers)
+- `npm run build` - Compile the application source code using esbuild (no installers)
 - `npm run pack` - Build and package application without creating installer
 - `npm run dist` - Build and create full distribution packages (DMG, zip, etc.)
 
 ### Setup
 
 - `npm install` - Install all dependencies
+
+### Build System
+
+The project uses **esbuild** instead of Vite for faster builds:
+- `build.js` - Custom esbuild configuration
+- Builds main process → `dist-electron/main/index.cjs`
+- Builds preload script → `dist-electron/preload/index.cjs` 
+- Builds renderer → `dist/main.js` with CSS bundling
+- Uses `.cjs` extensions for main/preload to avoid ES module conflicts
 
 ## Architecture Overview
 

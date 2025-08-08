@@ -64,7 +64,8 @@ export const createWorktree = async (
   repoPath: string,
   branchName: string,
   baseBranch: string,
-  repoConfiguration: any
+  repoConfiguration: any,
+  terminalManager?: any
 ) => {
   try {
     const git = simpleGit(repoPath);
@@ -114,6 +115,11 @@ export const createWorktree = async (
         worktreePath,
         baseBranch || "HEAD",
       ]);
+    }
+
+    // Create setup terminal if initCommand exists and terminalManager is provided
+    if (repoConfiguration?.initCommand && terminalManager) {
+      terminalManager.createSetupTerminal(worktreePath, repoConfiguration.initCommand);
     }
 
     return {

@@ -3,7 +3,8 @@ import * as gitOps from "../git-operations";
 import { AppData } from "../types";
 
 export function registerGitHandlers(
-  loadAppData: () => Promise<AppData>
+  loadAppData: () => Promise<AppData>,
+  terminalManager?: any
 ) {
   // Basic git operations
   ipcMain.handle("get-worktrees", async (event, repoPath) => {
@@ -24,7 +25,7 @@ export function registerGitHandlers(
     async (event, repoPath, branchName, baseBranch) => {
       const configData = await loadAppData();
       const repoConfiguration = configData.repositoryConfigs[repoPath];
-      return gitOps.createWorktree(repoPath, branchName, baseBranch, repoConfiguration);
+      return gitOps.createWorktree(repoPath, branchName, baseBranch, repoConfiguration, terminalManager);
     }
   );
 

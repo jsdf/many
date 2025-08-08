@@ -3,6 +3,19 @@ import * as pty from "@lydell/node-pty";
 import os from "os";
 import path from "path";
 
+// Terminal configuration types
+export interface TerminalConfig {
+  id: string;
+  title: string;
+  type: "terminal" | "claude";
+  initialCommand?: string;
+}
+
+export interface WorktreeTerminals {
+  terminals: TerminalConfig[];
+  nextTerminalId: number;
+}
+
 export interface TerminalOutputBlock {
   id: number; // Sequence number for this block
   data: string; // Terminal output data
@@ -32,6 +45,7 @@ export interface TerminalSessionOptions {
 
 export class TerminalManager {
   private terminalSessions = new Map<string, TerminalSession>();
+  private worktreeTerminals = new Map<string, WorktreeTerminals>(); // worktreePath -> terminals
   private mainWindow: BrowserWindow | null = null;
 
   constructor(mainWindow: BrowserWindow) {
@@ -285,6 +299,51 @@ export class TerminalManager {
     }
   }
 
+  // Worktree terminal management
+  getWorktreeTerminals(worktreePath: string): WorktreeTerminals {
+    return this.worktreeTerminals.get(worktreePath) || {
+      terminals: [],
+      nextTerminalId: 1,
+    };
+  }
+
+  setWorktreeTerminals(worktreePath: string, terminals: WorktreeTerminals): void {
+    this.worktreeTerminals.set(worktreePath, terminals);
+  }
+
+  addTerminalToWorktree(worktreePath: string, terminal: TerminalConfig): void {
+    const current = this.getWorktreeTerminals(worktreePath);
+    const updated = {
+      terminals: [...current.terminals, terminal],
+      nextTerminalId: current.nextTerminalId + 1,
+    };
+    this.setWorktreeTerminals(worktreePath, updated);
+  }
+
+  removeTerminalFromWorktree(worktreePath: string, terminalId: string): void {
+    const current = this.getWorktreeTerminals(worktreePath);
+    const updated = {
+      ...current,
+      terminals: current.terminals.filter(t => t.id !== terminalId),
+    };
+    this.setWorktreeTerminals(worktreePath, updated);
+  }
+
+  createSetupTerminal(worktreePath: string, initCommand: string): void {
+    const setupTerminalId = `${worktreePath}-setup-${Date.now()}`;
+    const setupTerminal: TerminalConfig = {
+      id: setupTerminalId,
+      title: "Setup",
+      type: "terminal",
+      initialCommand: initCommand,
+    };
+    this.addTerminalToWorktree(worktreePath, setupTerminal);
+  }
+
+  clearWorktreeTerminals(worktreePath: string): void {
+    this.worktreeTerminals.delete(worktreePath);
+  }
+
   cleanup(): void {
     // Kill all PTY processes before clearing
     for (const [terminalId, session] of this.terminalSessions) {
@@ -298,5 +357,6 @@ export class TerminalManager {
       }
     }
     this.terminalSessions.clear();
+    this.worktreeTerminals.clear();
   }
 }

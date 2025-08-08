@@ -122,3 +122,8 @@ build/Release
 
 # VS Code settings
 .vscode/
+
+# Playwright
+test-results/
+playwright-report/
+tests/screenshots/
