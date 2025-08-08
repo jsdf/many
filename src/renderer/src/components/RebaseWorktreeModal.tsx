@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { client } from '../main';
 
 const formatBranchName = (branch?: string | null) => {
   if (!branch) return "detached HEAD";
@@ -46,8 +47,8 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
       setIsLoadingBranches(true);
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          window.electronAPI.getBranches(currentRepo),
-          window.electronAPI.getRepoConfig(currentRepo),
+          client.getBranches.query({ repoPath: currentRepo }),
+          client.getRepoConfig.query({ repoPath: currentRepo }),
         ]);
 
         // Filter out the current branch since we can't rebase onto ourselves

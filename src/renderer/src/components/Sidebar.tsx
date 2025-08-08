@@ -33,13 +33,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className="sidebar">
       <div className="sidebar-header">
         <h2>Worktrees</h2>
-        <button onClick={onAddRepo} className="btn btn-secondary">
+        <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-secondary">
           Add Repo
         </button>
       </div>
       
       <div className="repo-selector">
         <select 
+          data-testid="repo-selector"
           value={currentRepo || ''} 
           onChange={(e) => onRepoSelect(e.target.value || null)}
         >
@@ -52,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </select>
         {currentRepo && (
           <button 
+            data-testid="repo-config-button"
             onClick={onConfigRepo}
             className="btn btn-secondary repo-config-btn"
             title="Configure repository settings"
@@ -70,6 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           worktrees.map((worktree) => (
             <div
               key={worktree.path}
+              data-testid={`worktree-item-${worktree.branch || 'main'}`}
               className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''}`}
               onClick={() => onWorktreeSelect(worktree)}
             >
@@ -81,6 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
       
       <button 
+        data-testid="create-worktree-button"
         onClick={onCreateWorktree}
         disabled={!currentRepo}
         className="btn btn-primary"

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Worktree } from "../types";
+import { client } from "../main";
 
 const formatBranchName = (branch?: string) => {
   if (!branch) return "detached HEAD";
@@ -81,7 +82,9 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           <button
             className="btn btn-secondary"
             onClick={() => {
-              window.electronAPI?.openInFileManager?.(worktree.path);
+              if (worktree.path) {
+                client.openInFileManager.mutate({ folderPath: worktree.path });
+              }
             }}
           >
             📁 Open Folder
@@ -89,7 +92,9 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           <button
             className="btn btn-secondary"
             onClick={() => {
-              window.electronAPI?.openInEditor?.(worktree.path);
+              if (worktree.path) {
+                client.openInEditor.mutate({ folderPath: worktree.path });
+              }
             }}
           >
             📝 Open in Editor
@@ -97,7 +102,9 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           <button
             className="btn btn-secondary"
             onClick={() => {
-              window.electronAPI?.openInTerminal?.(worktree.path);
+              if (worktree.path) {
+                client.openInTerminal.mutate({ folderPath: worktree.path });
+              }
             }}
           >
             💻 Open in Terminal

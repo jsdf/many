@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { RepositoryConfig } from "../types";
+import { client } from "../main";
 
 interface AddRepoModalProps {
   mode: "add" | "config";
@@ -45,15 +46,15 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
         setIsLoadingBranches(true);
         try {
           // Load current config
-          const config = await window.electronAPI.getRepoConfig(currentRepo);
+          const config = await client.getRepoConfig.query({ repoPath: currentRepo });
           setMainBranch(config.mainBranch || "");
           setInitCommand(config.initCommand || "");
           setWorktreeDirectory(config.worktreeDirectory || "");
 
           // Load available branches
-          const repoBranches = await window.electronAPI.getBranches(
-            currentRepo
-          );
+          const repoBranches = await client.getBranches.query({
+            repoPath: currentRepo
+          });
           setBranches(repoBranches);
 
           // Auto-select default if no main branch is configured
@@ -129,7 +130,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
 
   const handleBrowse = async () => {
     try {
-      const folderPath = await window.electronAPI.selectFolder();
+      const folderPath = await client.selectFolder.mutate();
       if (folderPath) {
         setRepoPath(folderPath);
       }
@@ -141,7 +142,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
 
   const handleBrowseWorktreeDir = async () => {
     try {
-      const folderPath = await window.electronAPI.selectFolder();
+      const folderPath = await client.selectFolder.mutate();
       if (folderPath) {
         setWorktreeDirectory(folderPath);
       }
@@ -267,6 +268,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   <input
                     type="text"
                     id="repo-path-input"
+                    data-testid="repo-path-input"
                     value={repoPath}
                     onChange={(e) => setRepoPath(e.target.value)}
                     placeholder="/path/to/your/repo"
@@ -275,6 +277,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   />
                   <button
                     type="button"
+                    data-testid="browse-folder-button"
                     className="btn btn-secondary"
                     onClick={handleBrowse}
                     disabled={isLoading}
@@ -289,6 +292,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           <div className="modal-footer">
             <button
               type="button"
+              data-testid="add-repo-cancel"
               className="btn btn-secondary"
               onClick={onClose}
               disabled={isLoading}
@@ -297,6 +301,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
             </button>
             <button
               type="submit"
+              data-testid="add-repo-submit"
               className="btn btn-primary"
               disabled={
                 isLoading ||

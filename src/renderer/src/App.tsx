@@ -41,7 +41,7 @@ const App: React.FC = () => {
 
   const loadSavedRepos = async () => {
     try {
-      const repos = await window.electronAPI.getSavedRepos();
+      const repos = await client.getSavedRepos.query();
       setRepositories(repos);
     } catch (error) {
       console.error("Failed to load saved repos:", error);
@@ -50,7 +50,7 @@ const App: React.FC = () => {
 
   const restoreSelectedRepo = async () => {
     try {
-      const selectedRepo = await window.electronAPI.getSelectedRepo();
+      const selectedRepo = await client.getSelectedRepo.query();
       if (selectedRepo) {
         setCurrentRepo(selectedRepo);
         await selectRepo(selectedRepo);
@@ -92,15 +92,15 @@ const App: React.FC = () => {
       setCurrentRepo(null);
       setWorktrees([]);
       setSelectedWorktree(null);
-      await window.electronAPI.setSelectedRepo(null);
+      await client.setSelectedRepo.mutate({ repoPath: null });
       return;
     }
 
     setCurrentRepo(repoPath);
 
     try {
-      await window.electronAPI.setSelectedRepo(repoPath);
-      const repoWorktrees = await window.electronAPI.getWorktrees(repoPath);
+      await client.setSelectedRepo.mutate({ repoPath });
+      const repoWorktrees = await client.getWorktrees.query({ repoPath });
       setWorktrees(repoWorktrees);
 
       // Auto-select the most recent worktree or default to main/base branch
@@ -108,12 +108,12 @@ const App: React.FC = () => {
         let worktreeToSelect: Worktree | null = null;
 
         // First, try to get the most recently used worktree
-        const recentWorktreePath = await window.electronAPI.getRecentWorktree(
+        const recentWorktreePath = await client.getRecentWorktree.query({
           repoPath
-        );
+        });
         if (recentWorktreePath) {
           worktreeToSelect =
-            repoWorktrees.find((wt) => wt.path === recentWorktreePath) || null;
+            repoWorktrees.find((wt) => wt.path && wt.path === recentWorktreePath) || null;
         }
 
         // If no recent worktree or it no longer exists, select the base/main worktree
@@ -123,7 +123,7 @@ const App: React.FC = () => {
               (wt) =>
                 wt.branch === "main" ||
                 wt.branch === "master" ||
-                wt.path.endsWith(repoPath) // This is typically the base worktree
+                (wt.path && wt.path.endsWith(repoPath)) // This is typically the base worktree
             ) || repoWorktrees[0]; // Fall back to first worktree
         }
 
@@ -139,7 +139,7 @@ const App: React.FC = () => {
 
   const addRepository = async (repoPath: string) => {
     try {
-      await window.electronAPI.saveRepo(repoPath);
+      await client.saveRepo.mutate({ repoPath });
       await loadSavedRepos();
       setShowAddRepoModal(false);
       setCurrentRepo(repoPath);
@@ -156,22 +156,22 @@ const App: React.FC = () => {
     }
 
     try {
-      const result = await window.electronAPI.createWorktree(
-        currentRepo,
+      const result = await client.createWorktree.mutate({
+        repoPath: currentRepo,
         branchName,
         baseBranch
-      );
+      });
       console.log("Created worktree:", result);
 
       // Refresh the worktree list
-      const updatedWorktrees = await window.electronAPI.getWorktrees(
-        currentRepo
-      );
+      const updatedWorktrees = await client.getWorktrees.query({
+        repoPath: currentRepo
+      });
       setWorktrees(updatedWorktrees);
 
       // Find the newly created worktree and select it
       const newWorktree = updatedWorktrees.find(
-        (wt) => wt.path === result.path
+        (wt) => wt.path && wt.path === result.path
       );
       if (newWorktree) {
         await handleWorktreeSelect(newWorktree);
@@ -192,7 +192,7 @@ const App: React.FC = () => {
     }
 
     try {
-      await window.electronAPI.saveRepoConfig(currentRepo, config);
+      await client.saveRepoConfig.mutate({ repoPath: currentRepo, config });
       setShowRepoConfigModal(false);
     } catch (error) {
       console.error("Failed to save repo config:", error);
@@ -206,7 +206,12 @@ const App: React.FC = () => {
     // Track the most recently selected worktree for this repo
     if (worktree && currentRepo) {
       try {
-        await window.electronAPI.setRecentWorktree(currentRepo, worktree.path);
+        if (worktree.path) {
+          await client.setRecentWorktree.mutate({
+            repoPath: currentRepo,
+            worktreePath: worktree.path
+          });
+        }
       } catch (error) {
         console.error("Failed to save recent worktree:", error);
       }
@@ -220,19 +225,25 @@ const App: React.FC = () => {
 
     const performArchive = async (force = false) => {
       // Clean up terminals associated with this worktree
-      await window.electronAPI.cleanupWorktreeTerminals(worktree.path);
+      // This is handled by the terminal manager automatically
 
       // Clean up frontend terminal state
       // cleanupWorktreeState(worktree.path);
 
       // Archive the worktree
-      await window.electronAPI.archiveWorktree(currentRepo, worktree.path, force);
+      if (worktree.path) {
+        await client.archiveWorktree.mutate({
+          repoPath: currentRepo,
+          worktreePath: worktree.path,
+          force
+        });
+      }
 
       // Refresh the worktree list
       if (currentRepo) {
-        const updatedWorktrees = await window.electronAPI.getWorktrees(
-          currentRepo
-        );
+        const updatedWorktrees = await client.getWorktrees.query({
+          repoPath: currentRepo
+        });
         setWorktrees(updatedWorktrees);
 
         // Clear selection if the archived worktree was selected
@@ -291,17 +302,17 @@ const App: React.FC = () => {
     }
 
     try {
-      await window.electronAPI.mergeWorktree(
-        currentRepo,
-        worktreeToMerge.branch!,
+      await client.mergeWorktree.mutate({
+        repoPath: currentRepo,
+        fromBranch: worktreeToMerge.branch!,
         toBranch,
         options
-      );
+      });
 
       // Refresh the worktree list
-      const updatedWorktrees = await window.electronAPI.getWorktrees(
-        currentRepo
-      );
+      const updatedWorktrees = await client.getWorktrees.query({
+        repoPath: currentRepo
+      });
       setWorktrees(updatedWorktrees);
 
       setShowMergeModal(false);
@@ -318,11 +329,13 @@ const App: React.FC = () => {
     }
 
     try {
-      await window.electronAPI.rebaseWorktree(
-        worktreeToRebase.path,
-        worktreeToRebase.branch!,
-        ontoBranch
-      );
+      if (worktreeToRebase.path) {
+        await client.rebaseWorktree.mutate({
+          worktreePath: worktreeToRebase.path,
+          fromBranch: worktreeToRebase.branch!,
+          ontoBranch
+        });
+      }
 
       setShowRebaseModal(false);
       setWorktreeToRebase(null);
@@ -336,10 +349,10 @@ const App: React.FC = () => {
     <div className="app">
       {/* tRPC Test Button - Remove after testing */}
       <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000 }}>
-        <button onClick={testTrpc} style={{ marginRight: '10px' }}>
+        <button data-testid="trpc-test-button" onClick={testTrpc} style={{ marginRight: '10px' }}>
           Test tRPC
         </button>
-        {trpcMessage && <span style={{ color: 'green' }}>{trpcMessage}</span>}
+        {trpcMessage && <span data-testid="trpc-result" style={{ color: 'green' }}>{trpcMessage}</span>}
       </div>
       
       <Sidebar
@@ -387,7 +400,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {showMergeModal && worktreeToMerge && (
+      {showMergeModal && worktreeToMerge && worktreeToMerge.path && (
         <MergeWorktreeModal
           currentRepo={currentRepo}
           fromBranch={worktreeToMerge.branch!}
@@ -400,11 +413,11 @@ const App: React.FC = () => {
         />
       )}
 
-      {showRebaseModal && worktreeToRebase && (
+      {showRebaseModal && worktreeToRebase && worktreeToRebase.path && (
         <RebaseWorktreeModal
           currentRepo={currentRepo}
           fromBranch={worktreeToRebase.branch!}
-          worktreePath={worktreeToRebase.path}
+          worktreePath={worktreeToRebase.path!}
           onClose={() => {
             setShowRebaseModal(false);
             setWorktreeToRebase(null);

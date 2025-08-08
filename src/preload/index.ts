@@ -30,21 +30,7 @@ contextBridge.exposeInMainWorld("electronTRPC", {
 preloadLog("=== electronTRPC bridge exposed ===");
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Git and worktree APIs
-  getWorktrees: (repoPath: string) =>
-    ipcRenderer.invoke("get-worktrees", repoPath),
-  getBranches: (repoPath: string) =>
-    ipcRenderer.invoke("get-branches", repoPath),
-  createWorktree: (repoPath: string, branchName: string, baseBranch?: string) =>
-    ipcRenderer.invoke("create-worktree", repoPath, branchName, baseBranch),
-  getGitUsername: (repoPath: string) =>
-    ipcRenderer.invoke("get-git-username", repoPath),
-  getSavedRepos: () => ipcRenderer.invoke("get-saved-repos"),
-  saveRepo: (repoPath: string) => ipcRenderer.invoke("save-repo", repoPath),
-  selectFolder: () => ipcRenderer.invoke("select-folder"),
-  getSelectedRepo: () => ipcRenderer.invoke("get-selected-repo"),
-  setSelectedRepo: (repoPath: string | null) =>
-    ipcRenderer.invoke("set-selected-repo", repoPath),
+  // Git and worktree APIs - migrated to tRPC, keeping only for terminal compatibility
 
   // Terminal APIs
   createTerminalSession: (options: {
@@ -98,48 +84,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener(channel, handler);
   },
 
-  // Quick Actions APIs
-  openInFileManager: (folderPath: string) =>
-    ipcRenderer.invoke("open-in-file-manager", folderPath),
-  openInEditor: (folderPath: string) =>
-    ipcRenderer.invoke("open-in-editor", folderPath),
-  openInTerminal: (folderPath: string) =>
-    ipcRenderer.invoke("open-in-terminal", folderPath),
-  getRepoConfig: (repoPath: string) =>
-    ipcRenderer.invoke("get-repo-config", repoPath),
-  saveRepoConfig: (repoPath: string, config: any) =>
-    ipcRenderer.invoke("save-repo-config", repoPath, config),
-  archiveWorktree: (repoPath: string, worktreePath: string, force?: boolean) =>
-    ipcRenderer.invoke("archive-worktree", repoPath, worktreePath, force),
-  checkBranchMerged: (repoPath: string, branchName: string) =>
-    ipcRenderer.invoke("check-branch-merged", repoPath, branchName),
-  mergeWorktree: (
-    repoPath: string,
-    fromBranch: string,
-    toBranch: string,
-    options: any
-  ) =>
-    ipcRenderer.invoke(
-      "merge-worktree",
-      repoPath,
-      fromBranch,
-      toBranch,
-      options
-    ),
-  rebaseWorktree: (
-    worktreePath: string,
-    fromBranch: string,
-    ontoBranch: string
-  ) =>
-    ipcRenderer.invoke("rebase-worktree", worktreePath, fromBranch, ontoBranch),
-  getWorktreeStatus: (worktreePath: string) =>
-    ipcRenderer.invoke("get-worktree-status", worktreePath),
-  getCommitLog: (worktreePath: string, baseBranch: string) =>
-    ipcRenderer.invoke("get-commit-log", worktreePath, baseBranch),
-  getRecentWorktree: (repoPath: string) =>
-    ipcRenderer.invoke("get-recent-worktree", repoPath),
-  setRecentWorktree: (repoPath: string, worktreePath: string) =>
-    ipcRenderer.invoke("set-recent-worktree", repoPath, worktreePath),
+  // Repository, Git and worktree APIs - migrated to tRPC
+  // Removed duplicate IPC calls, using tRPC instead
   
   // Logging API
   logRendererError: (error: any, source: string) =>

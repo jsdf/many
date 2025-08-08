@@ -5,14 +5,16 @@ export interface Repository {
 }
 
 export interface Worktree {
-  path: string;
+  path?: string;
   branch?: string;
+  commit?: string;
+  bare?: boolean;
 }
 
 export interface RepositoryConfig {
   mainBranch: string | null;
-  initCommand?: string | null;
-  worktreeDirectory?: string | null;
+  initCommand: string | null;
+  worktreeDirectory: string | null;
 }
 
 export interface MergeOptions {

@@ -122,12 +122,13 @@ export const useWorktreeTerminals = ({
         window.electronAPI.closeTerminal?.(tileId);
 
         // Remove terminal via tRPC
-        const updatedConfig = await client.removeTerminalFromWorktree.mutate({
-          worktreePath: selectedWorktree.path,
-          terminalId: tileId
-        });
-        
-        setTerminalConfig(updatedConfig);
+        if (selectedWorktree.path) {
+          const updatedConfig = await client.removeTerminalFromWorktree.mutate({
+            worktreePath: selectedWorktree.path,
+            terminalId: tileId
+          });
+          setTerminalConfig(updatedConfig);
+        }
       }
     },
     [selectedWorktree, terminalConfig]
@@ -145,12 +146,13 @@ export const useWorktreeTerminals = ({
       };
 
       // Add terminal via tRPC
-      const updatedConfig = await client.addTerminalToWorktree.mutate({
-        worktreePath: selectedWorktree.path,
-        terminal: newTerminal
-      });
-      
-      setTerminalConfig(updatedConfig);
+      if (selectedWorktree.path) {
+        const updatedConfig = await client.addTerminalToWorktree.mutate({
+          worktreePath: selectedWorktree.path,
+          terminal: newTerminal
+        });
+        setTerminalConfig(updatedConfig);
+      }
     },
     [selectedWorktree, terminalConfig]
   );
@@ -167,12 +169,13 @@ export const useWorktreeTerminals = ({
     };
 
     // Add Claude terminal via tRPC
-    const updatedConfig = await client.addTerminalToWorktree.mutate({
-      worktreePath: selectedWorktree.path,
-      terminal: claudeTerminal
-    });
-    
-    setTerminalConfig(updatedConfig);
+    if (selectedWorktree.path) {
+      const updatedConfig = await client.addTerminalToWorktree.mutate({
+        worktreePath: selectedWorktree.path,
+        terminal: claudeTerminal
+      });
+      setTerminalConfig(updatedConfig);
+    }
   }, [selectedWorktree, terminalConfig]);
 
   return {

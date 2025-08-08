@@ -1,15 +1,12 @@
-import { app } from "electron";
-import path from "path";
 import { promises as fs } from "fs";
+import { getLogPath, getLogFilePath } from "./config";
 
-// Get user data directory for storing logs (lazily initialized)
-let userDataPath: string | null = null;
+// Cached log path
 let errorLogPath: string | null = null;
 
 function initializePaths() {
-  if (!userDataPath) {
-    userDataPath = app.getPath("userData");
-    errorLogPath = path.join(userDataPath, "electron-errors.log");
+  if (!errorLogPath) {
+    errorLogPath = getLogFilePath();
   }
 }
 
@@ -24,7 +21,8 @@ export async function logError(error: any, source: string): Promise<void> {
   // Chain this write after any pending writes
   logWriteQueue = logWriteQueue.then(async () => {
     try {
-      await fs.mkdir(userDataPath!, { recursive: true });
+      const logDir = getLogPath();
+      await fs.mkdir(logDir, { recursive: true });
       await fs.appendFile(errorLogPath!, errorMessage, 'utf8');
     } catch (logErr) {
       console.error('Failed to write error log:', logErr);
@@ -39,7 +37,8 @@ export async function clearErrorLog(): Promise<void> {
   // Chain this after any pending writes
   logWriteQueue = logWriteQueue.then(async () => {
     try {
-      await fs.mkdir(userDataPath!, { recursive: true });
+      const logDir = getLogPath();
+      await fs.mkdir(logDir, { recursive: true });
       await fs.writeFile(errorLogPath!, '', 'utf8');
       const timestamp = new Date().toISOString();
       await fs.appendFile(errorLogPath!, `[${timestamp}] APP_START: Application started, error log cleared\n`, 'utf8');
@@ -51,7 +50,7 @@ export async function clearErrorLog(): Promise<void> {
   return logWriteQueue;
 }
 
-export function getLogPath(): string {
+export function getErrorLogPath(): string {
   initializePaths();
   return errorLogPath!;
 }

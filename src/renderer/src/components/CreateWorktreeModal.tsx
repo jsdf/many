@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { client } from '../main'
 
 interface CreateWorktreeModalProps {
   currentRepo: string | null
@@ -35,8 +36,8 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
       setIsLoadingBranches(true)
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          window.electronAPI.getBranches(currentRepo),
-          window.electronAPI.getRepoConfig(currentRepo)
+          client.getBranches.query({ repoPath: currentRepo }),
+          client.getRepoConfig.query({ repoPath: currentRepo })
         ])
         setBranches(repoBranches)
         
@@ -125,6 +126,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
               <input
                 type="text"
                 id="branch-input"
+                data-testid="branch-name-input"
                 value={branchName}
                 onChange={(e) => setBranchName(e.target.value)}
                 placeholder="e.g., username/feature-name, fix-bug, add-feature..."
@@ -181,6 +183,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
           <div className="modal-footer">
             <button 
               type="button" 
+              data-testid="create-worktree-cancel"
               className="btn btn-secondary" 
               onClick={onClose}
               disabled={isCreating}
@@ -189,6 +192,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
             </button>
             <button 
               type="submit" 
+              data-testid="create-worktree-submit"
               className="btn btn-primary"
               disabled={isCreating || isLoadingBranches || (!branchName.trim() && !selectedExistingBranch)}
             >

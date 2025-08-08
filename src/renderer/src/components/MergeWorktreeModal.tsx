@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { MergeOptions, GitStatus } from '../types'
+import { client } from '../main'
 
 interface MergeWorktreeModalProps {
   currentRepo: string | null
@@ -47,8 +48,8 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
       setIsLoadingBranches(true)
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          window.electronAPI.getBranches(currentRepo),
-          window.electronAPI.getRepoConfig(currentRepo)
+          client.getBranches.query({ repoPath: currentRepo }),
+          client.getRepoConfig.query({ repoPath: currentRepo })
         ])
         
         // Filter out the current branch
@@ -75,7 +76,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
         // Set default commit message using git log
         if (selectedBranch) {
           try {
-            const commitLog = await window.electronAPI.getCommitLog(worktreePath, selectedBranch)
+            const commitLog = await client.getCommitLog.query({ worktreePath, baseBranch: selectedBranch })
             if (commitLog) {
               setMessage(commitLog)
             } else {
@@ -104,7 +105,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
       if (!worktreePath) return
       
       try {
-        const status = await window.electronAPI.getWorktreeStatus(worktreePath)
+        const status = await client.getWorktreeStatus.query({ worktreePath })
         setGitStatus(status)
       } catch (error) {
         console.error('Failed to load git status:', error)

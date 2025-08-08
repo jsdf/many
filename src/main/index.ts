@@ -3,13 +3,11 @@ import path from "path";
 import { promises as fs } from "fs";
 import { TerminalManager } from "./terminal-manager";
 import { AppData } from "./types";
-import { registerRepositoryHandlers } from "./ipc-handlers/repository-handlers";
-import { registerGitHandlers } from "./ipc-handlers/git-handlers";
-import { registerTerminalHandlers } from "./ipc-handlers/terminal-handlers";
-import { registerExternalActionHandlers } from "./ipc-handlers/external-action-handlers";
+// IPC handlers removed - using tRPC instead
 import { router } from "./api";
 import { createIPCHandler } from "electron-trpc/main";
 import { logError, clearErrorLog } from "./logger";
+import { getDataPath, getDataFilePath, defaultAppData, loadConfigFromEnv } from "./config";
 
 // Set app name before any path operations
 app.setName("Many");
@@ -29,23 +27,10 @@ process.on('unhandledRejection', (reason, promise) => {
 let mainWindow: BrowserWindow | null = null;
 let terminalManager: TerminalManager;
 
-// Get user data directory for storing app data
-const userDataPath = app.getPath("userData");
-const dataFilePath = path.join(userDataPath, "app-data.json");
-
-// Default app data structure
-const defaultAppData: AppData = {
-  repositories: [],
-  repositoryConfigs: {},
-  selectedRepo: null,
-  recentWorktrees: {},
-  windowBounds: { width: 1200, height: 800 },
-  worktreeTerminals: {},
-};
-
 // Load app data from disk
 async function loadAppData() {
   try {
+    const dataFilePath = getDataFilePath();
     const data = await fs.readFile(dataFilePath, "utf8");
     return { ...defaultAppData, ...JSON.parse(data) };
   } catch (error) {
@@ -57,7 +42,9 @@ async function loadAppData() {
 // Save app data to disk
 async function saveAppData(data: AppData) {
   try {
-    await fs.mkdir(userDataPath, { recursive: true });
+    const dataPath = getDataPath();
+    const dataFilePath = getDataFilePath();
+    await fs.mkdir(dataPath, { recursive: true });
     await fs.writeFile(dataFilePath, JSON.stringify(data, null, 2), "utf8");
   } catch (error) {
     console.error("Failed to save app data:", error);
@@ -91,7 +78,10 @@ async function createWindow() {
     createContext: async () => {
       console.log("=== tRPC createContext called ===");
       return { 
-        terminalManager: terminalManager
+        terminalManager: terminalManager,
+        loadAppData: loadAppData,
+        saveAppData: saveAppData,
+        getMainWindow: () => mainWindow
       };
     }
   });
@@ -103,11 +93,7 @@ async function createWindow() {
     await logError(error, `RENDERER_${source}`);
   });
 
-  // Register all IPC handlers
-  registerRepositoryHandlers(loadAppData, saveAppData, () => mainWindow);
-  registerGitHandlers(loadAppData, terminalManager);
-  registerTerminalHandlers(terminalManager);
-  registerExternalActionHandlers();
+  // Old IPC handlers removed - now using tRPC operations only
 
   // Log renderer process crashes
   mainWindow.webContents.on('crashed', (event, killed) => {
@@ -145,6 +131,9 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Load configuration from environment (for testing)
+  loadConfigFromEnv();
+  
   await clearErrorLog();
   createWindow();
 });
