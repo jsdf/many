@@ -8,6 +8,8 @@ interface TerminalProps {
   terminalId?: string;
   initialCommand?: string;
   worktreePath?: string;
+  autoFocus?: boolean;
+  onAutoFocusUsed?: () => void;
 }
 
 const Terminal: React.FC<TerminalProps> = ({
@@ -16,12 +18,14 @@ const Terminal: React.FC<TerminalProps> = ({
   terminalId = "terminal-" + Math.random().toString(36).substr(2, 9),
   initialCommand,
   worktreePath,
+  autoFocus = false,
+  onAutoFocusUsed,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<TerminalSession | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  console.log("Initializing terminal", terminalId, workingDirectory);
+  console.log("Initializing terminal", terminalId, workingDirectory, "autoFocus:", autoFocus);
 
   // Create TerminalSession instance once
   useEffect(() => {
@@ -42,7 +46,16 @@ const Terminal: React.FC<TerminalProps> = ({
       workingDirectory,
       initialCommand,
       worktreePath,
+      autoFocus,
     });
+
+    // Call the callback to clear autoFocus after it's used
+    if (autoFocus && onAutoFocusUsed) {
+      // Delay clearing to ensure the focus happens first
+      setTimeout(() => {
+        onAutoFocusUsed();
+      }, 150);
+    }
 
     return () => {
       session.dispose();

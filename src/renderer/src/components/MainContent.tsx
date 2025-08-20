@@ -68,6 +68,15 @@ const MainContent: React.FC<MainContentProps> = ({
             }
             initialCommand={data.terminalConfig!.initialCommand}
             worktreePath={selectedWorktree.path}
+            autoFocus={data.terminalConfig!.autoFocus}
+            onAutoFocusUsed={() => {
+              // Clear the autoFocus flag after it's used
+              if (data.terminalConfig!.autoFocus) {
+                // We need to implement a way to update the terminal config
+                // For now, we'll just log it
+                console.log("Auto-focus used for terminal", data.terminalConfig!.id);
+              }
+            }}
           />
         ),
       });
@@ -97,14 +106,20 @@ const MainContent: React.FC<MainContentProps> = ({
         <div className="worktree-controls">
           <button
             className="btn btn-secondary"
-            onClick={() => handleSplitTile("", "horizontal")}
+            onClick={(e) => {
+              handleSplitTile("", "horizontal");
+              (e.target as HTMLButtonElement).blur();
+            }}
             title="Add terminal"
           >
             + Terminal
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => handleAddClaudeTerminal()}
+            onClick={(e) => {
+              handleAddClaudeTerminal();
+              (e.target as HTMLButtonElement).blur();
+            }}
             title="Open Claude terminal"
           >
             🤖 Claude

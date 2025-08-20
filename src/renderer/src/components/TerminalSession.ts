@@ -8,6 +8,7 @@ export class TerminalSession {
   private resizeObserver?: ResizeObserver;
   private cleanup?: () => void;
   private isConnected = false;
+  private shouldAutoFocus = false;
   
   // Callbacks
   private onConnectionChange?: (connected: boolean) => void;
@@ -88,15 +89,23 @@ export class TerminalSession {
     workingDirectory?: string;
     initialCommand?: string;
     worktreePath?: string;
+    autoFocus?: boolean;
   }) {
-    const { terminalId, workingDirectory, initialCommand, worktreePath } = options;
+    const { terminalId, workingDirectory, initialCommand, worktreePath, autoFocus = false } = options;
+    
+    // Store the autoFocus preference
+    this.shouldAutoFocus = autoFocus;
+    console.log(`Terminal ${terminalId} autoFocus:`, autoFocus);
 
     // Clean up existing connection
     this.cleanup?.();
 
     try {
+      // Import tRPC client
+      const { client } = await import("../main");
+      
       // Request new terminal session from main process
-      await window.electronAPI.createTerminalSession({
+      await client.createTerminalSession.mutate({
         terminalId,
         workingDirectory,
         cols: this.xterm.cols,
@@ -140,17 +149,17 @@ export class TerminalSession {
       );
 
       // Set up XTerm event handlers
-      const dataDisposable = this.xterm.onData((data) => {
+      const dataDisposable = this.xterm.onData(async (data) => {
         try {
-          window.electronAPI.sendTerminalData?.(terminalId, data);
+          await client.sendTerminalData.mutate({ terminalId, data });
         } catch (error) {
           console.error("Error sending terminal data:", error);
         }
       });
 
-      const resizeDisposable = this.xterm.onResize(({ cols, rows }) => {
+      const resizeDisposable = this.xterm.onResize(async ({ cols, rows }) => {
         try {
-          window.electronAPI.resizeTerminal?.(terminalId, cols, rows);
+          await client.resizeTerminal.mutate({ terminalId, cols, rows });
         } catch (error) {
           console.error("Error resizing terminal:", error);
         }
@@ -194,6 +203,16 @@ export class TerminalSession {
   private setConnected(connected: boolean) {
     this.isConnected = connected;
     this.onConnectionChange?.(connected);
+    
+    // Auto-focus terminal when it connects if enabled
+    if (connected && this.shouldAutoFocus) {
+      console.log('Auto-focusing terminal');
+      // Use a small delay to ensure the terminal is fully rendered
+      setTimeout(() => {
+        console.log('Calling xterm.focus()');
+        this.xterm.focus();
+      }, 100);
+    }
   }
 
   getConnectionStatus() {
@@ -202,6 +221,10 @@ export class TerminalSession {
 
   fit() {
     this.fitAddon.fit();
+  }
+
+  focus() {
+    this.xterm.focus();
   }
 
   dispose() {

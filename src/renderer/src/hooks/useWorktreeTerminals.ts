@@ -54,37 +54,15 @@ export const useWorktreeTerminals = ({
         return;
       }
 
-      // Temporarily disabled to test tRPC button separately
-      console.log("Would load terminals for:", selectedWorktree.path);
-      setTerminalConfig({ terminals: [], nextTerminalId: 1 });
-      setIsLoadingTerminals(false);
-      return;
-
-      /*
       setIsLoadingTerminals(true);
       try {
         // Load terminals from backend via tRPC
         const config = await client.getWorktreeTerminals.query({
-          worktreePath: selectedWorktree.path
+          worktreePath: selectedWorktree.path!
         });
 
-        if (config.terminals.length === 0) {
-          // Create default terminal if none exist
-          const defaultTerminal: TerminalConfig = {
-            id: `${selectedWorktree.path}-terminal-1`,
-            title: "Terminal 1",
-            type: "terminal",
-          };
-
-          const updatedConfig = await client.addTerminalToWorktree.mutate({
-            worktreePath: selectedWorktree.path,
-            terminal: defaultTerminal
-          });
-
-          setTerminalConfig(updatedConfig);
-        } else {
-          setTerminalConfig(config);
-        }
+        // Just use whatever terminals exist (don't create default ones)
+        setTerminalConfig(config);
       } catch (error) {
         console.error("Failed to load worktree terminals:", error);
         // Fallback to basic setup
@@ -92,7 +70,6 @@ export const useWorktreeTerminals = ({
       } finally {
         setIsLoadingTerminals(false);
       }
-      */
     };
 
     loadWorktreeTerminals();
@@ -119,7 +96,11 @@ export const useWorktreeTerminals = ({
 
       // If it's a terminal, clean up the session and update configuration
       if (tileId.includes("terminal-") || tileId.includes("claude-")) {
-        window.electronAPI.closeTerminal?.(tileId);
+        try {
+          await client.closeTerminal.mutate({ terminalId: tileId });
+        } catch (error) {
+          console.error("Error closing terminal:", error);
+        }
 
         // Remove terminal via tRPC
         if (selectedWorktree.path) {
@@ -143,6 +124,7 @@ export const useWorktreeTerminals = ({
         id: newTerminalId,
         title: `Terminal ${terminalConfig.nextTerminalId}`,
         type: "terminal",
+        autoFocus: true, // User-created terminal should auto-focus
       };
 
       // Add terminal via tRPC
@@ -166,6 +148,7 @@ export const useWorktreeTerminals = ({
       title: "Claude Terminal",
       type: "claude",
       initialCommand: "claude",
+      autoFocus: true, // User-created terminal should auto-focus
     };
 
     // Add Claude terminal via tRPC

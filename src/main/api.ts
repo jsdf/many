@@ -25,6 +25,7 @@ const TerminalConfigSchema = z.object({
   title: z.string(),
   type: z.enum(['terminal', 'claude']),
   initialCommand: z.string().optional(),
+  autoFocus: z.boolean().optional(),
 });
 
 const WorktreeTerminalsSchema = z.object({
@@ -433,6 +434,65 @@ export const router = t.router({
     .input(z.object({ dirPath: z.string() }))
     .mutation(async ({ input }) => {
       return await externalActions.openVSCode(input.dirPath);
+    }),
+
+  // Terminal session management
+  createTerminalSession: publicProcedure
+    .input(z.object({
+      terminalId: z.string(),
+      workingDirectory: z.string().optional(),
+      cols: z.number().default(80),
+      rows: z.number().default(24),
+      initialCommand: z.string().optional(),
+      worktreePath: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return await ctx.terminalManager.createTerminalSession({
+        terminalId: input.terminalId,
+        workingDirectory: input.workingDirectory,
+        cols: input.cols,
+        rows: input.rows,
+        initialCommand: input.initialCommand,
+        worktreePath: input.worktreePath,
+      });
+    }),
+
+  sendTerminalData: publicProcedure
+    .input(z.object({
+      terminalId: z.string(),
+      data: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return await ctx.terminalManager.sendTerminalData(input.terminalId, input.data);
+    }),
+
+  resizeTerminal: publicProcedure
+    .input(z.object({
+      terminalId: z.string(),
+      cols: z.number(),
+      rows: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.terminalManager.resizeTerminal(input.terminalId, input.cols, input.rows);
+    }),
+
+  closeTerminal: publicProcedure
+    .input(z.object({ terminalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      return ctx.terminalManager.closeTerminal(input.terminalId);
+    }),
+
+  terminalSessionExists: publicProcedure
+    .input(z.object({ terminalId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return ctx.terminalManager.sessionExists(input.terminalId);
+    }),
+
+  cleanupWorktreeTerminals: publicProcedure
+    .input(z.object({ worktreePath: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      ctx.terminalManager.cleanupWorktreeTerminals(input.worktreePath);
+      return true;
     }),
 });
 
