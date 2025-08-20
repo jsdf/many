@@ -8,7 +8,6 @@ import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import { client } from "./main";
-import { logError } from "./logger";
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -26,17 +25,10 @@ const App: React.FC = () => {
   const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(
     null
   );
-  const [trpcMessage, setTrpcMessage] = useState<string>("");
 
   useEffect(() => {
     loadSavedRepos();
     restoreSelectedRepo();
-    
-    // Auto-test tRPC after 3 seconds for verification
-    setTimeout(() => {
-      console.log("Auto-testing tRPC...");
-      testTrpc();
-    }, 3000);
   }, []);
 
   const loadSavedRepos = async () => {
@@ -60,32 +52,6 @@ const App: React.FC = () => {
     }
   };
 
-  const testTrpc = async () => {
-    console.warn("=== tRPC Test Button Clicked ===");
-    setTrpcMessage("Testing...");
-    
-    // Check if electronTRPC global is available
-    console.warn("electronTRPC global check:", typeof (window as any).electronTRPC);
-    if ((window as any).electronTRPC) {
-      console.warn("electronTRPC methods:", Object.keys((window as any).electronTRPC));
-    }
-    
-    try {
-      console.warn("Starting tRPC test...");
-      const result = await client.hello.query({ name: "tRPC" });
-      console.warn("tRPC result:", result);
-      setTrpcMessage(`Success: ${result}`);
-      
-      // Test client-side logging
-      await logError("Test client-side logging functionality", "TRPC_TEST");
-    } catch (error) {
-      console.error("tRPC test failed:", error);
-      setTrpcMessage(`tRPC test failed: ${error instanceof Error ? error.message : String(error)}`);
-      
-      // Log error to main process
-      await logError(error, "TRPC_ERROR");
-    }
-  };
 
   const selectRepo = async (repoPath: string | null) => {
     if (!repoPath) {
@@ -347,13 +313,6 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      {/* tRPC Test Button - Remove after testing */}
-      <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000 }}>
-        <button data-testid="trpc-test-button" onClick={testTrpc} style={{ marginRight: '10px' }}>
-          Test tRPC
-        </button>
-        {trpcMessage && <span data-testid="trpc-result" style={{ color: 'green' }}>{trpcMessage}</span>}
-      </div>
       
       <Sidebar
         repositories={repositories}

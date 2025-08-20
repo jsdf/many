@@ -116,8 +116,8 @@ test('App handles tRPC operations without errors', async ({ isolatedApp }) => {
   const window = await electronApp.firstWindow();
   await window.waitForLoadState('domcontentloaded');
   
-  // Wait for the auto tRPC test to run (it runs after 3 seconds)
-  await window.waitForTimeout(5000);
+  // Wait for app initialization to complete
+  await window.waitForTimeout(2000);
   
   await electronApp.close();
   

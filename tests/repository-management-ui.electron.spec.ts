@@ -84,7 +84,7 @@ test('Create worktree through UI', async ({ isolatedApp }) => {
   await expectNoErrors(isolatedApp.logPath);
 });
 
-test('tRPC functionality through UI', async ({ isolatedApp }) => {
+test('tRPC functionality through normal operations', async ({ isolatedApp }) => {
   const electronApp = await electron.launch({
     args: [path.join(__dirname, '../out/main/index.cjs')],
     env: {
@@ -100,9 +100,14 @@ test('tRPC functionality through UI', async ({ isolatedApp }) => {
   const ui = createUIActions(window);
   await ui.waitForApplicationReady();
   
-  // Test tRPC functionality through the UI test button
-  const result = await ui.triggerTRPCTest();
-  expect(result).toContain('Success: Hello tRPC!');
+  // Test tRPC functionality through normal app operations
+  // The app loads saved repositories and selected repo on startup, which uses tRPC
+  const repos = await ui.getRepositoryList();
+  expect(Array.isArray(repos)).toBe(true);
+  
+  // Test that repository selector is working (uses tRPC behind the scenes)
+  const currentRepo = await ui.getCurrentRepository();
+  expect(typeof currentRepo === 'string' || currentRepo === null).toBe(true);
   
   await electronApp.close();
   

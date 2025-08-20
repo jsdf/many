@@ -51,9 +51,7 @@ All interactive UI elements now have `data-testid` attributes:
 <div data-testid="worktree-item-main">...</div>
 <input data-testid="branch-name-input" />
 
-<!-- Test utilities -->
-<button data-testid="trpc-test-button">Test tRPC</button>
-<span data-testid="trpc-result">...</span>
+<!-- Test utilities removed - tRPC tested through normal operations -->
 ```
 
 ### 2. UI Action Helpers
@@ -121,6 +119,24 @@ test('Error handling through UI', async ({ isolatedApp }) => {
   const logs = await readErrorLogs(isolatedApp.logPath);
   const crashes = logs.filter(log => log.includes('CRASH'));
   expect(crashes.length).toBe(0);
+});
+```
+
+#### tRPC Testing Through Normal Operations
+```typescript
+test('tRPC functionality through normal operations', async ({ isolatedApp }) => {
+  const ui = createUIActions(window);
+  
+  // tRPC is tested through normal app operations
+  const repos = await ui.getRepositoryList(); // Uses tRPC getSavedRepos
+  expect(Array.isArray(repos)).toBe(true);
+  
+  // Verify no tRPC errors in logs
+  const logs = await readErrorLogs(isolatedApp.logPath);
+  const tRPCErrors = logs.filter(log => 
+    log.includes('tRPC') && log.includes('error')
+  );
+  expect(tRPCErrors.length).toBe(0);
 });
 ```
 

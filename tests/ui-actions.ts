@@ -73,17 +73,7 @@ export class UIActions {
   }
 
   // Test and Debug Actions
-  async triggerTRPCTest() {
-    // Click the tRPC test button (for testing purposes)
-    await this.page.click('[data-testid="trpc-test-button"]');
-    
-    // Wait for result to appear
-    await this.page.waitForSelector('[data-testid="trpc-result"]', { timeout: 5000 });
-    
-    // Get the result text
-    const resultText = await this.page.textContent('[data-testid="trpc-result"]');
-    return resultText;
-  }
+  // Note: tRPC test button removed - tRPC functionality is tested through normal app operations
 
   // Wait for Application State
   async waitForApplicationReady() {
