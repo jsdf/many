@@ -11,6 +11,27 @@ export interface Worktree {
   bare?: boolean;
 }
 
+// Helper to check if a branch is a pool tmp branch
+export const isTmpBranch = (branch?: string): boolean => {
+  if (!branch) return false;
+  const localBranch = branch.replace(/^refs\/heads\//, "");
+  return localBranch.startsWith("tmp-");
+};
+
+// Helper to extract worktree name from path
+export const extractWorktreeName = (worktreePath: string, repoPath: string): string => {
+  const baseName = repoPath.split("/").pop() || "";
+  const worktreeDirName = worktreePath.split("/").pop() || "";
+
+  if (worktreeDirName.startsWith(baseName + "-")) {
+    return worktreeDirName.substring(baseName.length + 1);
+  }
+  return worktreeDirName;
+};
+
+// Pool change handling options
+export type ChangeHandlingOption = "stash" | "commit" | "amend" | "clean" | "cancel";
+
 export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
