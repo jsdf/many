@@ -483,7 +483,38 @@ ${bold("POOL CONCEPT:")}
   Worktrees can be "claimed" (assigned to a branch) or "available" (on a
   temporary branch, ready to be claimed). Release returns a worktree to
   the pool by switching it to a tmp-<name> branch.
+
+${bold("WEB UI:")}
+  many web                     # Start the web UI on http://localhost:3000
+  many web --port 8080         # Use a custom port
+  many web --open              # Open browser automatically
 `);
+}
+
+// Web command - start the web server
+async function cmdWeb(args: string[]): Promise<void> {
+  let port = 3000;
+  let open = false;
+
+  // Parse arguments
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--port" || args[i] === "-p") {
+      port = parseInt(args[i + 1], 10);
+      if (isNaN(port)) {
+        console.log(red("Error: Invalid port number"));
+        process.exit(1);
+      }
+      i++;
+    } else if (args[i] === "--open" || args[i] === "-o") {
+      open = true;
+    }
+  }
+
+  console.log(bold("\nStarting Many Web Server..."));
+
+  // Dynamic import to avoid loading web server dependencies for other commands
+  const { startWebServer } = await import("../web/server.js");
+  await startWebServer({ port, open });
 }
 
 // Main entry point
@@ -522,6 +553,10 @@ async function main(): Promise<void> {
       case "release":
       case "rel":
         await cmdRelease(args[1]);
+        break;
+
+      case "web":
+        await cmdWeb(args.slice(1));
         break;
 
       case "help":

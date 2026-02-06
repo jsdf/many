@@ -34,6 +34,7 @@
     "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0",
@@ -56,6 +57,7 @@
     "electron-trpc": "^0.6.2",
     "simple-git": "^3.20.0",
     "superjson": "^2.2.2",
+    "ws": "^8.19.0",
     "zod": "^4.0.14"
   },
   "build": {

@@ -13,11 +13,12 @@
     "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
     "outDir": "./dist-cli",
-    "rootDir": "./src/cli",
+    "rootDir": "./src",
     "declaration": false
   },
   "include": [
-    "src/cli/**/*"
+    "src/cli/**/*",
+    "src/web/**/*"
   ],
   "exclude": [
     "node_modules"
