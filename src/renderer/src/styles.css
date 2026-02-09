@@ -768,3 +768,227 @@ body {
     background: #1976D2;
     border-color: #1976D2;
 }
+
+/* Pool management styles */
+
+/* Worktree section headers */
+.worktree-section {
+    margin-top: 12px;
+}
+
+.worktree-section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8c8c8c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+/* Worktree status dot */
+.worktree-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.worktree-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.worktree-status-dot.claimed {
+    background: #4CAF50;
+}
+
+.worktree-status-dot.available {
+    background: #FFA726;
+}
+
+/* Worktree tags */
+.worktree-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    text-transform: uppercase;
+}
+
+.worktree-tag.base {
+    background: #0e639c;
+    color: #ffffff;
+}
+
+/* Available worktree styling */
+.worktree-item.available {
+    opacity: 0.8;
+    border-style: dashed;
+}
+
+.worktree-item.available:hover {
+    opacity: 1;
+}
+
+/* Sidebar actions */
+.sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Modal overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-overlay .modal {
+    background: #2d2d2d;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-content {
+    padding: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #3c3c3c;
+}
+
+/* Form elements */
+.form-hint {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin-top: 6px;
+}
+
+.form-warning {
+    font-size: 12px;
+    color: #FFA726;
+    margin-top: 6px;
+}
+
+.form-error {
+    font-size: 13px;
+    color: #ff6b6b;
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 4px;
+}
+
+.text-muted {
+    color: #8c8c8c;
+    font-size: 13px;
+}
+
+.text-success {
+    color: #4CAF50;
+    font-size: 13px;
+}
+
+/* Release modal specific styles */
+.release-changes {
+    margin-top: 16px;
+}
+
+.release-changes h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: #FFA726;
+}
+
+.change-summary {
+    background: #252526;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.change-summary p {
+    font-size: 12px;
+    margin: 4px 0;
+}
+
+.change-staged {
+    color: #4CAF50;
+}
+
+.change-modified {
+    color: #FFA726;
+}
+
+.change-untracked {
+    color: #8c8c8c;
+}
+
+.change-deleted {
+    color: #ff6b6b;
+}
+
+/* Radio group for change handling options */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.radio-option:hover {
+    border-color: #565656;
+}
+
+.radio-option input[type="radio"] {
+    width: auto;
+    margin-top: 4px;
+}
+
+.radio-option strong {
+    display: block;
+    font-size: 13px;
+    color: #ffffff;
+}
+
+.radio-hint {
+    font-size: 11px;
+    color: #8c8c8c;
+    margin-top: 2px;
+}
+
+.radio-hint.warning {
+    color: #ff6b6b;
+}

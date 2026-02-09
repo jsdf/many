@@ -472,3 +472,251 @@ export const getCommitLog = async (worktreePath: string, baseBranch: string) => 
     return "";
   }
 };
+
+// Pool management constants
+const TMP_BRANCH_PREFIX = "tmp-";
+
+// Check if a branch is a temporary pool branch
+export const isTmpBranch = (branchName: string | null | undefined): boolean => {
+  if (!branchName) return false;
+  // Extract local branch name from refs/heads/...
+  const localBranch = branchName.replace(/^refs\/heads\//, "");
+  return localBranch.startsWith(TMP_BRANCH_PREFIX);
+};
+
+// Get the default/main branch for a repo
+export const getDefaultBranch = async (
+  repoPath: string,
+  repoConfig: any
+): Promise<string> => {
+  if (repoConfig?.mainBranch) {
+    return repoConfig.mainBranch;
+  }
+
+  const git = simpleGit(repoPath);
+
+  // Try to detect from remote
+  try {
+    const remoteResult = await git.raw(["symbolic-ref", "refs/remotes/origin/HEAD"]);
+    return remoteResult.trim().replace("refs/remotes/origin/", "");
+  } catch {
+    // Fall back to common names
+    const branches = await git.branch();
+    if (branches.all.includes("main")) return "main";
+    if (branches.all.includes("master")) return "master";
+    if (branches.all.includes("develop")) return "develop";
+    return branches.current || "main";
+  }
+};
+
+// Check if a branch exists
+export const branchExists = async (repoPath: string, branchName: string): Promise<boolean> => {
+  const git = simpleGit(repoPath);
+  const branches = await git.branch();
+  return branches.all.includes(branchName);
+};
+
+// Extract worktree name from path
+export const extractWorktreeName = (worktreePath: string, repoPath: string): string => {
+  const baseName = path.basename(repoPath);
+  const worktreeDirName = path.basename(worktreePath);
+
+  // If worktree dir starts with repo name + "-", extract the suffix
+  if (worktreeDirName.startsWith(baseName + "-")) {
+    return worktreeDirName.substring(baseName.length + 1);
+  }
+  return worktreeDirName;
+};
+
+// Claim a worktree for a branch (switch it to the specified branch)
+export const claimWorktree = async (
+  repoPath: string,
+  worktreePath: string,
+  branchName: string,
+  repoConfig: any
+): Promise<{ branch: string }> => {
+  try {
+    const git = simpleGit(worktreePath);
+    const repoGit = simpleGit(repoPath);
+
+    // Check if branch exists
+    const exists = await branchExists(repoPath, branchName);
+
+    if (exists) {
+      // Checkout existing branch
+      await git.checkout(branchName);
+    } else {
+      // Create new branch from default branch HEAD
+      const defaultBranch = await getDefaultBranch(repoPath, repoConfig);
+
+      // Fetch latest from remote first (if possible)
+      try {
+        await repoGit.fetch("origin", defaultBranch);
+      } catch {
+        // Ignore fetch errors (might be offline)
+      }
+
+      // Create and checkout new branch from default branch
+      await git.checkout(["-b", branchName, defaultBranch]);
+    }
+
+    return { branch: branchName };
+  } catch (error) {
+    throw new Error(`Failed to claim worktree: ${getErrorMessage(error)}`);
+  }
+};
+
+// Release a worktree back to the pool (switch to tmp branch)
+export const releaseWorktree = async (
+  repoPath: string,
+  worktreePath: string,
+  repoConfig: any
+): Promise<{ tmpBranch: string; previousBranch: string }> => {
+  try {
+    const git = simpleGit(worktreePath);
+    const repoGit = simpleGit(repoPath);
+
+    // Get current branch
+    const status = await git.status();
+    const previousBranch = status.current || "unknown";
+
+    // Generate tmp branch name based on worktree name
+    const worktreeName = extractWorktreeName(worktreePath, repoPath);
+    const tmpBranchName = `${TMP_BRANCH_PREFIX}${worktreeName}`;
+
+    // Get default branch and its HEAD
+    const defaultBranch = await getDefaultBranch(repoPath, repoConfig);
+
+    // Fetch latest from remote (if possible)
+    try {
+      await repoGit.fetch("origin", defaultBranch);
+    } catch {
+      // Ignore fetch errors
+    }
+
+    // Get the commit SHA for the default branch
+    let targetCommit: string;
+    try {
+      targetCommit = (await repoGit.raw(["rev-parse", `origin/${defaultBranch}`])).trim();
+    } catch {
+      targetCommit = (await repoGit.raw(["rev-parse", defaultBranch])).trim();
+    }
+
+    // Check if tmp branch already exists
+    const tmpExists = await branchExists(repoPath, tmpBranchName);
+
+    if (tmpExists) {
+      // Switch to tmp branch and reset to default HEAD
+      await git.checkout(tmpBranchName);
+      await git.reset(["--hard", targetCommit]);
+    } else {
+      // Create new tmp branch at default HEAD
+      await git.checkout(["-B", tmpBranchName, targetCommit]);
+    }
+
+    return { tmpBranch: tmpBranchName, previousBranch };
+  } catch (error) {
+    throw new Error(`Failed to release worktree: ${getErrorMessage(error)}`);
+  }
+};
+
+// Stash changes in a worktree
+export const stashWorktreeChanges = async (
+  worktreePath: string,
+  message?: string
+): Promise<void> => {
+  try {
+    const git = simpleGit(worktreePath);
+    const stashMessage = message || `Stash from release at ${new Date().toISOString()}`;
+    await git.stash(["push", "-m", stashMessage, "--include-untracked"]);
+  } catch (error) {
+    throw new Error(`Failed to stash changes: ${getErrorMessage(error)}`);
+  }
+};
+
+// Clean all changes (discard modified + delete untracked)
+export const cleanWorktreeChanges = async (worktreePath: string): Promise<void> => {
+  try {
+    const git = simpleGit(worktreePath);
+    // Reset tracked files
+    await git.reset(["--hard", "HEAD"]);
+    // Remove untracked files and directories
+    await git.clean("fd");
+  } catch (error) {
+    throw new Error(`Failed to clean changes: ${getErrorMessage(error)}`);
+  }
+};
+
+// Amend changes to the last commit
+export const amendWorktreeChanges = async (worktreePath: string): Promise<void> => {
+  try {
+    const git = simpleGit(worktreePath);
+    // Add all changes
+    await git.add("-A");
+    // Amend the commit
+    await git.commit([], { "--amend": null, "--no-edit": null });
+  } catch (error) {
+    throw new Error(`Failed to amend changes: ${getErrorMessage(error)}`);
+  }
+};
+
+// Commit changes with a message
+export const commitWorktreeChanges = async (
+  worktreePath: string,
+  message: string
+): Promise<void> => {
+  try {
+    const git = simpleGit(worktreePath);
+    // Add all changes
+    await git.add("-A");
+    // Create new commit
+    await git.commit(message);
+  } catch (error) {
+    throw new Error(`Failed to commit changes: ${getErrorMessage(error)}`);
+  }
+};
+
+// Create a new worktree for the pool (starts on tmp branch)
+export const createPoolWorktree = async (
+  repoPath: string,
+  worktreeName: string,
+  repoConfig: any,
+  terminalManager?: any
+): Promise<{ path: string; branch: string }> => {
+  try {
+    const git = simpleGit(repoPath);
+
+    // Generate tmp branch name
+    const tmpBranchName = `${TMP_BRANCH_PREFIX}${worktreeName}`;
+
+    // Determine worktree directory
+    const worktreeBaseDir = repoConfig?.worktreeDirectory || path.join(repoPath, "..");
+    const worktreePath = path.join(worktreeBaseDir, `${path.basename(repoPath)}-${worktreeName}`);
+
+    // Get default branch
+    const defaultBranch = await getDefaultBranch(repoPath, repoConfig);
+
+    // Check if tmp branch already exists
+    const exists = await branchExists(repoPath, tmpBranchName);
+
+    if (exists) {
+      // Create worktree with existing branch
+      const branchCommit = await git.raw(["rev-parse", tmpBranchName]);
+      await git.raw(["worktree", "add", "--detach", worktreePath, branchCommit.trim()]);
+      const worktreeGit = simpleGit(worktreePath);
+      await worktreeGit.checkout(["-B", tmpBranchName, tmpBranchName]);
+    } else {
+      // Create new branch and worktree
+      await git.raw(["worktree", "add", "-b", tmpBranchName, worktreePath, defaultBranch]);
+    }
+
+    // Create setup terminal if initCommand exists and terminalManager is provided
+    if (repoConfig?.initCommand && terminalManager) {
+      terminalManager.createSetupTerminal(worktreePath, repoConfig.initCommand);
+    }
+
+    return { path: worktreePath, branch: tmpBranchName };
+  } catch (error) {
+    throw new Error(`Failed to create pool worktree: ${getErrorMessage(error)}`);
+  }
+};

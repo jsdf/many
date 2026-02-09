@@ -1,5 +1,5 @@
-import React from 'react'
-import { Repository, Worktree } from '../types'
+import React, { useMemo } from 'react'
+import { Repository, Worktree, isTmpBranch } from '../types'
 
 const formatBranchName = (branch?: string) => {
   if (!branch) return 'detached HEAD'
@@ -16,6 +16,7 @@ interface SidebarProps {
   onAddRepo: () => void
   onCreateWorktree: () => void
   onConfigRepo: () => void
+  onSwitchWorktree?: () => void
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -27,8 +28,42 @@ const Sidebar: React.FC<SidebarProps> = ({
   onWorktreeSelect,
   onAddRepo,
   onCreateWorktree,
-  onConfigRepo
+  onConfigRepo,
+  onSwitchWorktree
 }) => {
+  // Separate worktrees into categories
+  const { baseWorktree, claimedWorktrees, availableWorktrees } = useMemo(() => {
+    const base = worktrees.find(w => w.path === currentRepo);
+    const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
+
+    const claimed = others.filter(w => !isTmpBranch(w.branch));
+    const available = others.filter(w => isTmpBranch(w.branch));
+
+    return {
+      baseWorktree: base,
+      claimedWorktrees: claimed,
+      availableWorktrees: available
+    };
+  }, [worktrees, currentRepo]);
+
+  const renderWorktreeItem = (worktree: Worktree, isBase = false, isAvailable = false) => (
+    <div
+      key={worktree.path}
+      data-testid={`worktree-item-${worktree.branch || 'main'}`}
+      className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''} ${isAvailable ? 'available' : ''}`}
+      onClick={() => onWorktreeSelect(worktree)}
+    >
+      <div className="worktree-header">
+        <span className={`worktree-status-dot ${isAvailable ? 'available' : 'claimed'}`} title={isAvailable ? 'Available' : 'Claimed'} />
+        <div className="worktree-branch" title={formatBranchName(worktree.branch)}>
+          {formatBranchName(worktree.branch)}
+          {isBase && <span className="worktree-tag base">base</span>}
+        </div>
+      </div>
+      <div className="worktree-dirname" title={worktree.path}>{worktree.path}</div>
+    </div>
+  );
+
   return (
     <div className="sidebar">
       <div className="sidebar-header">
@@ -37,11 +72,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           Add Repo
         </button>
       </div>
-      
+
       <div className="repo-selector">
-        <select 
+        <select
           data-testid="repo-selector"
-          value={currentRepo || ''} 
+          value={currentRepo || ''}
           onChange={(e) => onRepoSelect(e.target.value || null)}
         >
           <option value="">Select a repository...</option>
@@ -52,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </select>
         {currentRepo && (
-          <button 
+          <button
             data-testid="repo-config-button"
             onClick={onConfigRepo}
             className="btn btn-secondary repo-config-btn"
@@ -62,35 +97,57 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
       </div>
-      
+
       <div className="worktree-list">
         {worktrees.length === 0 ? (
           <p className="empty-state">
             {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
           </p>
         ) : (
-          worktrees.map((worktree) => (
-            <div
-              key={worktree.path}
-              data-testid={`worktree-item-${worktree.branch || 'main'}`}
-              className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''}`}
-              onClick={() => onWorktreeSelect(worktree)}
-            >
-              <div className="worktree-branch">{formatBranchName(worktree.branch)}</div>
-              <div className="worktree-dirname">{worktree.path}</div>
-            </div>
-          ))
+          <>
+            {/* Base worktree */}
+            {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
+
+            {/* Claimed worktrees */}
+            {claimedWorktrees.length > 0 && (
+              <div className="worktree-section">
+                <div className="worktree-section-header">Claimed</div>
+                {claimedWorktrees.map(w => renderWorktreeItem(w, false, false))}
+              </div>
+            )}
+
+            {/* Available worktrees */}
+            {availableWorktrees.length > 0 && (
+              <div className="worktree-section">
+                <div className="worktree-section-header">Available</div>
+                {availableWorktrees.map(w => renderWorktreeItem(w, false, true))}
+              </div>
+            )}
+          </>
         )}
       </div>
-      
-      <button 
-        data-testid="create-worktree-button"
-        onClick={onCreateWorktree}
-        disabled={!currentRepo}
-        className="btn btn-primary"
-      >
-        + Create Worktree
-      </button>
+
+      <div className="sidebar-actions">
+        <button
+          data-testid="create-worktree-button"
+          onClick={onCreateWorktree}
+          disabled={!currentRepo}
+          className="btn btn-primary"
+        >
+          + Create Worktree
+        </button>
+        {availableWorktrees.length > 0 && onSwitchWorktree && (
+          <button
+            data-testid="switch-worktree-button"
+            onClick={onSwitchWorktree}
+            disabled={!currentRepo}
+            className="btn btn-secondary"
+            title="Claim an available worktree for a branch"
+          >
+            Switch Branch
+          </button>
+        )}
+      </div>
     </div>
   )
 }

@@ -12,6 +12,7 @@ interface MainContentProps {
   onArchiveWorktree: (worktree: Worktree) => Promise<void>;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
+  onReleaseWorktree?: (worktree: Worktree) => void;
 }
 
 const MainContent: React.FC<MainContentProps> = ({
@@ -19,6 +20,7 @@ const MainContent: React.FC<MainContentProps> = ({
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
+  onReleaseWorktree,
 }) => {
   const {
     terminalTileData,
@@ -48,6 +50,7 @@ const MainContent: React.FC<MainContentProps> = ({
           onArchiveWorktree={onArchiveWorktree}
           onMergeWorktree={onMergeWorktree}
           onRebaseWorktree={onRebaseWorktree}
+          onReleaseWorktree={onReleaseWorktree}
         />
       ),
     });
@@ -89,6 +92,7 @@ const MainContent: React.FC<MainContentProps> = ({
     onArchiveWorktree,
     onMergeWorktree,
     onRebaseWorktree,
+    onReleaseWorktree,
     updateTileTitle,
   ]);
 

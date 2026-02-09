@@ -494,6 +494,119 @@ export const router = t.router({
       ctx.terminalManager.cleanupWorktreeTerminals(input.worktreePath);
       return true;
     }),
+
+  // Pool management operations
+  isTmpBranch: publicProcedure
+    .input(z.object({ branchName: z.string().nullable() }))
+    .query(({ input }) => {
+      return gitOps.isTmpBranch(input.branchName);
+    }),
+
+  getDefaultBranch: publicProcedure
+    .input(z.object({ repoPath: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const appData = await ctx.loadAppData();
+      const repoConfig = appData.repositoryConfigs[input.repoPath] || {
+        mainBranch: null,
+        initCommand: null,
+        worktreeDirectory: null,
+      };
+      return await gitOps.getDefaultBranch(input.repoPath, repoConfig);
+    }),
+
+  claimWorktree: publicProcedure
+    .input(z.object({
+      repoPath: z.string(),
+      worktreePath: z.string(),
+      branchName: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const appData = await ctx.loadAppData();
+      const repoConfig = appData.repositoryConfigs[input.repoPath] || {
+        mainBranch: null,
+        initCommand: null,
+        worktreeDirectory: null,
+      };
+      return await gitOps.claimWorktree(
+        input.repoPath,
+        input.worktreePath,
+        input.branchName,
+        repoConfig
+      );
+    }),
+
+  releaseWorktree: publicProcedure
+    .input(z.object({
+      repoPath: z.string(),
+      worktreePath: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const appData = await ctx.loadAppData();
+      const repoConfig = appData.repositoryConfigs[input.repoPath] || {
+        mainBranch: null,
+        initCommand: null,
+        worktreeDirectory: null,
+      };
+      return await gitOps.releaseWorktree(
+        input.repoPath,
+        input.worktreePath,
+        repoConfig
+      );
+    }),
+
+  stashWorktreeChanges: publicProcedure
+    .input(z.object({
+      worktreePath: z.string(),
+      message: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await gitOps.stashWorktreeChanges(input.worktreePath, input.message);
+      return true;
+    }),
+
+  cleanWorktreeChanges: publicProcedure
+    .input(z.object({ worktreePath: z.string() }))
+    .mutation(async ({ input }) => {
+      await gitOps.cleanWorktreeChanges(input.worktreePath);
+      return true;
+    }),
+
+  amendWorktreeChanges: publicProcedure
+    .input(z.object({ worktreePath: z.string() }))
+    .mutation(async ({ input }) => {
+      await gitOps.amendWorktreeChanges(input.worktreePath);
+      return true;
+    }),
+
+  commitWorktreeChanges: publicProcedure
+    .input(z.object({
+      worktreePath: z.string(),
+      message: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      await gitOps.commitWorktreeChanges(input.worktreePath, input.message);
+      return true;
+    }),
+
+  createPoolWorktree: publicProcedure
+    .input(z.object({
+      repoPath: z.string(),
+      worktreeName: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const appData = await ctx.loadAppData();
+      const repoConfig = appData.repositoryConfigs[input.repoPath] || {
+        mainBranch: null,
+        initCommand: null,
+        worktreeDirectory: null,
+      };
+      return await gitOps.createPoolWorktree(
+        input.repoPath,
+        input.worktreeName,
+        repoConfig,
+        ctx.terminalManager
+      );
+    }),
 });
 
 // Export the router type for client-side usage

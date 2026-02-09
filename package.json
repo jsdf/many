@@ -4,11 +4,16 @@
   "description": "Use git worktrees with AI tools",
   "type": "module",
   "main": "out/main/index.cjs",
+  "bin": {
+    "many": "./dist-cli/index.js"
+  },
   "scripts": {
     "start": "electron-vite build && electron out/main/index.cjs",
     "dev": "electron-vite dev",
     "prebuild": "electron-vite build",
     "build": "tsc --noEmit && electron-vite build",
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "cli": "npm run build:cli && node dist-cli/index.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "logs": "node view-logs.js",
@@ -26,8 +31,10 @@
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@playwright/test": "^1.54.2",
+    "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0",
@@ -50,6 +57,7 @@
     "electron-trpc": "^0.6.2",
     "simple-git": "^3.20.0",
     "superjson": "^2.2.2",
+    "ws": "^8.19.0",
     "zod": "^4.0.14"
   },
   "build": {
