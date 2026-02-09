@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Worktree } from "../types";
+import { Worktree, isTmpBranch } from "../types";
 import { client } from "../main";
 
 const formatBranchName = (branch?: string) => {
@@ -12,6 +12,7 @@ interface WorktreeDetailsProps {
   onArchiveWorktree: (worktree: Worktree) => Promise<void>;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
+  onReleaseWorktree?: (worktree: Worktree) => void;
 }
 
 const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
@@ -19,6 +20,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
+  onReleaseWorktree,
 }) => {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,17 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           >
             🌿 Rebase Branch
           </button>
+
+          {onReleaseWorktree && !isTmpBranch(worktree.branch) && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => onReleaseWorktree(worktree)}
+              disabled={!worktree?.branch}
+              title="Release this worktree back to the pool"
+            >
+              🔓 Release Worktree
+            </button>
+          )}
 
           <button
             className="btn btn-warning"

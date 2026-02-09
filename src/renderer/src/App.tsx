@@ -7,6 +7,8 @@ import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
+import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
+import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
 import { client } from "./main";
 
 const App: React.FC = () => {
@@ -23,6 +25,11 @@ const App: React.FC = () => {
   const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null);
   const [showRebaseModal, setShowRebaseModal] = useState(false);
   const [worktreeToRebase, setWorktreeToRebase] = useState<Worktree | null>(
+    null
+  );
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [worktreeToRelease, setWorktreeToRelease] = useState<Worktree | null>(
     null
   );
 
@@ -311,6 +318,69 @@ const App: React.FC = () => {
     }
   };
 
+  // Pool management: Switch (claim) a worktree for a branch
+  const switchWorktree = async (worktreePath: string, branchName: string) => {
+    if (!currentRepo) {
+      throw new Error("No repository selected");
+    }
+
+    try {
+      await client.claimWorktree.mutate({
+        repoPath: currentRepo,
+        worktreePath,
+        branchName
+      });
+
+      // Refresh the worktree list
+      const updatedWorktrees = await client.getWorktrees.query({
+        repoPath: currentRepo
+      });
+      setWorktrees(updatedWorktrees);
+
+      // Select the switched worktree
+      const switchedWorktree = updatedWorktrees.find(
+        (wt) => wt.path === worktreePath
+      );
+      if (switchedWorktree) {
+        await handleWorktreeSelect(switchedWorktree);
+      }
+
+      setShowSwitchModal(false);
+    } catch (error) {
+      console.error("Failed to switch worktree:", error);
+      throw error;
+    }
+  };
+
+  // Pool management: Release a worktree back to the pool
+  const openReleaseModal = (worktree: Worktree) => {
+    setWorktreeToRelease(worktree);
+    setShowReleaseModal(true);
+  };
+
+  const handleReleaseComplete = async () => {
+    if (!currentRepo) return;
+
+    // Refresh the worktree list
+    const updatedWorktrees = await client.getWorktrees.query({
+      repoPath: currentRepo
+    });
+    setWorktrees(updatedWorktrees);
+
+    // Update selection if the released worktree was selected
+    if (worktreeToRelease && selectedWorktree?.path === worktreeToRelease.path) {
+      const updatedWorktree = updatedWorktrees.find(
+        (wt) => wt.path === worktreeToRelease.path
+      );
+      if (updatedWorktree) {
+        setSelectedWorktree(updatedWorktree);
+      }
+    }
+
+    setShowReleaseModal(false);
+    setWorktreeToRelease(null);
+  };
+
   return (
     <div className="app">
       
@@ -324,6 +394,7 @@ const App: React.FC = () => {
         onAddRepo={() => setShowAddRepoModal(true)}
         onCreateWorktree={() => setShowCreateModal(true)}
         onConfigRepo={() => setShowRepoConfigModal(true)}
+        onSwitchWorktree={() => setShowSwitchModal(true)}
       />
 
       <MainContent
@@ -332,6 +403,7 @@ const App: React.FC = () => {
         onArchiveWorktree={archiveWorktree}
         onMergeWorktree={openMergeModal}
         onRebaseWorktree={openRebaseModal}
+        onReleaseWorktree={openReleaseModal}
       />
 
       {showCreateModal && (
@@ -382,6 +454,27 @@ const App: React.FC = () => {
             setWorktreeToRebase(null);
           }}
           onRebase={rebaseWorktree}
+        />
+      )}
+
+      {showSwitchModal && (
+        <SwitchWorktreeModal
+          currentRepo={currentRepo}
+          worktrees={worktrees}
+          onClose={() => setShowSwitchModal(false)}
+          onSwitch={switchWorktree}
+        />
+      )}
+
+      {showReleaseModal && worktreeToRelease && worktreeToRelease.path && (
+        <ReleaseWorktreeModal
+          currentRepo={currentRepo}
+          worktree={worktreeToRelease}
+          onClose={() => {
+            setShowReleaseModal(false);
+            setWorktreeToRelease(null);
+          }}
+          onRelease={handleReleaseComplete}
         />
       )}
     </div>

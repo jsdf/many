@@ -9,6 +9,7 @@ dist/
 build/
 out/
 dist-electron/
+dist-cli/
 
 # Electron build artifacts
 *.app
