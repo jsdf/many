@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(os.tmpdir(), 'many-test');
 
 async function setupTestGitRepo(repoPath: string) {
   if (existsSync(repoPath)) {
@@ -30,7 +32,7 @@ async function launchApp() {
 }
 
 test.describe('UI/UX Tests', () => {
-  const testRepoPath = path.join(__dirname, '../test-repos/ui-test-repo');
+  const testRepoPath = path.join(testDir, 'ui-test-repo');
 
   test.beforeEach(async () => {
     await setupTestGitRepo(testRepoPath);

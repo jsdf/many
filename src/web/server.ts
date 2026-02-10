@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
 import { initTRPC } from "@trpc/server";
+import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
 import * as gitPool from "../cli/git-pool.js";
 import { loadAppData, saveAppData, getRepoConfig } from "../cli/config.js";
 import type { AppData, RepositoryConfig } from "../cli/config.js";
@@ -66,7 +67,6 @@ class WebTerminalManager {
 
 // Create tRPC instance
 const t = initTRPC.create();
-const createCallerFactory = t.createCallerFactory;
 
 // Create the router (simplified version for web)
 const createRouter = (terminalManager: WebTerminalManager) => {
@@ -421,45 +421,6 @@ const createRouter = (terminalManager: WebTerminalManager) => {
 
 type AppRouter = ReturnType<typeof createRouter>;
 
-// Handle tRPC request using caller factory
-async function handleTrpcRequest(
-  router: AppRouter,
-  pathname: string,
-  method: string,
-  body: any
-): Promise<{ status: number; body: any }> {
-  const procedurePath = pathname.replace(/^\/trpc\//, "");
-
-  try {
-    // Create a caller to invoke procedures
-    const callerFactory = createCallerFactory(router);
-    const caller = callerFactory({});
-
-    // Parse the input - could be in query string for GET or body for POST
-    const input = body?.input;
-
-    // Get the procedure from the router and invoke it
-    const pathParts = procedurePath.split(".");
-    let procedure: any = caller;
-    for (const part of pathParts) {
-      procedure = procedure[part];
-    }
-
-    if (typeof procedure !== "function") {
-      return { status: 404, body: { error: `Procedure not found: ${procedurePath}` } };
-    }
-
-    const result = await procedure(input);
-    return { status: 200, body: { result: { data: result } } };
-  } catch (error: any) {
-    console.error(`tRPC error for ${procedurePath}:`, error);
-    return {
-      status: 500,
-      body: { error: { message: error.message || "Internal server error" } },
-    };
-  }
-}
-
 // Serve static file
 async function serveStaticFile(filePath: string): Promise<{ status: number; body: Buffer | string; contentType: string }> {
   try {
@@ -515,27 +476,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
 
     try {
       if (pathname.startsWith("/trpc/")) {
-        let body: any = {};
-
-        if (req.method === "POST") {
-          const chunks: Buffer[] = [];
-          for await (const chunk of req) {
-            chunks.push(chunk);
-          }
-          const bodyStr = Buffer.concat(chunks).toString();
-          if (bodyStr) {
-            body = JSON.parse(bodyStr);
-          }
-        } else if (req.method === "GET") {
-          const inputParam = url.searchParams.get("input");
-          if (inputParam) {
-            body = { input: JSON.parse(inputParam) };
-          }
-        }
-
-        const result = await handleTrpcRequest(router, pathname, req.method || "GET", body);
-        res.writeHead(result.status, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(result.body));
+        // Strip /trpc prefix — the adapter expects just the procedure path
+        req.url = req.url!.replace(/^\/trpc/, "");
+        await nodeHTTPRequestHandler({
+          router,
+          path: pathname.replace(/^\/trpc\//, ""),
+          req,
+          res,
+          createContext: () => ({}),
+        });
         return;
       }
 

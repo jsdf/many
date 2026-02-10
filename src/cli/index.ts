@@ -24,6 +24,84 @@ import { simpleGit } from "simple-git";
 import * as readline from "readline";
 import path from "path";
 
+// Parsed flags for non-interactive use
+interface ParsedFlags {
+  noInteractive: boolean;
+  worktree: string | null;     // --worktree <name> : select which worktree
+  clean: boolean;              // --clean : discard uncommitted changes
+  failIfDirty: boolean;        // --fail-if-dirty : exit 1 if uncommitted changes
+  stash: boolean;              // --stash : stash uncommitted changes on release
+  commitMessage: string | null; // --commit "msg" : commit changes on release
+  amend: boolean;              // --amend : amend last commit on release
+}
+
+function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags } {
+  const positional: string[] = [];
+  const flags: ParsedFlags = {
+    noInteractive: false,
+    worktree: null,
+    clean: false,
+    failIfDirty: false,
+    stash: false,
+    commitMessage: null,
+    amend: false,
+  };
+
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i];
+    switch (arg) {
+      case "--no-interactive":
+      case "--ni":
+        flags.noInteractive = true;
+        break;
+      case "--worktree":
+      case "-w":
+        flags.worktree = args[++i] ?? null;
+        if (!flags.worktree) {
+          console.error(red("Error: --worktree requires a value"));
+          process.exit(1);
+        }
+        break;
+      case "--clean":
+        flags.clean = true;
+        break;
+      case "--fail-if-dirty":
+        flags.failIfDirty = true;
+        break;
+      case "--stash":
+        flags.stash = true;
+        break;
+      case "--commit":
+        flags.commitMessage = args[++i] ?? null;
+        if (!flags.commitMessage) {
+          console.error(red("Error: --commit requires a message"));
+          process.exit(1);
+        }
+        break;
+      case "--amend":
+        flags.amend = true;
+        break;
+      default:
+        positional.push(arg);
+        break;
+    }
+    i++;
+  }
+
+  return { positional, flags };
+}
+
+// Exit with an error in non-interactive mode, explaining which flags are needed
+function exitNonInteractive(message: string, suggestedFlags: string[]): never {
+  console.error(red(`Error (non-interactive): ${message}`));
+  console.error(`\nProvide one of these flags to resolve this non-interactively:`);
+  for (const flag of suggestedFlags) {
+    console.error(`  ${flag}`);
+  }
+  process.exit(1);
+}
+
 // ANSI color codes
 const colors = {
   reset: "\x1b[0m",
@@ -216,7 +294,7 @@ async function cmdList(): Promise<void> {
 }
 
 // Switch command - claim a worktree for a branch
-async function cmdSwitch(branchName: string): Promise<void> {
+async function cmdSwitch(branchName: string, flags: ParsedFlags): Promise<void> {
   const { repoPath, config, currentWorktree } = await getRepoAndConfig();
 
   // First check if a worktree is already on this branch
@@ -235,15 +313,30 @@ async function cmdSwitch(branchName: string): Promise<void> {
   if (available.length === 0) {
     console.log(red("No available worktrees in the pool."));
     console.log(`Use '${bold("many create <name>")}' to create a new worktree.`);
-    return;
+    process.exit(1);
   }
 
   // Let user pick a worktree if multiple available
   let targetWorktree: WorktreeInfo;
 
-  if (available.length === 1) {
+  if (flags.worktree) {
+    // Select worktree by name via flag
+    const match = available.find((w) => w.worktreeName === flags.worktree);
+    if (!match) {
+      console.log(red(`Worktree '${flags.worktree}' not found or not available.`));
+      console.log("Available worktrees:");
+      available.forEach((w) => console.log(`  ${w.worktreeName}`));
+      process.exit(1);
+    }
+    targetWorktree = match;
+  } else if (available.length === 1) {
     targetWorktree = available[0];
     console.log(`Using worktree: ${targetWorktree.worktreeName}`);
+  } else if (flags.noInteractive) {
+    exitNonInteractive(
+      `Multiple worktrees available: ${available.map((w) => w.worktreeName).join(", ")}`,
+      available.map((w) => `--worktree ${w.worktreeName}`),
+    );
   } else {
     console.log("\nAvailable worktrees:");
     available.forEach((w, i) => {
@@ -264,16 +357,34 @@ async function cmdSwitch(branchName: string): Promise<void> {
   // Check for dirty state
   const status = await getWorktreeStatus(targetWorktree.path);
   if (status.hasChanges || status.hasStaged) {
-    console.log(yellow("\nWorktree has uncommitted changes:"));
-    console.log(`  ${formatStatus(status)}`);
-    console.log("\nThese changes will be lost when switching branches.");
-    const confirm = await prompt("Continue? (y/n): ");
-    if (confirm.toLowerCase() !== "y") {
-      console.log("Aborted.");
-      return;
+    if (flags.failIfDirty) {
+      console.error(red(`Worktree '${targetWorktree.worktreeName}' has uncommitted changes.`));
+      console.error(`  ${formatStatus(status)}`);
+      process.exit(1);
+    } else if (flags.clean) {
+      console.log("Cleaning uncommitted changes...");
+      await cleanChanges(targetWorktree.path);
+      console.log(green("Changes discarded."));
+    } else if (flags.noInteractive) {
+      exitNonInteractive(
+        `Worktree '${targetWorktree.worktreeName}' has uncommitted changes: ${formatStatus(status)}`,
+        [
+          "--clean           Discard all uncommitted changes",
+          "--fail-if-dirty   Exit with error instead",
+        ],
+      );
+    } else {
+      console.log(yellow("\nWorktree has uncommitted changes:"));
+      console.log(`  ${formatStatus(status)}`);
+      console.log("\nThese changes will be lost when switching branches.");
+      const confirm = await prompt("Continue? (y/n): ");
+      if (confirm.toLowerCase() !== "y") {
+        console.log("Aborted.");
+        return;
+      }
+      // Clean the worktree
+      await cleanChanges(targetWorktree.path);
     }
-    // Clean the worktree
-    await cleanChanges(targetWorktree.path);
   }
 
   // Claim the worktree
@@ -317,7 +428,7 @@ async function cmdCreate(worktreeName: string): Promise<void> {
 }
 
 // Release command - release a worktree back to the pool
-async function cmdRelease(identifier?: string): Promise<void> {
+async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): Promise<void> {
   const { repoPath, config, currentWorktree } = await getRepoAndConfig();
 
   // Determine which worktree to release
@@ -327,10 +438,31 @@ async function cmdRelease(identifier?: string): Promise<void> {
     targetWorktree = await findWorktree(repoPath, identifier);
     if (!targetWorktree) {
       console.log(red(`Worktree or branch '${identifier}' not found.`));
-      return;
+      process.exit(1);
+    }
+  } else if (flags.worktree) {
+    targetWorktree = await findWorktree(repoPath, flags.worktree);
+    if (!targetWorktree) {
+      console.log(red(`Worktree '${flags.worktree}' not found.`));
+      process.exit(1);
     }
   } else if (currentWorktree) {
     targetWorktree = currentWorktree;
+  } else if (flags.noInteractive) {
+    const claimed = await getClaimedWorktrees(repoPath);
+    const nonBase = claimed.filter((w) => w.path !== repoPath);
+    if (nonBase.length === 0) {
+      console.log(yellow("No claimed worktrees to release."));
+      process.exit(1);
+    }
+    exitNonInteractive(
+      "Not in a worktree and no identifier provided. Claimed worktrees: " +
+        nonBase.map((w) => `${w.worktreeName} (${getLocalBranchName(w.branch)})`).join(", "),
+      [
+        "many release <branch-name>     Specify the branch to release",
+        "--worktree <name>              Specify the worktree by name",
+      ],
+    );
   } else {
     // List claimed worktrees and let user pick
     const claimed = await getClaimedWorktrees(repoPath);
@@ -360,7 +492,7 @@ async function cmdRelease(identifier?: string): Promise<void> {
   // Don't allow releasing the base repo
   if (targetWorktree.path === repoPath) {
     console.log(red("Cannot release the base repository worktree."));
-    return;
+    process.exit(1);
   }
 
   // Check if already available
@@ -377,71 +509,113 @@ async function cmdRelease(identifier?: string): Promise<void> {
   const status = await getWorktreeStatus(targetWorktree.path);
 
   if (status.hasChanges || status.hasStaged) {
-    console.log(yellow("\nWorktree has uncommitted changes:"));
+    // Determine dirty handling from flags
+    const dirtyFlagCount = [flags.stash, flags.commitMessage !== null, flags.amend, flags.clean, flags.failIfDirty]
+      .filter(Boolean).length;
 
-    if (status.staged.length > 0) {
-      console.log(`  Staged: ${status.staged.join(", ")}`);
-    }
-    if (status.modified.length > 0) {
-      console.log(`  Modified: ${status.modified.join(", ")}`);
-    }
-    if (status.not_added.length > 0) {
-      console.log(`  Untracked: ${status.not_added.join(", ")}`);
-    }
-    if (status.deleted.length > 0) {
-      console.log(`  Deleted: ${status.deleted.join(", ")}`);
+    if (dirtyFlagCount > 1) {
+      console.error(red("Error: Only one of --stash, --commit, --amend, --clean, --fail-if-dirty can be used."));
+      process.exit(1);
     }
 
-    console.log("\nHow would you like to handle these changes?");
-    console.log("  1. Stash - Save changes to stash for later");
-    console.log("  2. Commit - Create a new commit with these changes");
-    console.log("  3. Amend - Add changes to the last commit");
-    console.log("  4. Clean - Discard all changes");
-    console.log("  5. Cancel - Abort release");
+    if (flags.failIfDirty) {
+      console.error(red(`Worktree '${targetWorktree.worktreeName}' has uncommitted changes.`));
+      console.error(`  ${formatStatus(status)}`);
+      process.exit(1);
+    } else if (flags.stash) {
+      console.log("Stashing changes...");
+      await stashChanges(targetWorktree.path, `Release stash from ${currentBranch}`);
+      console.log(green("Changes stashed."));
+    } else if (flags.commitMessage !== null) {
+      console.log("Committing changes...");
+      await commitChanges(targetWorktree.path, flags.commitMessage);
+      console.log(green("Changes committed."));
+    } else if (flags.amend) {
+      console.log("Amending last commit...");
+      await amendChanges(targetWorktree.path);
+      console.log(green("Changes amended to last commit."));
+    } else if (flags.clean) {
+      console.log("Cleaning uncommitted changes...");
+      await cleanChanges(targetWorktree.path);
+      console.log(green("Changes discarded."));
+    } else if (flags.noInteractive) {
+      exitNonInteractive(
+        `Worktree '${targetWorktree.worktreeName}' has uncommitted changes: ${formatStatus(status)}`,
+        [
+          '--stash              Stash changes for later',
+          '--commit "message"   Commit changes with the given message',
+          '--amend              Amend changes to the last commit',
+          '--clean              Discard all uncommitted changes',
+          '--fail-if-dirty      Exit with error instead',
+        ],
+      );
+    } else {
+      console.log(yellow("\nWorktree has uncommitted changes:"));
 
-    const choice = await prompt("\nSelect option (1-5): ");
+      if (status.staged.length > 0) {
+        console.log(`  Staged: ${status.staged.join(", ")}`);
+      }
+      if (status.modified.length > 0) {
+        console.log(`  Modified: ${status.modified.join(", ")}`);
+      }
+      if (status.not_added.length > 0) {
+        console.log(`  Untracked: ${status.not_added.join(", ")}`);
+      }
+      if (status.deleted.length > 0) {
+        console.log(`  Deleted: ${status.deleted.join(", ")}`);
+      }
 
-    switch (choice) {
-      case "1":
-        console.log("Stashing changes...");
-        await stashChanges(targetWorktree.path, `Release stash from ${currentBranch}`);
-        console.log(green("Changes stashed."));
-        break;
+      console.log("\nHow would you like to handle these changes?");
+      console.log("  1. Stash - Save changes to stash for later");
+      console.log("  2. Commit - Create a new commit with these changes");
+      console.log("  3. Amend - Add changes to the last commit");
+      console.log("  4. Clean - Discard all changes");
+      console.log("  5. Cancel - Abort release");
 
-      case "2":
-        const message = await prompt("Commit message: ");
-        if (!message) {
-          console.log(red("Commit message required."));
-          return;
-        }
-        console.log("Committing changes...");
-        await commitChanges(targetWorktree.path, message);
-        console.log(green("Changes committed."));
-        break;
+      const choice = await prompt("\nSelect option (1-5): ");
 
-      case "3":
-        console.log("Amending last commit...");
-        await amendChanges(targetWorktree.path);
-        console.log(green("Changes amended to last commit."));
-        break;
+      switch (choice) {
+        case "1":
+          console.log("Stashing changes...");
+          await stashChanges(targetWorktree.path, `Release stash from ${currentBranch}`);
+          console.log(green("Changes stashed."));
+          break;
 
-      case "4":
-        const confirmClean = await prompt(
-          yellow("This will PERMANENTLY DELETE all uncommitted changes. Are you sure? (yes/no): ")
-        );
-        if (confirmClean.toLowerCase() !== "yes") {
+        case "2":
+          const message = await prompt("Commit message: ");
+          if (!message) {
+            console.log(red("Commit message required."));
+            return;
+          }
+          console.log("Committing changes...");
+          await commitChanges(targetWorktree.path, message);
+          console.log(green("Changes committed."));
+          break;
+
+        case "3":
+          console.log("Amending last commit...");
+          await amendChanges(targetWorktree.path);
+          console.log(green("Changes amended to last commit."));
+          break;
+
+        case "4":
+          const confirmClean = await prompt(
+            yellow("This will PERMANENTLY DELETE all uncommitted changes. Are you sure? (yes/no): ")
+          );
+          if (confirmClean.toLowerCase() !== "yes") {
+            console.log("Aborted.");
+            return;
+          }
+          console.log("Cleaning changes...");
+          await cleanChanges(targetWorktree.path);
+          console.log(green("Changes discarded."));
+          break;
+
+        case "5":
+        default:
           console.log("Aborted.");
           return;
-        }
-        console.log("Cleaning changes...");
-        await cleanChanges(targetWorktree.path);
-        console.log(green("Changes discarded."));
-        break;
-
-      case "5":
-      default:
-        console.log("Aborted.");
-        return;
+      }
     }
   }
 
@@ -461,7 +635,7 @@ function showHelp(): void {
 ${bold("Many CLI")} - Git worktree pool manager
 
 ${bold("USAGE:")}
-  many <command> [args]
+  many <command> [args] [flags]
 
 ${bold("COMMANDS:")}
   ${bold("list")}                    List all worktrees and their status
@@ -472,12 +646,26 @@ ${bold("COMMANDS:")}
   ${bold("release")} [branch|name]   Release a worktree back to the pool
                           Handles uncommitted changes interactively
 
+${bold("FLAGS:")}
+  ${bold("--no-interactive")}        Exit with error if a prompt would be shown,
+                          with a message explaining which flags to provide
+  ${bold("--worktree")} <name>       Select which worktree to use (switch/release)
+  ${bold("--clean")}                 Discard uncommitted changes (switch/release)
+  ${bold("--fail-if-dirty")}         Exit with error if uncommitted changes exist
+  ${bold("--stash")}                 Stash uncommitted changes (release)
+  ${bold("--commit")} "message"      Commit uncommitted changes (release)
+  ${bold("--amend")}                 Amend uncommitted changes to last commit (release)
+
 ${bold("EXAMPLES:")}
   many list                    # Show all worktrees
   many switch feature/login    # Claim a worktree for feature/login branch
   many create worker-2         # Create new worktree named worker-2
   many release                 # Release current worktree
   many release feature/login   # Release worktree with that branch
+
+  ${dim("# Non-interactive usage (for scripts/automation):")}
+  many switch feature/login --no-interactive --worktree worker-1 --clean
+  many release feature/login --no-interactive --stash
 
 ${bold("POOL CONCEPT:")}
   Worktrees can be "claimed" (assigned to a branch) or "available" (on a
@@ -519,8 +707,9 @@ async function cmdWeb(args: string[]): Promise<void> {
 
 // Main entry point
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const command = args[0];
+  const rawArgs = process.argv.slice(2);
+  const { positional, flags } = parseFlags(rawArgs);
+  const command = positional[0];
 
   try {
     switch (command) {
@@ -532,31 +721,31 @@ async function main(): Promise<void> {
 
       case "switch":
       case "sw":
-        if (!args[1]) {
+        if (!positional[1]) {
           console.log(red("Error: Branch name required"));
           console.log("Usage: many switch <branch-name>");
           process.exit(1);
         }
-        await cmdSwitch(args[1]);
+        await cmdSwitch(positional[1], flags);
         break;
 
       case "create":
       case "new":
-        if (!args[1]) {
+        if (!positional[1]) {
           console.log(red("Error: Worktree name required"));
           console.log("Usage: many create <worktree-name>");
           process.exit(1);
         }
-        await cmdCreate(args[1]);
+        await cmdCreate(positional[1]);
         break;
 
       case "release":
       case "rel":
-        await cmdRelease(args[1]);
+        await cmdRelease(positional[1], flags);
         break;
 
       case "web":
-        await cmdWeb(args.slice(1));
+        await cmdWeb(rawArgs.slice(1));
         break;
 
       case "help":

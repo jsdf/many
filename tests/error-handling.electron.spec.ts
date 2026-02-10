@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { mkdirSync, rmSync, existsSync, writeFileSync, chmodSync } from 'fs';
 import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(os.tmpdir(), 'many-test');
 
 async function setupTestGitRepo(repoPath: string) {
   if (existsSync(repoPath)) {
@@ -30,8 +32,8 @@ async function launchApp() {
 }
 
 test.describe('Error Handling Tests', () => {
-  const testRepoPath = path.join(__dirname, '../test-repos/error-test-repo');
-  const corruptedDataPath = path.join(__dirname, '../test-data/corrupted-app-data.json');
+  const testRepoPath = path.join(testDir, 'error-test-repo');
+  const corruptedDataPath = path.join(testDir, 'corrupted-app-data.json');
 
   test.beforeEach(async () => {
     await setupTestGitRepo(testRepoPath);
@@ -97,7 +99,7 @@ test.describe('Error Handling Tests', () => {
     await window.waitForTimeout(2000);
 
     // Test with repository that has permission issues
-    const permissionTestPath = path.join(__dirname, '../test-repos/permission-test');
+    const permissionTestPath = path.join(testDir, 'permission-test');
     
     if (!existsSync(permissionTestPath)) {
       mkdirSync(permissionTestPath, { recursive: true });
@@ -162,7 +164,7 @@ test.describe('Error Handling Tests', () => {
     await window.waitForLoadState('domcontentloaded');
     await window.waitForTimeout(2000);
 
-    const invalidGitPath = path.join(__dirname, '../test-repos/fake-git-repo');
+    const invalidGitPath = path.join(testDir, 'fake-git-repo');
     
     if (!existsSync(invalidGitPath)) {
       mkdirSync(invalidGitPath, { recursive: true });
@@ -395,7 +397,7 @@ test.describe('Error Handling Tests', () => {
 
     // Add and remove multiple repositories to test cleanup
     for (let i = 0; i < 3; i++) {
-      const repoPath = path.join(__dirname, `../test-repos/cleanup-test-${i}`);
+      const repoPath = path.join(testDir, `cleanup-test-${i}`);
       
       // Setup temp repo
       if (!existsSync(repoPath)) {

@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(os.tmpdir(), 'many-test');
 
 // Test setup helper functions
 async function setupTestGitRepo(repoPath: string) {
@@ -35,8 +37,8 @@ async function launchApp() {
 }
 
 test.describe('Core Repository Management Tests', () => {
-  const testRepoPath = path.join(__dirname, '../test-repos/test-repo-1');
-  const testRepoPath2 = path.join(__dirname, '../test-repos/test-repo-2');
+  const testRepoPath = path.join(testDir, 'test-repo-1');
+  const testRepoPath2 = path.join(testDir, 'test-repo-2');
 
   test.beforeEach(async () => {
     // Setup test repositories
@@ -104,7 +106,7 @@ test.describe('Core Repository Management Tests', () => {
     await window.waitForTimeout(2000);
 
     // Create a non-git directory
-    const nonGitPath = path.join(__dirname, '../test-repos/non-git-dir');
+    const nonGitPath = path.join(testDir, 'non-git-dir');
     if (!existsSync(nonGitPath)) {
       mkdirSync(nonGitPath, { recursive: true });
     }

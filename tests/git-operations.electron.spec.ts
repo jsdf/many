@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(os.tmpdir(), 'many-test');
 
 async function setupTestGitRepo(repoPath: string) {
   if (existsSync(repoPath)) {
@@ -67,7 +69,7 @@ async function addRepositoryAndWorktree(window: any, repoPath: string, worktreeN
 }
 
 test.describe('Git Operations Tests', () => {
-  const testRepoPath = path.join(__dirname, '../test-repos/git-ops-repo');
+  const testRepoPath = path.join(testDir, 'git-ops-repo');
 
   test.beforeEach(async () => {
     await setupTestGitRepo(testRepoPath);
@@ -316,7 +318,7 @@ test.describe('Git Operations Tests', () => {
     await window.waitForTimeout(2000);
 
     // Try to add a corrupted or invalid git repository
-    const invalidPath = path.join(__dirname, '../test-repos/invalid-git');
+    const invalidPath = path.join(testDir, 'invalid-git');
     
     if (!existsSync(invalidPath)) {
       mkdirSync(invalidPath, { recursive: true });
@@ -357,7 +359,7 @@ test.describe('Git Operations Tests', () => {
     await window.waitForTimeout(2000);
 
     // Create a larger test repo with more commits and branches
-    const largeRepoPath = path.join(__dirname, '../test-repos/large-repo');
+    const largeRepoPath = path.join(testDir, 'large-repo');
     
     if (!existsSync(largeRepoPath)) {
       mkdirSync(largeRepoPath, { recursive: true });

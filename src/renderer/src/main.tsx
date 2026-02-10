@@ -2,41 +2,38 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
-import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import { createTRPCProxyClient, httpLink } from "@trpc/client";
 import type { AppRouter } from "../../main/api";
-import { initializeClientLogging } from "./logger";
 
 // Detect if we're running in Electron or browser
 const isElectron = typeof window !== "undefined" && window.electronAPI !== undefined;
 
-// Create the appropriate tRPC client
-function createClient() {
+// Client is set before React renders
+export let client: ReturnType<typeof createTRPCProxyClient<AppRouter>>;
+
+async function init() {
   if (isElectron) {
-    // Use Electron IPC link
-    const { ipcLink } = require("electron-trpc/renderer");
-    return createTRPCProxyClient<AppRouter>({
+    // Dynamic import so Vite code-splits this and doesn't evaluate it in browser
+    const { ipcLink } = await import("electron-trpc/renderer");
+    client = createTRPCProxyClient<AppRouter>({
       links: [ipcLink()],
     });
+    const { initializeClientLogging } = await import("./logger");
+    initializeClientLogging();
   } else {
-    // Use HTTP link for web version
-    return createTRPCProxyClient<AppRouter>({
+    client = createTRPCProxyClient<AppRouter>({
       links: [
-        httpBatchLink({
+        httpLink({
           url: `${window.location.origin}/trpc`,
         }),
       ],
     });
   }
+
+  const root = ReactDOM.createRoot(
+    document.getElementById("root") as HTMLElement
+  );
+  root.render(<App />);
 }
 
-export const client = createClient();
-
-// Initialize client-side logging (only in Electron)
-if (isElectron) {
-  initializeClientLogging();
-}
-
-const root = ReactDOM.createRoot(
-  document.getElementById("root") as HTMLElement
-);
-root.render(<App />);
+init();
