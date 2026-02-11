@@ -17,6 +17,8 @@ import {
   createWorktree,
   runInitCommand,
   getLocalBranchName,
+  checkBranchMerged,
+  archiveWorktree,
   WorktreeInfo,
   GitStatus,
 } from "./git-pool.js";
@@ -34,6 +36,7 @@ interface ParsedFlags {
   stash: boolean;              // --stash : stash uncommitted changes on release
   commitMessage: string | null; // --commit "msg" : commit changes on release
   amend: boolean;              // --amend : amend last commit on release
+  force: boolean;              // --force : skip merge checks (archive)
 }
 
 function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags } {
@@ -46,6 +49,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
     stash: false,
     commitMessage: null,
     amend: false,
+    force: false,
   };
 
   let i = 0;
@@ -82,6 +86,10 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
         break;
       case "--amend":
         flags.amend = true;
+        break;
+      case "--force":
+      case "-f":
+        flags.force = true;
         break;
       default:
         positional.push(arg);
@@ -630,6 +638,138 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
   console.log(`  many switch ${currentBranch}`);
 }
 
+// Archive command - remove a worktree (keeps the branch in git)
+async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): Promise<void> {
+  const { repoPath, config, currentWorktree } = await getRepoAndConfig();
+
+  // Determine which worktree to archive
+  let targetWorktree: WorktreeInfo | null = null;
+
+  if (identifier) {
+    targetWorktree = await findWorktree(repoPath, identifier);
+    if (!targetWorktree) {
+      console.log(red(`Worktree or branch '${identifier}' not found.`));
+      process.exit(1);
+    }
+  } else if (flags.worktree) {
+    targetWorktree = await findWorktree(repoPath, flags.worktree);
+    if (!targetWorktree) {
+      console.log(red(`Worktree '${flags.worktree}' not found.`));
+      process.exit(1);
+    }
+  } else if (currentWorktree) {
+    targetWorktree = currentWorktree;
+  } else if (flags.noInteractive) {
+    const worktrees = await getWorktrees(repoPath);
+    const nonBase = worktrees.filter((w) => w.path !== repoPath && !w.bare);
+    if (nonBase.length === 0) {
+      console.log(yellow("No worktrees to archive."));
+      process.exit(1);
+    }
+    exitNonInteractive(
+      "Not in a worktree and no identifier provided. Worktrees: " +
+        nonBase.map((w) => `${w.worktreeName} (${getLocalBranchName(w.branch)})`).join(", "),
+      [
+        "many archive <branch-name>     Specify the branch to archive",
+        "--worktree <name>              Specify the worktree by name",
+      ],
+    );
+  } else {
+    // List worktrees and let user pick
+    const worktrees = await getWorktrees(repoPath);
+    const nonBase = worktrees.filter((w) => w.path !== repoPath && !w.bare);
+
+    if (nonBase.length === 0) {
+      console.log(yellow("No worktrees to archive."));
+      return;
+    }
+
+    console.log("\nWorktrees:");
+    nonBase.forEach((w, i) => {
+      console.log(`  ${i + 1}. ${w.worktreeName} (${getLocalBranchName(w.branch)})`);
+    });
+
+    const choice = await prompt("\nSelect worktree to archive (number): ");
+    const index = parseInt(choice, 10) - 1;
+
+    if (isNaN(index) || index < 0 || index >= nonBase.length) {
+      console.log(red("Invalid selection"));
+      return;
+    }
+
+    targetWorktree = nonBase[index];
+  }
+
+  // Don't allow archiving the base repo
+  if (targetWorktree.path === repoPath) {
+    console.log(red("Cannot archive the base repository worktree."));
+    process.exit(1);
+  }
+
+  const branchName = getLocalBranchName(targetWorktree.branch);
+  console.log(`\nArchiving worktree: ${targetWorktree.worktreeName}`);
+  console.log(`Branch: ${branchName}`);
+
+  // Check merge status unless --force
+  if (!flags.force) {
+    try {
+      const { isFullyMerged, mainBranch } = await checkBranchMerged(
+        repoPath,
+        targetWorktree.branch || branchName,
+        config
+      );
+
+      if (!isFullyMerged) {
+        if (flags.noInteractive) {
+          exitNonInteractive(
+            `Branch '${branchName}' is not fully merged into '${mainBranch}'.`,
+            ["--force    Archive anyway, skipping merge check"],
+          );
+        }
+
+        console.log(yellow(`\nWarning: Branch '${branchName}' is not fully merged into '${mainBranch}'.`));
+        const confirm = await prompt("Archive anyway? (yes/no): ");
+        if (confirm.toLowerCase() !== "yes") {
+          console.log("Aborted.");
+          return;
+        }
+      }
+    } catch (error) {
+      // If merge check fails (e.g. no remote), warn but allow proceeding
+      if (flags.noInteractive) {
+        exitNonInteractive(
+          `Could not determine merge status for '${branchName}': ${error instanceof Error ? error.message : error}`,
+          ["--force    Archive anyway, skipping merge check"],
+        );
+      }
+
+      console.log(yellow(`\nWarning: Could not determine if branch '${branchName}' is merged.`));
+      const confirm = await prompt("Archive anyway? (yes/no): ");
+      if (confirm.toLowerCase() !== "yes") {
+        console.log("Aborted.");
+        return;
+      }
+    }
+  }
+
+  // Confirm archive (unless --force or --no-interactive with force)
+  if (!flags.force && !flags.noInteractive) {
+    const confirm = await prompt(
+      yellow("This will remove the worktree directory but keep the branch in git. Continue? (y/n): ")
+    );
+    if (confirm.toLowerCase() !== "y") {
+      console.log("Aborted.");
+      return;
+    }
+  }
+
+  console.log("\nArchiving worktree...");
+  await archiveWorktree(repoPath, targetWorktree.path);
+
+  console.log(green(`\nWorktree '${targetWorktree.worktreeName}' archived.`));
+  console.log(`The branch '${branchName}' still exists in git.`);
+}
+
 // Help command
 function showHelp(): void {
   console.log(`
@@ -647,12 +787,15 @@ ${bold("COMMANDS:")}
                           Runs configured init command if any
   ${bold("release")} [branch|name]   Release a worktree back to the pool
                           Handles uncommitted changes interactively
+  ${bold("archive")} [branch|name]   Remove a worktree directory (keeps branch in git)
+                          Checks if branch is merged first
 
 ${bold("FLAGS:")}
   ${bold("--no-interactive")}        Exit with error if a prompt would be shown,
                           with a message explaining which flags to provide
   ${bold("--worktree")} <name>       Select which worktree to use (switch/release)
   ${bold("--clean")}                 Discard uncommitted changes (switch/release)
+  ${bold("--force")}                  Skip merge checks and confirmation (archive)
   ${bold("--fail-if-dirty")}         Exit with error if uncommitted changes exist
   ${bold("--stash")}                 Stash uncommitted changes (release)
   ${bold("--commit")} "message"      Commit uncommitted changes (release)
@@ -664,6 +807,8 @@ ${bold("EXAMPLES:")}
   many create worker-2         # Create new worktree named worker-2
   many release                 # Release current worktree
   many release feature/login   # Release worktree with that branch
+  many archive feature/login   # Archive worktree for that branch
+  many archive --force         # Archive current worktree, skip merge check
 
   ${dim("# Non-interactive usage (for scripts/automation):")}
   many switch feature/login --no-interactive --worktree worker-1 --clean
@@ -756,6 +901,11 @@ async function main(): Promise<void> {
       case "release":
       case "rel":
         await cmdRelease(positional[1], flags);
+        break;
+
+      case "archive":
+      case "ar":
+        await cmdArchive(positional[1], flags);
         break;
 
       case "web":

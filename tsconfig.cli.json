@@ -18,7 +18,8 @@
   },
   "include": [
     "src/cli/**/*",
-    "src/web/**/*"
+    "src/web/**/*",
+    "src/shared/**/*"
   ],
   "exclude": [
     "node_modules"
