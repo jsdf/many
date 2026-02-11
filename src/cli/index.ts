@@ -23,6 +23,7 @@ import {
 import { simpleGit } from "simple-git";
 import * as readline from "readline";
 import path from "path";
+import { createRequire } from "node:module";
 
 // Parsed flags for non-interactive use
 interface ParsedFlags {
@@ -638,6 +639,7 @@ ${bold("USAGE:")}
   many <command> [args] [flags]
 
 ${bold("COMMANDS:")}
+  ${bold("version")}                 Show the CLI version
   ${bold("list")}                    List all worktrees and their status
   ${bold("switch")} <branch>         Claim a worktree and checkout the branch
                           Creates branch from default if it doesn't exist
@@ -705,6 +707,12 @@ async function cmdWeb(args: string[]): Promise<void> {
   await startWebServer({ port, open });
 }
 
+function getVersion(): string {
+  const require = createRequire(import.meta.url);
+  const pkg = require("../../package.json");
+  return pkg.version;
+}
+
 // Main entry point
 async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
@@ -713,6 +721,12 @@ async function main(): Promise<void> {
 
   try {
     switch (command) {
+      case "version":
+      case "-v":
+      case "--version":
+        console.log(getVersion());
+        break;
+
       case "list":
       case "ls":
       case undefined:
