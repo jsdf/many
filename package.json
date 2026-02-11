@@ -1,6 +1,6 @@
 {
   "name": "many",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Use git worktrees with AI tools",
   "type": "module",
   "main": "out/main/index.cjs",
