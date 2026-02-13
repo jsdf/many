@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Worktree, isTmpBranch } from "../types";
+import React, { useState, useEffect } from "react";
+import { Worktree, GitStatus, isTmpBranch } from "../types";
 import { client } from "../main";
 
 const formatBranchName = (branch?: string | null) => {
@@ -24,6 +24,27 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  const loadGitStatus = async () => {
+    if (!worktree.path) return;
+    setStatusLoading(true);
+    try {
+      const status = await client.getWorktreeStatus.query({
+        worktreePath: worktree.path,
+      });
+      setGitStatus(status);
+    } catch (err) {
+      console.error("Failed to load git status:", err);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadGitStatus();
+  }, [worktree.path]);
 
   const handleAction = async (
     action: string,
@@ -157,9 +178,102 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
       </div>
 
       <div className="git-status">
-        <h3>Git Status</h3>
+        <div className="git-status-header">
+          <h3>Git Status</h3>
+          <button
+            className="btn btn-secondary"
+            onClick={loadGitStatus}
+            disabled={statusLoading}
+          >
+            {statusLoading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
         <div className="status-info">
-          <p>Changes will appear here...</p>
+          {statusLoading && !gitStatus ? (
+            <p>Loading...</p>
+          ) : gitStatus && gitStatus.hasChanges ? (
+            <div className="status-file-list">
+              {gitStatus.staged.length > 0 && (
+                <div className="status-section">
+                  <h4 className="change-staged">
+                    Staged ({gitStatus.staged.length})
+                  </h4>
+                  <ul>
+                    {gitStatus.staged.map((file) => (
+                      <li key={`staged-${file}`} className="change-staged">
+                        {file}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {gitStatus.modified.length > 0 && (
+                <div className="status-section">
+                  <h4 className="change-modified">
+                    Modified ({gitStatus.modified.length})
+                  </h4>
+                  <ul>
+                    {gitStatus.modified.map((file) => (
+                      <li key={`modified-${file}`} className="change-modified">
+                        {file}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {gitStatus.not_added.length > 0 && (
+                <div className="status-section">
+                  <h4 className="change-untracked">
+                    Untracked ({gitStatus.not_added.length})
+                  </h4>
+                  <ul>
+                    {gitStatus.not_added.map((file) => (
+                      <li
+                        key={`untracked-${file}`}
+                        className="change-untracked"
+                      >
+                        {file}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {gitStatus.deleted.length > 0 && (
+                <div className="status-section">
+                  <h4 className="change-deleted">
+                    Deleted ({gitStatus.deleted.length})
+                  </h4>
+                  <ul>
+                    {gitStatus.deleted.map((file) => (
+                      <li key={`deleted-${file}`} className="change-deleted">
+                        {file}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {gitStatus.created.length > 0 && (
+                <div className="status-section">
+                  <h4 className="change-staged">
+                    Created ({gitStatus.created.length})
+                  </h4>
+                  <ul>
+                    {gitStatus.created.map((file) => (
+                      <li key={`created-${file}`} className="change-staged">
+                        {file}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : gitStatus ? (
+            <p className="text-success" style={{ margin: 0 }}>
+              Working tree clean
+            </p>
+          ) : (
+            <p>Failed to load status</p>
+          )}
         </div>
       </div>
     </div>

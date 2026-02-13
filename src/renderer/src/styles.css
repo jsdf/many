@@ -638,6 +638,43 @@ body {
     font-style: italic;
 }
 
+.git-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.git-status-header h3 {
+    margin-bottom: 0;
+}
+
+.status-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status-section h4 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.status-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.status-section li {
+    font-size: 13px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    padding: 3px 0;
+}
+
 /* Worktree Details */
 .worktree-details {
     padding: 30px;
