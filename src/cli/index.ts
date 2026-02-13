@@ -820,15 +820,15 @@ ${bold("POOL CONCEPT:")}
   the pool by switching it to a tmp-<name> branch.
 
 ${bold("WEB UI:")}
-  many web                     # Start the web UI on http://localhost:3000
-  many web --port 8080         # Use a custom port
+  many web                     # Start the web UI (auto-selects port, prints URL with auth token)
+  many web --port 8080         # Use a specific port
   many web --open              # Open browser automatically
 `);
 }
 
 // Web command - start the web server
 async function cmdWeb(args: string[]): Promise<void> {
-  let port = 3000;
+  let port = 0; // 0 = auto-select free port
   let open = false;
 
   // Parse arguments

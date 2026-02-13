@@ -5,10 +5,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { spawn, exec } from "child_process";
 import { promisify } from "util";
+import crypto from "crypto";
+import type { AddressInfo } from "net";
 import { initTRPC } from "@trpc/server";
 import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
 import * as gitPool from "../cli/git-pool.js";
-import { loadAppData, saveAppData, getRepoConfig } from "../cli/config.js";
+import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import {
   checkBranchMerged,
   removeWorktree,
@@ -53,11 +55,15 @@ async function openInFileManager(folderPath: string): Promise<boolean> {
   return true;
 }
 
-async function openInEditor(folderPath: string): Promise<boolean> {
+async function openInEditor(folderPath: string, editor?: string | null): Promise<boolean> {
+  if (editor) {
+    spawn(editor, [folderPath], { detached: true, stdio: "ignore" });
+    return true;
+  }
   const editors = ["code", "cursor", "subl", "atom"];
-  for (const editor of editors) {
+  for (const ed of editors) {
     try {
-      spawn(editor, [folderPath], { detached: true, stdio: "ignore" });
+      spawn(ed, [folderPath], { detached: true, stdio: "ignore" });
       return true;
     } catch {
       continue;
@@ -67,20 +73,28 @@ async function openInEditor(folderPath: string): Promise<boolean> {
   return openInFileManager(folderPath);
 }
 
-async function openInTerminal(folderPath: string): Promise<boolean> {
+async function openInTerminal(folderPath: string, terminal?: string | null): Promise<boolean> {
   const platform = process.platform;
+  if (terminal) {
+    if (platform === "darwin") {
+      spawn("open", ["-a", terminal, folderPath], { detached: true, stdio: "ignore" });
+    } else {
+      spawn(terminal, [], { cwd: folderPath, detached: true, stdio: "ignore" });
+    }
+    return true;
+  }
   if (platform === "darwin") {
     spawn("open", ["-a", "Terminal", folderPath], { detached: true, stdio: "ignore" });
   } else if (platform === "win32") {
     spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${folderPath}"`], { detached: true, stdio: "ignore" });
   } else {
     const terminals = ["gnome-terminal", "konsole", "xterm"];
-    for (const terminal of terminals) {
+    for (const term of terminals) {
       try {
-        if (terminal === "gnome-terminal") {
-          spawn(terminal, ["--working-directory", folderPath], { detached: true, stdio: "ignore" });
+        if (term === "gnome-terminal") {
+          spawn(term, ["--working-directory", folderPath], { detached: true, stdio: "ignore" });
         } else {
-          spawn(terminal, ["-e", "bash"], { cwd: folderPath, detached: true, stdio: "ignore" });
+          spawn(term, ["-e", "bash"], { cwd: folderPath, detached: true, stdio: "ignore" });
         }
         break;
       } catch {
@@ -312,6 +326,24 @@ const createRouter = () => {
       return null;
     }),
 
+    // Global settings
+    getGlobalSettings: t.procedure.query(async () => {
+      const appData = await loadAppData();
+      return getGlobalSettings(appData);
+    }),
+
+    saveGlobalSettings: t.procedure
+      .input((input: unknown) => input as { defaultEditor: string | null; defaultTerminal: string | null })
+      .mutation(async ({ input }) => {
+        const appData = await loadAppData();
+        appData.globalSettings = {
+          defaultEditor: input.defaultEditor,
+          defaultTerminal: input.defaultTerminal,
+        };
+        await saveAppData(appData);
+        return true;
+      }),
+
     // External actions
     openInFileManager: t.procedure
       .input((input: unknown) => input as { folderPath: string })
@@ -319,11 +351,19 @@ const createRouter = () => {
 
     openInEditor: t.procedure
       .input((input: unknown) => input as { folderPath: string })
-      .mutation(async ({ input }) => openInEditor(input.folderPath)),
+      .mutation(async ({ input }) => {
+        const appData = await loadAppData();
+        const settings = getGlobalSettings(appData);
+        return openInEditor(input.folderPath, settings.defaultEditor);
+      }),
 
     openInTerminal: t.procedure
       .input((input: unknown) => input as { folderPath: string })
-      .mutation(async ({ input }) => openInTerminal(input.folderPath)),
+      .mutation(async ({ input }) => {
+        const appData = await loadAppData();
+        const settings = getGlobalSettings(appData);
+        return openInTerminal(input.folderPath, settings.defaultTerminal);
+      }),
 
     openDirectory: t.procedure
       .input((input: unknown) => input as { dirPath: string })
@@ -331,7 +371,11 @@ const createRouter = () => {
 
     openTerminalInDirectory: t.procedure
       .input((input: unknown) => input as { dirPath: string })
-      .mutation(async ({ input }) => openInTerminal(input.dirPath)),
+      .mutation(async ({ input }) => {
+        const appData = await loadAppData();
+        const settings = getGlobalSettings(appData);
+        return openInTerminal(input.dirPath, settings.defaultTerminal);
+      }),
 
     openVSCode: t.procedure
       .input((input: unknown) => input as { dirPath: string })
@@ -439,11 +483,13 @@ export interface WebServerOptions {
   port?: number;
   host?: string;
   open?: boolean;
+  token?: string;
 }
 
 export async function startWebServer(options: WebServerOptions = {}): Promise<void> {
-  const port = options.port || 3000;
+  const port = options.port ?? 0;
   const host = options.host || "localhost";
+  const token = options.token || crypto.randomBytes(24).toString("hex");
 
   const router = createRouter();
 
@@ -458,13 +504,21 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
     process.exit(1);
   }
 
+  function checkToken(req: http.IncomingMessage, url: URL): boolean {
+    const headerToken = req.headers["x-token"];
+    if (headerToken === token) return true;
+    const queryToken = url.searchParams.get("token");
+    if (queryToken === token) return true;
+    return false;
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${host}:${port}`);
     const pathname = url.pathname;
 
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-token");
 
     if (req.method === "OPTIONS") {
       res.writeHead(200);
@@ -473,7 +527,13 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
     }
 
     try {
+      // tRPC API requires token
       if (pathname.startsWith("/trpc/")) {
+        if (!checkToken(req, url)) {
+          res.writeHead(401, { "Content-Type": "text/plain" });
+          res.end("Unauthorized");
+          return;
+        }
         // Strip /trpc prefix - the adapter expects just the procedure path
         req.url = req.url!.replace(/^\/trpc/, "");
         await nodeHTTPRequestHandler({
@@ -486,9 +546,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
         return;
       }
 
-      let filePath = pathname === "/" ? "/index.html" : pathname;
-      filePath = path.join(distDir, filePath);
-
+      // Static files (HTML, JS, CSS, images) served without token.
+      // The token in the URL is read by the JS client for API auth.
+      let filePath = pathname === "/" ? path.join(distDir, "index.html") : path.join(distDir, pathname);
       const result = await serveStaticFile(filePath);
       res.writeHead(result.status, { "Content-Type": result.contentType });
       res.end(result.body);
@@ -501,19 +561,21 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
-      console.log(`\nMany Web Server running at http://${host}:${port}`);
+      const actualPort = (server.address() as AddressInfo).port;
+      const serverUrl = `http://${host}:${actualPort}?token=${token}`;
+
+      console.log(`\nMany Web Server running at ${serverUrl}`);
       console.log("Press Ctrl+C to stop the server.\n");
 
       if (options.open) {
-        const openUrl = `http://${host}:${port}`;
         const platform = process.platform;
 
         if (platform === "darwin") {
-          exec(`open "${openUrl}"`);
+          exec(`open "${serverUrl}"`);
         } else if (platform === "win32") {
-          exec(`start "${openUrl}"`);
+          exec(`start "${serverUrl}"`);
         } else {
-          exec(`xdg-open "${openUrl}"`);
+          exec(`xdg-open "${serverUrl}"`);
         }
       }
 

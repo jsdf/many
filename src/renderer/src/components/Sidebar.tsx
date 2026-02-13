@@ -17,6 +17,7 @@ interface SidebarProps {
   onCreateWorktree: () => void
   onConfigRepo: () => void
   onSwitchWorktree?: () => void
+  onGlobalSettings: () => void
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -29,7 +30,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onAddRepo,
   onCreateWorktree,
   onConfigRepo,
-  onSwitchWorktree
+  onSwitchWorktree,
+  onGlobalSettings
 }) => {
   // Separate worktrees into categories
   const { baseWorktree, claimedWorktrees, availableWorktrees } = useMemo(() => {
@@ -67,10 +69,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>Worktrees</h2>
-        <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-secondary">
-          Add Repo
-        </button>
+        <div className="sidebar-header-title">
+          <img src="/many-shodan.png" alt="" className="sidebar-icon" />
+          <h2>Worktrees</h2>
+        </div>
+        <div className="sidebar-header-actions">
+          <button onClick={onGlobalSettings} className="btn btn-secondary" title="Global settings">
+            &#9881;
+          </button>
+          <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-secondary">
+            Add Repo
+          </button>
+        </div>
       </div>
 
       <div className="repo-selector">

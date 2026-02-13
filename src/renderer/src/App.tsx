@@ -8,6 +8,7 @@ import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
 import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
+import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { client } from "./main";
 
 const App: React.FC = () => {
@@ -31,6 +32,7 @@ const App: React.FC = () => {
   const [worktreeToRelease, setWorktreeToRelease] = useState<Worktree | null>(
     null
   );
+  const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
 
   useEffect(() => {
     loadSavedRepos();
@@ -386,6 +388,7 @@ const App: React.FC = () => {
         onCreateWorktree={() => setShowCreateModal(true)}
         onConfigRepo={() => setShowRepoConfigModal(true)}
         onSwitchWorktree={() => setShowSwitchModal(true)}
+        onGlobalSettings={() => setShowGlobalSettingsModal(true)}
       />
 
       <MainContent
@@ -466,6 +469,12 @@ const App: React.FC = () => {
             setWorktreeToRelease(null);
           }}
           onRelease={handleReleaseComplete}
+        />
+      )}
+
+      {showGlobalSettingsModal && (
+        <GlobalSettingsModal
+          onClose={() => setShowGlobalSettingsModal(false)}
         />
       )}
     </div>

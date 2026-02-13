@@ -15,6 +15,11 @@ export interface RepositoryConfig {
   worktreeDirectory: string | null;
 }
 
+export interface GlobalSettings {
+  defaultEditor: string | null;
+  defaultTerminal: string | null;
+}
+
 export interface AppData {
   repositories: Repository[];
   repositoryConfigs: Record<string, RepositoryConfig>;
@@ -22,6 +27,7 @@ export interface AppData {
   recentWorktrees: Record<string, string>;
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, unknown>;
+  globalSettings: GlobalSettings;
 }
 
 const defaultAppData: AppData = {
@@ -31,6 +37,7 @@ const defaultAppData: AppData = {
   recentWorktrees: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},
+  globalSettings: { defaultEditor: null, defaultTerminal: null },
 };
 
 // Get platform-specific data directory
@@ -67,6 +74,10 @@ export async function saveAppData(data: AppData): Promise<void> {
   const dir = path.dirname(dataPath);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
+}
+
+export function getGlobalSettings(appData: AppData): GlobalSettings {
+  return appData.globalSettings || { defaultEditor: null, defaultTerminal: null };
 }
 
 export function getRepoConfig(appData: AppData, repoPath: string): RepositoryConfig {
