@@ -20,8 +20,8 @@ const WelcomeScreen: React.FC = () => {
             <p>Create worktrees with a single click</p>
           </div>
           <div className="feature">
-            <h3>💻 Integrated Terminals</h3>
-            <p>Built-in terminal with tiling layout</p>
+            <h3>📂 External Tools</h3>
+            <p>Open worktrees in your editor or terminal</p>
           </div>
         </div>
       </div>

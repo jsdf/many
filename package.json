@@ -3,25 +3,17 @@
   "version": "1.0.1",
   "description": "Use git worktrees with AI tools",
   "type": "module",
-  "main": "out/main/index.cjs",
   "bin": {
     "many": "./dist-cli/cli/index.js"
   },
   "scripts": {
-    "start": "electron-vite build && electron out/main/index.cjs",
-    "dev": "electron-vite dev",
-    "prebuild": "electron-vite build",
-    "build": "tsc --noEmit && electron-vite build",
+    "build": "tsc --noEmit && vite build",
     "build:cli": "tsc -p tsconfig.cli.json",
-    "cli": "npm run build:cli && node dist-cli/cli/index.js",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
-    "logs": "node view-logs.js",
-    "test": "npm run build && npx playwright test",
-    "test:ui": "npm run build && npx playwright test --ui"
+    "dev": "vite build && node dist-cli/web/server.js",
+    "start": "npm run build && npm run build:cli && node dist-cli/web/server.js",
+    "cli": "npm run build:cli && node dist-cli/cli/index.js"
   },
   "keywords": [
-    "electron",
     "git",
     "worktree",
     "ai"
@@ -29,57 +21,22 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@electron-toolkit/tsconfig": "^1.0.1",
-    "@playwright/test": "^1.54.2",
     "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.0.0",
-    "electron-rebuild": "^3.2.9",
-    "electron-vite": "^4.0.0",
-    "esbuild": "^0.19.12",
-    "playwright": "^1.54.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
     "vite": "^7.1.1"
   },
   "dependencies": {
-    "@lydell/node-pty": "^1.1.0",
     "@trpc/client": "^10.45.2",
     "@trpc/server": "^10.45.2",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-web-links": "^0.11.0",
-    "@xterm/xterm": "^5.5.0",
-    "electron-trpc": "^0.6.2",
     "simple-git": "^3.20.0",
     "superjson": "^2.2.2",
     "ws": "^8.19.0",
     "zod": "^4.0.14"
-  },
-  "build": {
-    "appId": "com.many.app",
-    "productName": "Many",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "out/**/*",
-      "node_modules/**/*"
-    ],
-    "mac": {
-      "icon": "public/many-shodan.png",
-      "category": "public.app-category.developer-tools"
-    },
-    "win": {
-      "icon": "public/many-shodan.png"
-    },
-    "linux": {
-      "icon": "public/many-shodan.png",
-      "category": "Development"
-    }
   }
 }

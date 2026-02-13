@@ -3,12 +3,20 @@ import http from "http";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { WebSocketServer, WebSocket } from "ws";
+import { spawn, exec } from "child_process";
+import { promisify } from "util";
 import { initTRPC } from "@trpc/server";
 import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
 import * as gitPool from "../cli/git-pool.js";
 import { loadAppData, saveAppData, getRepoConfig } from "../cli/config.js";
-import type { AppData, RepositoryConfig } from "../cli/config.js";
+import {
+  checkBranchMerged,
+  removeWorktree,
+  getErrorMessage,
+  parseWorktreeList,
+} from "../shared/git-core.js";
+
+const execAsync = promisify(exec);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -29,47 +37,67 @@ const MIME_TYPES: Record<string, string> = {
   ".ttf": "font/ttf",
 };
 
-// Simple terminal manager for web (without node-pty for now)
-interface WebTerminalSession {
-  id: string;
-  workingDirectory: string;
-  worktreePath?: string;
-}
-
-class WebTerminalManager {
-  private sessions: Map<string, WebTerminalSession> = new Map();
-
-  createSession(id: string, workingDirectory: string, worktreePath?: string): void {
-    this.sessions.set(id, { id, workingDirectory, worktreePath });
-  }
-
-  getSession(id: string): WebTerminalSession | undefined {
-    return this.sessions.get(id);
-  }
-
-  closeSession(id: string): void {
-    this.sessions.delete(id);
-  }
-
-  sessionExists(id: string): boolean {
-    return this.sessions.has(id);
-  }
-
-  getWorktreeTerminals(_worktreePath: string): { terminals: any[]; nextTerminalId: number } {
-    return { terminals: [], nextTerminalId: 1 };
-  }
-
-  addTerminalToWorktree(_worktreePath: string, _terminal: any): void {}
-  removeTerminalFromWorktree(_worktreePath: string, _terminalId: string): void {}
-  cleanupWorktreeTerminals(_worktreePath: string): void {}
-  createSetupTerminal(_worktreePath: string, _initCommand: string): void {}
-}
-
 // Create tRPC instance
 const t = initTRPC.create();
 
-// Create the router (simplified version for web)
-const createRouter = (terminalManager: WebTerminalManager) => {
+// External actions - open apps using child_process
+async function openInFileManager(folderPath: string): Promise<boolean> {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    spawn("open", [folderPath], { detached: true, stdio: "ignore" });
+  } else if (platform === "win32") {
+    spawn("explorer", [folderPath], { detached: true, stdio: "ignore" });
+  } else {
+    spawn("xdg-open", [folderPath], { detached: true, stdio: "ignore" });
+  }
+  return true;
+}
+
+async function openInEditor(folderPath: string): Promise<boolean> {
+  const editors = ["code", "cursor", "subl", "atom"];
+  for (const editor of editors) {
+    try {
+      spawn(editor, [folderPath], { detached: true, stdio: "ignore" });
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  // Fallback to file manager
+  return openInFileManager(folderPath);
+}
+
+async function openInTerminal(folderPath: string): Promise<boolean> {
+  const platform = process.platform;
+  if (platform === "darwin") {
+    spawn("open", ["-a", "Terminal", folderPath], { detached: true, stdio: "ignore" });
+  } else if (platform === "win32") {
+    spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d "${folderPath}"`], { detached: true, stdio: "ignore" });
+  } else {
+    const terminals = ["gnome-terminal", "konsole", "xterm"];
+    for (const terminal of terminals) {
+      try {
+        if (terminal === "gnome-terminal") {
+          spawn(terminal, ["--working-directory", folderPath], { detached: true, stdio: "ignore" });
+        } else {
+          spawn(terminal, ["-e", "bash"], { cwd: folderPath, detached: true, stdio: "ignore" });
+        }
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return true;
+}
+
+async function openVSCode(dirPath: string): Promise<boolean> {
+  await execAsync(`code "${dirPath}"`);
+  return true;
+}
+
+// Create the router
+const createRouter = () => {
   return t.router({
     // Git operations
     getWorktrees: t.procedure
@@ -110,9 +138,42 @@ const createRouter = (terminalManager: WebTerminalManager) => {
     archiveWorktree: t.procedure
       .input((input: unknown) => input as { repoPath: string; worktreePath: string; force?: boolean })
       .mutation(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        await git.raw(["worktree", "remove", "--force", input.worktreePath]);
+        if (!input.force) {
+          // Check if branch is merged before archiving
+          const worktrees = await parseWorktreeList(input.repoPath);
+          const currentWorktree = worktrees.find((w) => w.path === input.worktreePath);
+
+          if (currentWorktree && currentWorktree.branch) {
+            const appData = await loadAppData();
+            const repoConfig = getRepoConfig(appData, input.repoPath);
+
+            if (repoConfig.mainBranch) {
+              try {
+                const result = await checkBranchMerged(
+                  input.repoPath,
+                  currentWorktree.branch,
+                  repoConfig.mainBranch
+                );
+
+                if (!result.isFullyMerged) {
+                  throw new Error(
+                    `UNMERGED_BRANCH:Branch '${currentWorktree.branch}' is not fully merged into '${repoConfig.mainBranch}'.`
+                  );
+                }
+              } catch (mergeCheckError: unknown) {
+                const errorMsg = getErrorMessage(mergeCheckError);
+                if (errorMsg.includes("UNMERGED_BRANCH:")) {
+                  throw mergeCheckError;
+                }
+                throw new Error(
+                  `MERGE_CHECK_FAILED:Could not determine if branch '${currentWorktree.branch}' is merged into '${repoConfig.mainBranch}'.`
+                );
+              }
+            }
+          }
+        }
+
+        await removeWorktree(input.repoPath, input.worktreePath);
         return true;
       }),
 
@@ -251,90 +312,30 @@ const createRouter = (terminalManager: WebTerminalManager) => {
       return null;
     }),
 
-    // External actions (limited in web version)
+    // External actions
     openInFileManager: t.procedure
       .input((input: unknown) => input as { folderPath: string })
-      .mutation(async () => false),
+      .mutation(async ({ input }) => openInFileManager(input.folderPath)),
 
     openInEditor: t.procedure
       .input((input: unknown) => input as { folderPath: string })
-      .mutation(async () => false),
+      .mutation(async ({ input }) => openInEditor(input.folderPath)),
 
     openInTerminal: t.procedure
       .input((input: unknown) => input as { folderPath: string })
-      .mutation(async () => false),
+      .mutation(async ({ input }) => openInTerminal(input.folderPath)),
 
     openDirectory: t.procedure
       .input((input: unknown) => input as { dirPath: string })
-      .mutation(async () => false),
+      .mutation(async ({ input }) => openInFileManager(input.dirPath)),
 
     openTerminalInDirectory: t.procedure
       .input((input: unknown) => input as { dirPath: string })
-      .mutation(async () => false),
+      .mutation(async ({ input }) => openInTerminal(input.dirPath)),
 
     openVSCode: t.procedure
       .input((input: unknown) => input as { dirPath: string })
-      .mutation(async () => false),
-
-    // Terminal management (limited in web version)
-    getWorktreeTerminals: t.procedure
-      .input((input: unknown) => input as { worktreePath: string })
-      .query(({ input }) => {
-        return terminalManager.getWorktreeTerminals(input.worktreePath);
-      }),
-
-    addTerminalToWorktree: t.procedure
-      .input((input: unknown) => input as { worktreePath: string; terminal: any })
-      .mutation(({ input }) => {
-        terminalManager.addTerminalToWorktree(input.worktreePath, input.terminal);
-        return terminalManager.getWorktreeTerminals(input.worktreePath);
-      }),
-
-    removeTerminalFromWorktree: t.procedure
-      .input((input: unknown) => input as { worktreePath: string; terminalId: string })
-      .mutation(({ input }) => {
-        terminalManager.removeTerminalFromWorktree(input.worktreePath, input.terminalId);
-        return terminalManager.getWorktreeTerminals(input.worktreePath);
-      }),
-
-    createTerminalSession: t.procedure
-      .input((input: unknown) => input as { terminalId: string; workingDirectory?: string; cols?: number; rows?: number; initialCommand?: string; worktreePath?: string })
-      .mutation(({ input }) => {
-        terminalManager.createSession(
-          input.terminalId,
-          input.workingDirectory || process.cwd(),
-          input.worktreePath
-        );
-        return { success: true, message: "Terminal sessions not fully supported in web version" };
-      }),
-
-    sendTerminalData: t.procedure
-      .input((input: unknown) => input as { terminalId: string; data: string })
-      .mutation(() => ({ success: false, message: "Terminal not supported in web version" })),
-
-    resizeTerminal: t.procedure
-      .input((input: unknown) => input as { terminalId: string; cols: number; rows: number })
-      .mutation(() => true),
-
-    closeTerminal: t.procedure
-      .input((input: unknown) => input as { terminalId: string })
-      .mutation(({ input }) => {
-        terminalManager.closeSession(input.terminalId);
-        return true;
-      }),
-
-    terminalSessionExists: t.procedure
-      .input((input: unknown) => input as { terminalId: string })
-      .query(({ input }) => {
-        return terminalManager.sessionExists(input.terminalId);
-      }),
-
-    cleanupWorktreeTerminals: t.procedure
-      .input((input: unknown) => input as { worktreePath: string })
-      .mutation(({ input }) => {
-        terminalManager.cleanupWorktreeTerminals(input.worktreePath);
-        return true;
-      }),
+      .mutation(async ({ input }) => openVSCode(input.dirPath)),
 
     // Pool management operations
     isTmpBranch: t.procedure
@@ -356,7 +357,6 @@ const createRouter = (terminalManager: WebTerminalManager) => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        // Find the worktree by path
         const worktrees = await gitPool.getWorktrees(input.repoPath);
         const worktree = worktrees.find(w => w.path === input.worktreePath);
         if (!worktree) {
@@ -371,7 +371,6 @@ const createRouter = (terminalManager: WebTerminalManager) => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        // Find the worktree by path
         const worktrees = await gitPool.getWorktrees(input.repoPath);
         const worktree = worktrees.find(w => w.path === input.worktreePath);
         if (!worktree) {
@@ -419,7 +418,7 @@ const createRouter = (terminalManager: WebTerminalManager) => {
   });
 };
 
-type AppRouter = ReturnType<typeof createRouter>;
+export type AppRouter = ReturnType<typeof createRouter>;
 
 // Serve static file
 async function serveStaticFile(filePath: string): Promise<{ status: number; body: Buffer | string; contentType: string }> {
@@ -446,8 +445,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   const port = options.port || 3000;
   const host = options.host || "localhost";
 
-  const terminalManager = new WebTerminalManager();
-  const router = createRouter(terminalManager);
+  const router = createRouter();
 
   // Determine static files directory
   const distDir = path.join(PROJECT_ROOT, "out", "renderer");
@@ -476,7 +474,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
 
     try {
       if (pathname.startsWith("/trpc/")) {
-        // Strip /trpc prefix — the adapter expects just the procedure path
+        // Strip /trpc prefix - the adapter expects just the procedure path
         req.url = req.url!.replace(/^\/trpc/, "");
         await nodeHTTPRequestHandler({
           router,
@@ -501,35 +499,13 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
     }
   });
 
-  const wss = new WebSocketServer({ server, path: "/ws" });
-
-  wss.on("connection", (ws: WebSocket) => {
-    console.log("WebSocket client connected");
-
-    ws.on("message", (message: Buffer) => {
-      try {
-        const data = JSON.parse(message.toString());
-        console.log("WebSocket message:", data);
-        ws.send(JSON.stringify({ type: "info", message: "Terminal not fully supported in web version" }));
-      } catch (error) {
-        console.error("WebSocket message error:", error);
-      }
-    });
-
-    ws.on("close", () => {
-      console.log("WebSocket client disconnected");
-    });
-  });
-
   return new Promise((resolve) => {
     server.listen(port, host, () => {
       console.log(`\nMany Web Server running at http://${host}:${port}`);
-      console.log("\nNote: Terminal functionality is limited in the web version.");
       console.log("Press Ctrl+C to stop the server.\n");
 
       if (options.open) {
         const openUrl = `http://${host}:${port}`;
-        const { exec } = require("child_process");
         const platform = process.platform;
 
         if (platform === "darwin") {

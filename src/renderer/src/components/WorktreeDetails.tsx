@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Worktree, isTmpBranch } from "../types";
 import { client } from "../main";
 
-const formatBranchName = (branch?: string) => {
+const formatBranchName = (branch?: string | null) => {
   if (!branch) return "detached HEAD";
   return branch.replace(/^refs\/heads\//, "");
 };

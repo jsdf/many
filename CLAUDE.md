@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Many Worktree Manager is an Electron desktop application for managing Git worktrees. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
+Many Worktree Manager is a web application (with CLI) for managing Git worktrees. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
 
 Features/TODO
 
@@ -23,9 +23,6 @@ Features/TODO
     - [x] open in terminal
     - [x] open in editor
     - [ ] npm scripts
-  - [ ] an integrated terminal, so you can use claude or run commands
-    - [ ] ability to create more terminals, so you can have one running claude and another running the app or doing a git command
-    - [ ] clickable links in terminal output
   - [ ] an integrated review tool of the git changes on the branch
 - [ ] per repo settings
   - [x] command to init a new worktree (e.g. `npm install`)
@@ -37,12 +34,7 @@ Features/TODO
 
 - [ ] bugs
 
-  - [x] the terminals need to be owned by worktrees, so when you switch worktree panes it shows terminals owned by that worktree. currently they are shared
-  - [x] initialization command doesn't seem to work
-  - [x] archive worktree doesn't seem to work: `Error invoking remote method 'archive-worktree': Error: error: failed to delete '/Users/jsdf/code/clay-base-tiptap-before': Directory not empty.`. it's expected that archiving a worktree would delete the dir, maybe that is all that needs to happen?
   - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
-  - [x] no maximum terminal history, leaks memory. should be configurable, defaulting to 5k lines. also is string the optimal storage for this?
-  - [ ] tRPC serialization error: "Cannot read properties of undefined (reading 'serialize')" - affects terminal management and test button functionality
 
 - chores
   - [ ] split components and css into reasonable modules
@@ -62,54 +54,13 @@ don't forget to update this list if you finish implementing a feature
 
 ### Running the Application
 
-- `npm run build` - Compile the application using esbuild (main, preload, renderer processes)
-- `npm start` - Build and launch the application in production mode
-- `npm run dev` - Launch in development mode with file watching and DevTools enabled
-- `npm run logs` - View the log output
+- `npm run build` - Type-check and build the React frontend with Vite
+- `npm run build:cli` - Build the server and CLI with TypeScript
+- `npm start` - Build everything and start the web server
+- `npm run dev` - Quick build frontend and start the web server
+- `npm run cli` - Build and run the CLI tool
 
 be sure to run `start` and `dev` using `timeout` because they are long running processes and you will time out waiting for them to finish if you run them normally
-
-### Debugging and Logging
-
-- `npm run logs` - View Electron error logs (uncaught exceptions, crashes, load errors)
-- Error log location: `~/Library/Application Support/many/electron-errors.log` (macOS)
-- The app automatically logs all main process errors, renderer crashes, and load failures with timestamps
-
-#### Logging System
-
-The application features comprehensive logging that captures errors from both main and renderer processes:
-
-**Main Process Logging:**
-- Uncaught exceptions and unhandled promise rejections
-- Renderer process crashes and load failures
-- Manual error logging via `logError(error, source)` function
-
-**Client-Side Logging:**
-- Automatic interception of `console.error` and `console.warn` calls
-- Unhandled promise rejections in renderer process
-- Global JavaScript errors and exceptions
-- Manual error logging via `logError(error, source)` utility
-- All renderer errors forwarded to main process log with `RENDERER_` prefix
-
-**Implementation:**
-- Logger initializes with proper app name to ensure logs go to `~/Library/Application Support/many/`
-- Client-side logger (`src/renderer/src/logger.ts`) auto-initializes on app start
-- Secure IPC communication between renderer and main process for log forwarding
-- Queue-based logging prevents race conditions during concurrent writes
-
-### Testing
-
-- `npm test` - Run Playwright end-to-end tests (builds first, then runs tests)
-- `npm run test:ui` - Run Playwright tests with interactive UI mode
-- `npx playwright test --headed` - Run tests in headed mode to see the app visually
-- Test screenshots are saved to `tests/screenshots/` for debugging
-- Tests automatically launch the Electron app and verify UI functionality
-
-### Building and Distribution
-
-- `npm run build` - Compile the application source code using esbuild (no installers)
-- `npm run pack` - Build and package application without creating installer
-- `npm run dist` - Build and create full distribution packages (DMG, zip, etc.)
 
 ### Setup
 
@@ -117,115 +68,68 @@ The application features comprehensive logging that captures errors from both ma
 
 ### Build System
 
-The project uses **esbuild** instead of Vite for faster builds:
+The project uses two build pipelines:
 
-- `build.js` - Custom esbuild configuration
-- Builds main process → `dist-electron/main/index.cjs`
-- Builds preload script → `dist-electron/preload/index.cjs`
-- Builds renderer → `dist/main.js` with CSS bundling
-- Uses `.cjs` extensions for main/preload to avoid ES module conflicts
+- **Vite** builds the React renderer → `out/renderer/`
+- **TypeScript** (`tsc -p tsconfig.cli.json`) builds the server and CLI → `dist-cli/`
+
+The web server (`dist-cli/web/server.js`) serves the built renderer static files and provides a tRPC API.
 
 ## Architecture Overview
 
-### Electron Multi-Process Architecture
+### Web Server Architecture
 
-**Main Process** (`src/main.js`):
+**Web Server** (`src/web/server.ts`):
 
-- Manages application lifecycle and native system interactions
-- Handles IPC communication with renderer process
-- Manages persistent data storage in `app-data.json`
-- Executes Git operations using `simple-git` library
-- Controls window creation, sizing, and positioning
+- HTTP server serving static files and tRPC API
+- Handles all git operations via `src/cli/git-pool.ts`
+- Manages persistent data storage via `src/cli/config.ts`
+- External actions (open folder, editor, terminal) via `child_process`
 
-**Preload Script** (`src/preload.js`):
+**Renderer (React + TypeScript)**:
 
-- Secure bridge between main and renderer processes
-- Exposes curated API via `contextBridge` for safety
-- No direct Node.js access from renderer
+- `src/renderer/src/App.tsx` - Main application component and state management
+- `src/renderer/src/main.tsx` - Entry point, tRPC client setup
+- `src/renderer/src/components/` - React components
+- Communicates with server via tRPC over HTTP
 
-**Renderer Process** (`src/renderer.js`):
+**CLI** (`src/cli/`):
 
-- Frontend application logic in `WorktreeManager` class
-- Event-driven UI management and user interactions
-- Communicates with main process via IPC calls
+- `src/cli/index.ts` - CLI entry point
+- `src/cli/git-pool.ts` - Git worktree pool management
+- `src/cli/config.ts` - App data persistence
+
+**Shared** (`src/shared/`):
+
+- `src/shared/git-core.ts` - Core git operations used by both server and CLI
 
 ### Data Persistence
 
-App data is stored in platform-specific user data directory using Electron's `app.getPath('userData')`:
+App data is stored in `~/.config/many/app-data.json`:
 
 ```javascript
-// Default structure in app-data.json
 {
   repositories: [{ path, name, addedAt }],
   selectedRepo: string | null,
-  windowBounds: { width, height, x?, y? }
+  repositoryConfigs: { [repoPath]: { mainBranch, initCommand, worktreeDirectory } },
+  recentWorktrees: { [repoPath]: worktreePath }
 }
 ```
-
-### IPC Communication Pattern
-
-The application uses secure IPC handlers in main process:
-
-- `get-worktrees` - List worktrees for repository
-- `create-worktree` - Create new worktree with AI branch naming
-- `get-git-username` - Retrieve Git username from config
-- `get-saved-repos` / `save-repo` - Repository persistence
-- `get-selected-repo` / `set-selected-repo` - State persistence
-- `select-folder` - Native folder picker dialog
-
-### Git Worktree Management
-
-**Branch Naming Convention**: `{username}/{sanitized-prompt}`
-
-- User prompts are sanitized (lowercase, alphanumeric + hyphens, max 50 chars)
-- Git username automatically retrieved from repository config
-- Worktrees created in parallel directory structure
-
-**Git Operations**:
-
-- Uses `simple-git` library for all Git interactions
-- Parses `git worktree list --porcelain` output for worktree information
-- Atomic worktree creation (branch + worktree in single operation)
 
 ### UI Architecture
 
 **Layout Structure**:
 
 - Left sidebar: Repository selector, worktree list, action buttons
-- Main content area: Welcome screen with feature highlights
-- Modal overlays: Repository addition and worktree creation
+- Main content area: Worktree details or welcome screen
+- Modal overlays: Repository addition, worktree creation, merge, rebase
 
 **State Management**:
 
-- Class-based component with centralized state in `WorktreeManager`
-- Event-driven updates with comprehensive error handling
-- Real-time persistence of user selections and window state
-
-## Key Development Patterns
-
-### Security Implementation
-
-- `nodeIntegration: false` and `contextIsolation: true` in webPreferences
-- All Node.js operations restricted to main process
-- Secure IPC communication via preload script bridge
-
-### Error Handling
-
-- Try-catch blocks around all async operations
-- User-friendly error messages via modal alerts
-- Graceful fallbacks for missing/corrupted data files
+- React functional components with hooks
+- tRPC client for server communication
 
 ### File Structure Conventions
-
-The application uses a modern Electron + React + TypeScript architecture:
-
-**Main Process**:
-
-- `src/main/index.ts` - Main process, IPC handlers, Git operations
-
-**Preload Scripts**:
-
-- `src/preload/index.ts` - Security bridge, API exposure
 
 **Renderer Process (React + TypeScript)**:
 
@@ -233,121 +137,10 @@ The application uses a modern Electron + React + TypeScript architecture:
 - `src/renderer/src/components/` - React components:
   - `Sidebar.tsx` - Repository selector, worktree list
   - `MainContent.tsx` - Worktree details and actions
+  - `WorktreeDetails.tsx` - Worktree detail view
   - `CreateWorktreeModal.tsx` - Worktree creation dialog
   - `AddRepoModal.tsx` - Repository addition and configuration
   - `MergeWorktreeModal.tsx` - Branch merging interface
 - `src/renderer/src/types.ts` - TypeScript type definitions
 - `src/renderer/index.html` - Main HTML structure
 - `src/renderer/src/styles.css` - Dark theme styling, responsive design
-
-### AI Integration Pattern
-
-The application converts user prompts into Git branch names:
-
-1. User enters natural language description
-2. Text sanitization removes special characters
-3. Conversion to kebab-case format
-4. Username prefix addition
-5. Branch and worktree creation
-
-This enables intuitive worktree creation for AI-assisted development workflows where multiple features are developed in parallel.
-
-## End-to-End Test Scenarios
-
-### Core Repository Management Tests
-
-- [ ] Add repository via folder picker dialog
-- [ ] Verify repository appears in sidebar after adding
-- [ ] Test invalid/non-git directories are rejected
-- [ ] Test duplicate repository prevention
-- [ ] Select different repositories from dropdown
-- [ ] Verify repository selection persists across app restarts
-- [ ] Test empty state when no repositories exist
-
-### Worktree Lifecycle Tests
-
-- [ ] Create worktree with custom branch name
-- [ ] Create worktree from existing branch
-- [ ] Verify AI-generated branch naming (`{username}/{sanitized-prompt}`)
-- [ ] Test branch name sanitization (special chars, length limits)
-- [ ] Verify worktree appears in sidebar immediately after creation
-- [ ] Click worktree in sidebar shows details in main pane
-- [ ] Verify worktree metadata display (branch, path, status)
-- [ ] Test very long branch names are truncated with ellipses and tooltip
-- [ ] Verify base/main worktree shows first with "base" tag
-- [ ] Archive merged worktree (should succeed without prompt)
-- [ ] Archive unmerged worktree (should show confirmation dialog)
-- [ ] Verify directory deletion after archiving
-- [ ] Test cleanup of worktree references after archiving
-
-### External Tool Integration Tests
-
-- [ ] Open worktree folder in file manager
-- [ ] Open worktree in terminal
-- [ ] Open worktree in configured editor
-- [ ] Test behavior with missing/invalid external tools
-
-### Terminal Integration Tests
-
-- [ ] Create terminal in worktree context
-- [ ] Verify terminal opens in correct worktree directory
-- [ ] Test multiple terminals per worktree
-- [ ] Switch between worktrees preserves terminal isolation
-- [ ] Test terminal memory limits (5k line history)
-- [ ] Verify clickable links in terminal output work
-- [ ] Test terminal persistence across app sessions
-
-### Configuration & Settings Tests
-
-- [ ] Configure initialization command for new worktrees
-- [ ] Test initialization command execution on worktree creation
-- [ ] Configure custom commands/scripts per repository
-- [ ] Verify settings persist per repository
-- [ ] Test settings migration/compatibility
-
-### Git Operations Tests
-
-- [ ] Create worktree creates corresponding git branch
-- [ ] Merge branch workflow via integrated review tool
-- [ ] Test merge conflict detection and handling
-- [ ] Verify branch status tracking (ahead/behind/merged)
-- [ ] Live update worktree list when git changes occur externally
-- [ ] Update branch names when changed outside app
-- [ ] Detect new/deleted worktrees from external git commands
-
-### Data Persistence Tests
-
-- [ ] Window bounds persistence across restarts
-- [ ] Repository list persistence
-- [ ] Selected repository persistence
-- [ ] Terminal history persistence per worktree
-- [ ] Worktree state persistence
-
-### Error Handling Tests
-
-- [ ] Handle corrupted `app-data.json` gracefully
-- [ ] Git command failures (network issues, permissions)
-- [ ] Missing git executable error handling
-- [ ] Worktree directory deletion outside app
-- [ ] Repository moved/deleted externally
-- [ ] Long-running operations with user feedback
-- [ ] Network connectivity issues during git operations
-
-### Performance Tests
-
-- [ ] Multiple repositories with many worktrees
-- [ ] Large terminal output handling
-- [ ] Memory usage with long-running terminals
-- [ ] Git operations on large repositories
-- [ ] App startup time with many repositories
-
-### UI/UX Tests
-
-- [ ] Add repository modal validation and error states
-- [ ] Create worktree modal validation and error states
-- [ ] Confirmation dialogs (archive, destructive actions)
-- [ ] Modal keyboard navigation and escape handling
-- [ ] Sidebar resize behavior
-- [ ] Window resizing maintains layout
-- [ ] Overflow handling in worktree list
-- [ ] Dark theme consistency across all components

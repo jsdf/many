@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Repository, Worktree, isTmpBranch } from '../types'
 
-const formatBranchName = (branch?: string) => {
+const formatBranchName = (branch?: string | null) => {
   if (!branch) return 'detached HEAD'
   return branch.replace(/^refs\/heads\//, '')
 }

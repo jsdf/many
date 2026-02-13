@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
 import Sidebar from "./components/Sidebar";
 import MainContent from "./components/MainContent";
-// import { cleanupWorktreeState } from "./hooks/useWorktreeTerminals";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -152,7 +151,6 @@ const App: React.FC = () => {
 
       setShowCreateModal(false);
 
-      // Setup terminal is now created atomically in the backend during worktree creation
     } catch (error) {
       console.error("Failed to create worktree:", error);
       throw error;
@@ -197,13 +195,6 @@ const App: React.FC = () => {
     }
 
     const performArchive = async (force = false) => {
-      // Clean up terminals associated with this worktree
-      // This is handled by the terminal manager automatically
-
-      // Clean up frontend terminal state
-      // cleanupWorktreeState(worktree.path);
-
-      // Archive the worktree
       if (worktree.path) {
         await client.archiveWorktree.mutate({
           repoPath: currentRepo,

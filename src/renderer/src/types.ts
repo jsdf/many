@@ -5,14 +5,16 @@ export interface Repository {
 }
 
 export interface Worktree {
-  path?: string;
-  branch?: string;
-  commit?: string;
-  bare?: boolean;
+  path: string;
+  branch: string | null;
+  commit: string;
+  bare: boolean;
+  isAvailable: boolean;
+  worktreeName: string;
 }
 
 // Helper to check if a branch is a pool tmp branch
-export const isTmpBranch = (branch?: string): boolean => {
+export const isTmpBranch = (branch?: string | null): boolean => {
   if (!branch) return false;
   const localBranch = branch.replace(/^refs\/heads\//, "");
   return localBranch.startsWith("tmp-");
@@ -54,51 +56,4 @@ export interface GitStatus {
   staged: string[];
   hasChanges: boolean;
   hasStaged: boolean;
-}
-
-export interface TerminalConfig {
-  id: string;
-  title: string;
-  type: 'terminal' | 'claude';
-  initialCommand?: string;
-  autoFocus?: boolean;
-}
-
-export interface WorktreeTerminals {
-  terminals: TerminalConfig[];
-  nextTerminalId: number;
-}
-
-export interface TerminalSessionOptions {
-  terminalId: string;
-  workingDirectory?: string;
-  cols: number;
-  rows: number;
-  initialCommand?: string;
-  worktreePath?: string;
-}
-
-export interface ElectronAPI {
-  // Terminal event listeners - must stay as IPC for real-time data streams
-  onTerminalData(
-    terminalId: string,
-    callback: (data: string) => void
-  ): (() => void) | undefined;
-  onTerminalExit(
-    terminalId: string,
-    callback: () => void
-  ): (() => void) | undefined;
-  onTerminalTitle(
-    terminalId: string,
-    callback: (title: string) => void
-  ): (() => void) | undefined;
-  
-  // Logging API
-  logRendererError(error: any, source: string): Promise<void>;
-}
-
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
 }
