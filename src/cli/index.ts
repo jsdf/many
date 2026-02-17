@@ -316,51 +316,57 @@ async function cmdSwitch(branchName: string, flags: ParsedFlags): Promise<void> 
     return;
   }
 
-  // Get available worktrees
-  const available = await getAvailableWorktrees(repoPath);
-
-  if (available.length === 0) {
-    console.log(red("No available worktrees in the pool."));
-    console.log(`Use '${bold("many create <name>")}' to create a new worktree.`);
-    process.exit(1);
-  }
-
-  // Let user pick a worktree if multiple available
   let targetWorktree: WorktreeInfo;
 
-  if (flags.worktree) {
-    // Select worktree by name via flag
-    const match = available.find((w) => w.worktreeName === flags.worktree);
-    if (!match) {
-      console.log(red(`Worktree '${flags.worktree}' not found or not available.`));
-      console.log("Available worktrees:");
-      available.forEach((w) => console.log(`  ${w.worktreeName}`));
+  // If we're already in a worktree (including the base repo), use it directly
+  if (!flags.worktree && currentWorktree) {
+    targetWorktree = currentWorktree;
+    console.log(`Using current worktree: ${targetWorktree.worktreeName}`);
+  } else {
+    // Get available worktrees
+    const available = await getAvailableWorktrees(repoPath);
+
+    if (available.length === 0) {
+      console.log(red("No available worktrees in the pool."));
+      console.log(`Use '${bold("many create <name>")}' to create a new worktree.`);
       process.exit(1);
     }
-    targetWorktree = match;
-  } else if (available.length === 1) {
-    targetWorktree = available[0];
-    console.log(`Using worktree: ${targetWorktree.worktreeName}`);
-  } else if (flags.noInteractive) {
-    exitNonInteractive(
-      `Multiple worktrees available: ${available.map((w) => w.worktreeName).join(", ")}`,
-      available.map((w) => `--worktree ${w.worktreeName}`),
-    );
-  } else {
-    console.log("\nAvailable worktrees:");
-    available.forEach((w, i) => {
-      console.log(`  ${i + 1}. ${w.worktreeName} (${w.path})`);
-    });
 
-    const choice = await prompt("\nSelect worktree (number): ");
-    const index = parseInt(choice, 10) - 1;
+    // Let user pick a worktree if multiple available
+    if (flags.worktree) {
+      // Select worktree by name via flag
+      const match = available.find((w) => w.worktreeName === flags.worktree);
+      if (!match) {
+        console.log(red(`Worktree '${flags.worktree}' not found or not available.`));
+        console.log("Available worktrees:");
+        available.forEach((w) => console.log(`  ${w.worktreeName}`));
+        process.exit(1);
+      }
+      targetWorktree = match;
+    } else if (available.length === 1) {
+      targetWorktree = available[0];
+      console.log(`Using worktree: ${targetWorktree.worktreeName}`);
+    } else if (flags.noInteractive) {
+      exitNonInteractive(
+        `Multiple worktrees available: ${available.map((w) => w.worktreeName).join(", ")}`,
+        available.map((w) => `--worktree ${w.worktreeName}`),
+      );
+    } else {
+      console.log("\nAvailable worktrees:");
+      available.forEach((w, i) => {
+        console.log(`  ${i + 1}. ${w.worktreeName} (${w.path})`);
+      });
 
-    if (isNaN(index) || index < 0 || index >= available.length) {
-      console.log(red("Invalid selection"));
-      return;
+      const choice = await prompt("\nSelect worktree (number): ");
+      const index = parseInt(choice, 10) - 1;
+
+      if (isNaN(index) || index < 0 || index >= available.length) {
+        console.log(red("Invalid selection"));
+        return;
+      }
+
+      targetWorktree = available[index];
     }
-
-    targetWorktree = available[index];
   }
 
   // Check for dirty state
