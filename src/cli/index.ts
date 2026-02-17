@@ -26,6 +26,7 @@ import { simpleGit } from "simple-git";
 import * as readline from "readline";
 import path from "path";
 import { createRequire } from "node:module";
+import { selectFromList } from "./select-menu.js";
 
 // Parsed flags for non-interactive use
 interface ParsedFlags {
@@ -352,20 +353,25 @@ async function cmdSwitch(branchName: string, flags: ParsedFlags): Promise<void> 
         available.map((w) => `--worktree ${w.worktreeName}`),
       );
     } else {
-      console.log("\nAvailable worktrees:");
-      available.forEach((w, i) => {
-        console.log(`  ${i + 1}. ${w.worktreeName} (${w.path})`);
+      const items = available.map((w) => ({
+        label: `${w.worktreeName} (${w.path})`,
+        value: w,
+      }));
+      const defaultIndex = currentWorktree
+        ? available.findIndex((w) => w.path === currentWorktree.path)
+        : undefined;
+
+      const selected = await selectFromList(items, {
+        title: "Select worktree:",
+        defaultIndex: defaultIndex !== undefined && defaultIndex >= 0 ? defaultIndex : undefined,
       });
 
-      const choice = await prompt("\nSelect worktree (number): ");
-      const index = parseInt(choice, 10) - 1;
-
-      if (isNaN(index) || index < 0 || index >= available.length) {
-        console.log(red("Invalid selection"));
+      if (!selected) {
+        console.log("Cancelled.");
         return;
       }
 
-      targetWorktree = available[index];
+      targetWorktree = selected;
     }
   }
 
@@ -465,14 +471,13 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
     targetWorktree = currentWorktree;
   } else if (flags.noInteractive) {
     const claimed = await getClaimedWorktrees(repoPath);
-    const nonBase = claimed.filter((w) => w.path !== repoPath);
-    if (nonBase.length === 0) {
+    if (claimed.length === 0) {
       console.log(yellow("No claimed worktrees to release."));
       process.exit(1);
     }
     exitNonInteractive(
       "Not in a worktree and no identifier provided. Claimed worktrees: " +
-        nonBase.map((w) => `${w.worktreeName} (${getLocalBranchName(w.branch)})`).join(", "),
+        claimed.map((w) => `${w.worktreeName} (${getLocalBranchName(w.branch)})`).join(", "),
       [
         "many release <branch-name>     Specify the branch to release",
         "--worktree <name>              Specify the worktree by name",
@@ -481,33 +486,27 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
   } else {
     // List claimed worktrees and let user pick
     const claimed = await getClaimedWorktrees(repoPath);
-    const nonBase = claimed.filter((w) => w.path !== repoPath);
 
-    if (nonBase.length === 0) {
+    if (claimed.length === 0) {
       console.log(yellow("No claimed worktrees to release."));
       return;
     }
 
-    console.log("\nClaimed worktrees:");
-    nonBase.forEach((w, i) => {
-      console.log(`  ${i + 1}. ${w.worktreeName} (${getLocalBranchName(w.branch)})`);
+    const items = claimed.map((w) => ({
+      label: `${w.worktreeName} (${getLocalBranchName(w.branch)})${w.path === repoPath ? ' (base)' : ''}`,
+      value: w,
+    }));
+
+    const selected = await selectFromList(items, {
+      title: "Select worktree to release:",
     });
 
-    const choice = await prompt("\nSelect worktree to release (number): ");
-    const index = parseInt(choice, 10) - 1;
-
-    if (isNaN(index) || index < 0 || index >= nonBase.length) {
-      console.log(red("Invalid selection"));
+    if (!selected) {
+      console.log("Cancelled.");
       return;
     }
 
-    targetWorktree = nonBase[index];
-  }
-
-  // Don't allow releasing the base repo
-  if (targetWorktree.path === repoPath) {
-    console.log(red("Cannot release the base repository worktree."));
-    process.exit(1);
+    targetWorktree = selected;
   }
 
   // Check if already available
@@ -690,20 +689,21 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
       return;
     }
 
-    console.log("\nWorktrees:");
-    nonBase.forEach((w, i) => {
-      console.log(`  ${i + 1}. ${w.worktreeName} (${getLocalBranchName(w.branch)})`);
+    const items = nonBase.map((w) => ({
+      label: `${w.worktreeName} (${getLocalBranchName(w.branch)})`,
+      value: w,
+    }));
+
+    const selected = await selectFromList(items, {
+      title: "Select worktree to archive:",
     });
 
-    const choice = await prompt("\nSelect worktree to archive (number): ");
-    const index = parseInt(choice, 10) - 1;
-
-    if (isNaN(index) || index < 0 || index >= nonBase.length) {
-      console.log(red("Invalid selection"));
+    if (!selected) {
+      console.log("Cancelled.");
       return;
     }
 
-    targetWorktree = nonBase[index];
+    targetWorktree = selected;
   }
 
   // Don't allow archiving the base repo
