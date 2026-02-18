@@ -8,6 +8,7 @@ import { RepositoryConfig } from "./config.js";
 export {
   type GitStatus,
   TMP_BRANCH_PREFIX,
+  isTmpBranch,
   getLocalBranchName,
 } from "../shared/git-core.js";
 

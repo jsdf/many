@@ -17,6 +17,7 @@ import {
   createWorktree,
   runInitCommand,
   getLocalBranchName,
+  isTmpBranch,
   checkBranchMerged,
   archiveWorktree,
   WorktreeInfo,
@@ -304,8 +305,57 @@ async function cmdList(): Promise<void> {
 }
 
 // Switch command - claim a worktree for a branch
-async function cmdSwitch(branchName: string, flags: ParsedFlags): Promise<void> {
+async function cmdSwitch(branchName: string | null, flags: ParsedFlags): Promise<void> {
   const { repoPath, config, currentWorktree } = await getRepoAndConfig();
+
+  // If no branch name provided, show interactive picker
+  if (!branchName) {
+    if (flags.noInteractive) {
+      console.log(red("Error: Branch name required"));
+      console.log("Usage: many switch <branch-name>");
+      process.exit(1);
+    }
+
+    const git = simpleGit(repoPath);
+    const branches = await git.branch();
+    const worktrees = await getWorktrees(repoPath);
+
+    // Get branches already checked out in worktrees
+    const checkedOutBranches = new Set(
+      worktrees
+        .filter((w) => w.branch)
+        .map((w) => getLocalBranchName(w.branch))
+    );
+
+    // Filter to branches not already in a worktree and not tmp branches
+    const availableBranches = branches.all
+      .filter((b) => !b.startsWith("remotes/"))
+      .filter((b) => !isTmpBranch(b))
+      .filter((b) => !checkedOutBranches.has(b));
+
+    if (availableBranches.length === 0) {
+      console.log(yellow("No branches available to switch to."));
+      console.log("All branches are either already checked out in a worktree or are temporary.");
+      console.log(`\nYou can create a new branch with: ${bold("many switch <new-branch-name>")}`);
+      return;
+    }
+
+    const items = availableBranches.map((b) => ({
+      label: b,
+      value: b,
+    }));
+
+    const selected = await selectFromList(items, {
+      title: "Select branch to switch to:",
+    });
+
+    if (!selected) {
+      console.log("Cancelled.");
+      return;
+    }
+
+    branchName = selected;
+  }
 
   // First check if a worktree is already on this branch
   const existingWorktree = await findWorktree(repoPath, branchName);
@@ -787,7 +837,7 @@ ${bold("USAGE:")}
 ${bold("COMMANDS:")}
   ${bold("version")}                 Show the CLI version
   ${bold("list")}                    List all worktrees and their status
-  ${bold("switch")} <branch>         Claim a worktree and checkout the branch
+  ${bold("switch")} [branch]         Claim a worktree and checkout the branch
                           Creates branch from default if it doesn't exist
   ${bold("create")} <name>           Create a new worktree with the given name
                           Runs configured init command if any
@@ -886,12 +936,7 @@ async function main(): Promise<void> {
 
       case "switch":
       case "sw":
-        if (!positional[1]) {
-          console.log(red("Error: Branch name required"));
-          console.log("Usage: many switch <branch-name>");
-          process.exit(1);
-        }
-        await cmdSwitch(positional[1], flags);
+        await cmdSwitch(positional[1] || null, flags);
         break;
 
       case "create":
