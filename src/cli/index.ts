@@ -24,10 +24,9 @@ import {
   GitStatus,
 } from "./git-pool.js";
 import { simpleGit } from "simple-git";
-import * as readline from "readline";
 import path from "path";
 import { createRequire } from "node:module";
-import { selectFromList } from "./select-menu.js";
+import { selectFromList, confirm, textInput } from "./ink-prompts.js";
 
 // Parsed flags for non-interactive use
 interface ParsedFlags {
@@ -157,21 +156,6 @@ function red(text: string): string {
 
 function cyan(text: string): string {
   return `${colors.cyan}${text}${colors.reset}`;
-}
-
-// Prompt user for input
-async function prompt(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
 }
 
 // Find repository from current directory
@@ -500,8 +484,8 @@ async function cmdSwitch(branchName: string | null, flags: ParsedFlags): Promise
       console.log(yellow("\nWorktree has uncommitted changes:"));
       console.log(`  ${formatStatus(status)}`);
       console.log("\nThese changes will be lost when switching branches.");
-      const confirm = await prompt("Continue? (y/n): ");
-      if (confirm.toLowerCase() !== "y") {
+      const confirmed = await confirm("Continue?");
+      if (!confirmed) {
         console.log("Aborted.");
         return;
       }
@@ -681,24 +665,23 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
         console.log(`  Deleted: ${status.deleted.join(", ")}`);
       }
 
-      console.log("\nHow would you like to handle these changes?");
-      console.log("  1. Stash - Save changes to stash for later");
-      console.log("  2. Commit - Create a new commit with these changes");
-      console.log("  3. Amend - Add changes to the last commit");
-      console.log("  4. Clean - Discard all changes");
-      console.log("  5. Cancel - Abort release");
+      const dirtyAction = await selectFromList([
+        { label: "Stash - Save changes to stash for later", value: "stash" as const },
+        { label: "Commit - Create a new commit with these changes", value: "commit" as const },
+        { label: "Amend - Add changes to the last commit", value: "amend" as const },
+        { label: "Clean - Discard all changes", value: "clean" as const },
+        { label: "Cancel - Abort release", value: "cancel" as const },
+      ], { title: "\nHow would you like to handle these changes?" });
 
-      const choice = await prompt("\nSelect option (1-5): ");
-
-      switch (choice) {
-        case "1":
+      switch (dirtyAction) {
+        case "stash":
           console.log("Stashing changes...");
           await stashChanges(targetWorktree.path, `Release stash from ${currentBranch}`);
           console.log(green("Changes stashed."));
           break;
 
-        case "2":
-          const message = await prompt("Commit message: ");
+        case "commit": {
+          const message = await textInput("Commit message: ");
           if (!message) {
             console.log(red("Commit message required."));
             return;
@@ -707,18 +690,17 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
           await commitChanges(targetWorktree.path, message);
           console.log(green("Changes committed."));
           break;
+        }
 
-        case "3":
+        case "amend":
           console.log("Amending last commit...");
           await amendChanges(targetWorktree.path);
           console.log(green("Changes amended to last commit."));
           break;
 
-        case "4":
-          const confirmClean = await prompt(
-            yellow("This will PERMANENTLY DELETE all uncommitted changes. Are you sure? (yes/no): ")
-          );
-          if (confirmClean.toLowerCase() !== "yes") {
+        case "clean": {
+          const confirmed = await confirm("This will PERMANENTLY DELETE all uncommitted changes. Are you sure?");
+          if (!confirmed) {
             console.log("Aborted.");
             return;
           }
@@ -726,8 +708,9 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
           await cleanChanges(targetWorktree.path);
           console.log(green("Changes discarded."));
           break;
+        }
 
-        case "5":
+        case "cancel":
         default:
           console.log("Aborted.");
           return;
@@ -836,8 +819,8 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
         }
 
         console.log(yellow(`\nWarning: Branch '${branchName}' is not fully merged into '${mainBranch}'.`));
-        const confirm = await prompt("Archive anyway? (yes/no): ");
-        if (confirm.toLowerCase() !== "yes") {
+        const confirmed = await confirm("Archive anyway?");
+        if (!confirmed) {
           console.log("Aborted.");
           return;
         }
@@ -852,8 +835,8 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
       }
 
       console.log(yellow(`\nWarning: Could not determine if branch '${branchName}' is merged.`));
-      const confirm = await prompt("Archive anyway? (yes/no): ");
-      if (confirm.toLowerCase() !== "yes") {
+      const confirmed = await confirm("Archive anyway?");
+      if (!confirmed) {
         console.log("Aborted.");
         return;
       }
@@ -862,10 +845,8 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
 
   // Confirm archive (unless --force or --no-interactive with force)
   if (!flags.force && !flags.noInteractive) {
-    const confirm = await prompt(
-      yellow("This will remove the worktree directory but keep the branch in git. Continue? (y/n): ")
-    );
-    if (confirm.toLowerCase() !== "y") {
+    const confirmed = await confirm("This will remove the worktree directory but keep the branch in git. Continue?");
+    if (!confirmed) {
       console.log("Aborted.");
       return;
     }
