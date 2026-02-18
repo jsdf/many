@@ -14,7 +14,8 @@
     "resolveJsonModule": true,
     "outDir": "./dist-cli",
     "rootDir": "./src",
-    "declaration": false
+    "declaration": false,
+    "jsx": "react-jsx"
   },
   "include": [
     "src/cli/**/*",
