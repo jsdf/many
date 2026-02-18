@@ -32,6 +32,7 @@ import { selectFromList } from "./select-menu.js";
 // Parsed flags for non-interactive use
 interface ParsedFlags {
   noInteractive: boolean;
+  repo: string | null;         // --repo <path> : specify which repo to operate on
   worktree: string | null;     // --worktree <name> : select which worktree
   clean: boolean;              // --clean : discard uncommitted changes
   failIfDirty: boolean;        // --fail-if-dirty : exit 1 if uncommitted changes
@@ -45,6 +46,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
   const positional: string[] = [];
   const flags: ParsedFlags = {
     noInteractive: false,
+    repo: null,
     worktree: null,
     clean: false,
     failIfDirty: false,
@@ -61,6 +63,14 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
       case "--no-interactive":
       case "--ni":
         flags.noInteractive = true;
+        break;
+      case "--repo":
+      case "-r":
+        flags.repo = args[++i] ?? null;
+        if (!flags.repo) {
+          console.error(red("Error: --repo requires a value"));
+          process.exit(1);
+        }
         break;
       case "--worktree":
       case "-w":
@@ -176,7 +186,7 @@ async function findRepoFromCwd(): Promise<string | null> {
 }
 
 // Find repo config - checks if we're in a worktree and gets the main repo
-async function getRepoAndConfig(): Promise<{
+async function getRepoAndConfig(flags?: ParsedFlags): Promise<{
   repoPath: string;
   config: RepositoryConfig;
   currentWorktree: WorktreeInfo | null;
@@ -184,10 +194,52 @@ async function getRepoAndConfig(): Promise<{
   const cwd = process.cwd();
   const appData = await loadAppData();
 
+  // If --repo flag provided, resolve it directly
+  if (flags?.repo) {
+    const resolvedRepo = path.resolve(flags.repo);
+    const matched = appData.repositories.find((r) => r.path === resolvedRepo);
+    if (!matched) {
+      throw new Error(`Repository '${flags.repo}' is not managed by Many. Add it first with the web UI.`);
+    }
+    const config = getRepoConfig(appData, matched.path);
+    return { repoPath: matched.path, config, currentWorktree: null };
+  }
+
   // Check if current directory is a git repo
   const repoPath = await findRepoFromCwd();
+
   if (!repoPath) {
-    throw new Error("Not in a git repository");
+    // Not in a git repo - prompt user to pick from known repos
+    if (appData.repositories.length === 0) {
+      throw new Error("Not in a git repository, and no repositories are managed by Many.");
+    }
+
+    if (flags?.noInteractive) {
+      const repoList = appData.repositories
+        .map((r) => `--repo ${r.path}`)
+        .join("\n  ");
+      exitNonInteractive(
+        "Not in a git repository. Known repos:\n  " + repoList,
+        ["--repo <path>    Specify which repository to use"],
+      );
+    }
+
+    const items = appData.repositories.map((r) => ({
+      label: `${r.name || path.basename(r.path)} (${r.path})`,
+      value: r,
+    }));
+
+    const selected = await selectFromList(items, {
+      title: "Not in a git repository. Select a repo:",
+    });
+
+    if (!selected) {
+      console.log("Cancelled.");
+      process.exit(0);
+    }
+
+    const config = getRepoConfig(appData, selected.path);
+    return { repoPath: selected.path, config, currentWorktree: null };
   }
 
   // Check if this repo (or its parent) is in our managed repos
@@ -256,8 +308,8 @@ function formatStatus(status: GitStatus): string {
 }
 
 // List command - show all worktrees and their status
-async function cmdList(): Promise<void> {
-  const { repoPath, config } = await getRepoAndConfig();
+async function cmdList(flags: ParsedFlags): Promise<void> {
+  const { repoPath, config } = await getRepoAndConfig(flags);
   const worktrees = await getWorktrees(repoPath);
 
   console.log(bold(`\nWorktrees for ${path.basename(repoPath)}:\n`));
@@ -306,7 +358,7 @@ async function cmdList(): Promise<void> {
 
 // Switch command - claim a worktree for a branch
 async function cmdSwitch(branchName: string | null, flags: ParsedFlags): Promise<void> {
-  const { repoPath, config, currentWorktree } = await getRepoAndConfig();
+  const { repoPath, config, currentWorktree } = await getRepoAndConfig(flags);
 
   // If no branch name provided, show interactive picker
   if (!branchName) {
@@ -467,8 +519,8 @@ async function cmdSwitch(branchName: string | null, flags: ParsedFlags): Promise
 }
 
 // Create command - create a new worktree
-async function cmdCreate(worktreeName: string): Promise<void> {
-  const { repoPath, config } = await getRepoAndConfig();
+async function cmdCreate(worktreeName: string, flags: ParsedFlags): Promise<void> {
+  const { repoPath, config } = await getRepoAndConfig(flags);
 
   // Check if worktree already exists
   const existing = await findWorktree(repoPath, worktreeName);
@@ -500,7 +552,7 @@ async function cmdCreate(worktreeName: string): Promise<void> {
 
 // Release command - release a worktree back to the pool
 async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): Promise<void> {
-  const { repoPath, config, currentWorktree } = await getRepoAndConfig();
+  const { repoPath, config, currentWorktree } = await getRepoAndConfig(flags);
 
   // Determine which worktree to release
   let targetWorktree: WorktreeInfo | null = null;
@@ -695,7 +747,7 @@ async function cmdRelease(identifier: string | undefined, flags: ParsedFlags): P
 
 // Archive command - remove a worktree (keeps the branch in git)
 async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): Promise<void> {
-  const { repoPath, config, currentWorktree } = await getRepoAndConfig();
+  const { repoPath, config, currentWorktree } = await getRepoAndConfig(flags);
 
   // Determine which worktree to archive
   let targetWorktree: WorktreeInfo | null = null;
@@ -847,6 +899,7 @@ ${bold("COMMANDS:")}
                           Checks if branch is merged first
 
 ${bold("FLAGS:")}
+  ${bold("--repo")} <path>           Specify which repository to operate on
   ${bold("--no-interactive")}        Exit with error if a prompt would be shown,
                           with a message explaining which flags to provide
   ${bold("--worktree")} <name>       Select which worktree to use (switch/release)
@@ -931,7 +984,7 @@ async function main(): Promise<void> {
       case "list":
       case "ls":
       case undefined:
-        await cmdList();
+        await cmdList(flags);
         break;
 
       case "switch":
@@ -946,7 +999,7 @@ async function main(): Promise<void> {
           console.log("Usage: many create <worktree-name>");
           process.exit(1);
         }
-        await cmdCreate(positional[1]);
+        await cmdCreate(positional[1], flags);
         break;
 
       case "release":
