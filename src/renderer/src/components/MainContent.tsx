@@ -1,5 +1,5 @@
 import React from "react";
-import { Worktree } from "../types";
+import { Worktree, formatBranchName } from "../types";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 
@@ -27,7 +27,7 @@ const MainContent: React.FC<MainContentProps> = ({
     <div className="main-content worktree-view">
       <div className="worktree-header">
         <div className="worktree-title">
-          <h2>{selectedWorktree.branch || "Worktree"}</h2>
+          <h2>{formatBranchName(selectedWorktree.branch)}</h2>
           <span className="worktree-path">{selectedWorktree.path}</span>
         </div>
       </div>

@@ -1,10 +1,5 @@
 import React, { useMemo } from 'react'
-import { Repository, Worktree, isTmpBranch } from '../types'
-
-const formatBranchName = (branch?: string | null) => {
-  if (!branch) return 'detached HEAD'
-  return branch.replace(/^refs\/heads\//, '')
-}
+import { Repository, Worktree, isTmpBranch, formatBranchName } from '../types'
 
 interface SidebarProps {
   repositories: Repository[]
@@ -55,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''} ${isAvailable ? 'available' : ''}`}
       onClick={() => onWorktreeSelect(worktree)}
     >
-      <div className="worktree-header">
+      <div className="worktree-item-header">
         <span className={`worktree-status-dot ${isAvailable ? 'available' : 'claimed'}`} title={isAvailable ? 'Available' : 'Claimed'} />
         <div className="worktree-branch" title={formatBranchName(worktree.branch)}>
           {formatBranchName(worktree.branch)}

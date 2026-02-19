@@ -39,6 +39,13 @@ const App: React.FC = () => {
     restoreSelectedRepo();
   }, []);
 
+  useEffect(() => {
+    const repo = repositories.find(r => r.path === currentRepo);
+    document.title = repo
+      ? `${repo.name || repo.path} - Many`
+      : "Many - Worktree Manager";
+  }, [currentRepo, repositories]);
+
   const loadSavedRepos = async () => {
     try {
       const repos = await client.getSavedRepos.query();

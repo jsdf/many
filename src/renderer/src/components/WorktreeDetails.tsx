@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Worktree, GitStatus, isTmpBranch } from "../types";
+import { Worktree, GitStatus, isTmpBranch, formatBranchName } from "../types";
 import { client } from "../main";
-
-const formatBranchName = (branch?: string | null) => {
-  if (!branch) return "detached HEAD";
-  return branch.replace(/^refs\/heads\//, "");
-};
 
 interface WorktreeDetailsProps {
   worktree: Worktree;
@@ -94,7 +89,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           </div>
           <div className="info-item">
             <label>Branch:</label>
-            <span>{worktree.branch || "detached HEAD"}</span>
+            <span>{formatBranchName(worktree.branch)}</span>
           </div>
         </div>
       </div>

@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { formatBranchName } from "../types";
 import { client } from '../main';
-
-const formatBranchName = (branch?: string | null) => {
-  if (!branch) return "detached HEAD";
-  return branch.replace(/^refs\/heads\//, "");
-};
 
 interface RebaseWorktreeModalProps {
   currentRepo: string | null;

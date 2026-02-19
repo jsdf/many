@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Worktree, isTmpBranch, GitStatus } from '../types'
+import { Worktree, isTmpBranch, GitStatus, formatBranchName } from '../types'
 import { client } from '../main'
 
 interface SwitchWorktreeModalProps {
@@ -128,7 +128,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
               ) : (
                 availableWorktrees.map(w => (
                   <option key={w.path} value={w.path}>
-                    {w.path?.split('/').pop()} ({w.branch?.replace(/^refs\/heads\//, '')})
+                    {w.path?.split('/').pop()} ({formatBranchName(w.branch)})
                   </option>
                 ))
               )}

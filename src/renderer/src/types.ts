@@ -13,6 +13,12 @@ export interface Worktree {
   worktreeName: string;
 }
 
+// Helper to strip refs/heads/ prefix from branch names
+export const formatBranchName = (branch?: string | null) => {
+  if (!branch) return 'detached HEAD'
+  return branch.replace(/^refs\/heads\//, '')
+}
+
 // Helper to check if a branch is a pool tmp branch
 export const isTmpBranch = (branch?: string | null): boolean => {
   if (!branch) return false;

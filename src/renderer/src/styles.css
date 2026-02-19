@@ -23,14 +23,14 @@ body {
     border-right: 1px solid #3c3c3c;
     display: flex;
     flex-direction: column;
-    padding: 20px;
+    padding: 8px;
 }
 
 .sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .sidebar-header-title {
@@ -40,8 +40,8 @@ body {
 }
 
 .sidebar-icon {
-    width: 24px;
-    height: 24px;
+    width: 48px;
+    height: 48px;
 }
 
 .sidebar-header-actions {
@@ -56,7 +56,7 @@ body {
 }
 
 .repo-selector {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     display: flex;
     gap: 8px;
     align-items: center;
@@ -81,7 +81,7 @@ body {
 .worktree-list {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .empty-state {
@@ -92,26 +92,25 @@ body {
 }
 
 .worktree-item {
-    background: #2d2d2d;
-    border: 1px solid #3c3c3c;
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 8px;
+    padding: 8px 12px;
+    margin-bottom: 2px;
     cursor: pointer;
     transition: background-color 0.2s;
+    border-left: 3px solid transparent;
+    border-radius: 0;
 }
 
 .worktree-item:hover {
-    background: #3c3c3c;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .worktree-item.active {
-    background: #0e639c;
-    border-color: #1177bb;
+    border-left-color: #0e639c;
+    background: rgba(14, 99, 156, 0.15);
 }
 
 .worktree-branch {
-    font-size: 16px;
+    font-size: 14px;
     color: #ffffff;
     font-weight: 600;
     margin-bottom: 4px;
@@ -884,11 +883,12 @@ body {
 
 /* Worktree section headers */
 .worktree-section {
-    margin-top: 12px;
+    margin-top: 8px;
 }
 
 .worktree-section-header {
-    font-size: 11px;
+    font-size: 10px;
+    padding-top: 4px;
     font-weight: 600;
     color: #8c8c8c;
     text-transform: uppercase;
@@ -897,8 +897,8 @@ body {
     padding-left: 4px;
 }
 
-/* Worktree status dot */
-.worktree-header {
+/* Worktree item inner header (status dot + branch name) */
+.worktree-item-header {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -937,8 +937,7 @@ body {
 
 /* Available worktree styling */
 .worktree-item.available {
-    opacity: 0.8;
-    border-style: dashed;
+    opacity: 0.7;
 }
 
 .worktree-item.available:hover {

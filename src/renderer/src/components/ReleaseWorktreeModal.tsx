@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Worktree, GitStatus, ChangeHandlingOption } from '../types'
+import { Worktree, GitStatus, ChangeHandlingOption, formatBranchName } from '../types'
 import { client } from '../main'
 
 interface ReleaseWorktreeModalProps {
@@ -22,7 +22,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
   const [changeHandling, setChangeHandling] = useState<ChangeHandlingOption>('stash')
   const [commitMessage, setCommitMessage] = useState('')
 
-  const branchName = worktree.branch?.replace(/^refs\/heads\//, '') || 'unknown'
+  const branchName = formatBranchName(worktree.branch)
 
   useEffect(() => {
     loadStatus()
