@@ -9,8 +9,8 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "build:cli": "tsc -p tsconfig.cli.json",
-    "dev": "vite build && node dist-cli/web/server.js",
-    "start": "npm run build && npm run build:cli && node dist-cli/web/server.js",
+    "dev": "vite build && node dist-cli/cli/index.js web",
+    "start": "npm run build && npm run build:cli && node dist-cli/cli/index.js web",
     "cli": "npm run build:cli && node dist-cli/cli/index.js",
     "test": "vitest run"
   },
@@ -27,7 +27,7 @@
     "@types/react-dom": "^19.1.6",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
-    "react-dom": "^19.1.0",
+    "react-dom": "^19.2.4",
     "typescript": "^5.8.3",
     "vite": "^7.1.1",
     "vitest": "^4.0.18"

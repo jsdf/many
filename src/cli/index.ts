@@ -291,6 +291,45 @@ function formatStatus(status: GitStatus): string {
   return parts.length > 0 ? parts.join(", ") : green("clean");
 }
 
+// Get HEAD commit stat for a worktree (oneline + diffstat)
+async function getHeadStat(worktreePath: string): Promise<string | null> {
+  try {
+    const git = simpleGit(worktreePath);
+    const output = await git.raw(["show", "HEAD", "--stat", "--format=oneline"]);
+    return output.trim();
+  } catch {
+    return null;
+  }
+}
+
+// Format HEAD stat output for display (indented, dimmed diffstat lines)
+function formatHeadStat(stat: string): string {
+  const lines = stat.split("\n");
+  if (lines.length === 0) return "";
+
+  const result: string[] = [];
+  // First line is the oneline commit summary (hash + message)
+  const firstLine = lines[0];
+  // Split off the hash from the message
+  const spaceIdx = firstLine.indexOf(" ");
+  if (spaceIdx > 0) {
+    const hash = firstLine.substring(0, 8);
+    const message = firstLine.substring(spaceIdx + 1);
+    result.push(`    ${dim(hash)} ${message}`);
+  } else {
+    result.push(`    ${dim(firstLine)}`);
+  }
+
+  // Remaining lines are the stat (file changes + summary)
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim()) {
+      result.push(`    ${dim(lines[i])}`);
+    }
+  }
+
+  return result.join("\n");
+}
+
 // List command - show all worktrees and their status
 async function cmdList(flags: ParsedFlags): Promise<void> {
   const { repoPath, config } = await getRepoAndConfig(flags);
@@ -309,6 +348,10 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
       `  ${cyan("●")} ${bold("base")} ${dim(`(${getLocalBranchName(base.branch)})`)} - ${formatStatus(status)}`
     );
     console.log(`    ${dim(base.path)}`);
+    const headStat = await getHeadStat(base.path);
+    if (headStat) {
+      console.log(formatHeadStat(headStat));
+    }
     console.log();
   }
 
@@ -321,6 +364,10 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
         `  ${green("●")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
       );
       console.log(`    ${dim(w.path)}`);
+      const headStat = await getHeadStat(w.path);
+      if (headStat) {
+        console.log(formatHeadStat(headStat));
+      }
     }
     console.log();
   }
@@ -333,6 +380,10 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
         `  ${yellow("○")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
       );
       console.log(`    ${dim(w.path)}`);
+      const headStat = await getHeadStat(w.path);
+      if (headStat) {
+        console.log(formatHeadStat(headStat));
+      }
     }
     console.log();
   }
@@ -910,16 +961,16 @@ ${bold("POOL CONCEPT:")}
   the pool by switching it to a tmp-<name> branch.
 
 ${bold("WEB UI:")}
-  many web                     # Start the web UI (auto-selects port, prints URL with auth token)
+  many web                     # Start the web UI and open in browser
   many web --port 8080         # Use a specific port
-  many web --open              # Open browser automatically
+  many web --no-open           # Don't open browser automatically
 `);
 }
 
 // Web command - start the web server
 async function cmdWeb(args: string[]): Promise<void> {
   let port = 0; // 0 = auto-select free port
-  let open = false;
+  let open = true;
 
   // Parse arguments
   for (let i = 0; i < args.length; i++) {
@@ -932,6 +983,8 @@ async function cmdWeb(args: string[]): Promise<void> {
       i++;
     } else if (args[i] === "--open" || args[i] === "-o") {
       open = true;
+    } else if (args[i] === "--no-open") {
+      open = false;
     }
   }
 
