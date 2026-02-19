@@ -3,7 +3,21 @@ import { simpleGit } from "simple-git";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
-import { releaseWorktree } from "./git-core.js";
+import {
+  releaseWorktree,
+  claimWorktree,
+  extractWorktreeName,
+  isTmpBranch,
+  getLocalBranchName,
+  parseWorktreeList,
+  branchExists,
+  checkBranchMerged,
+  getWorktreeStatus,
+  removeWorktree,
+  stashChanges,
+  cleanChanges,
+  commitChanges,
+} from "./git-core.js";
 
 async function makeTmpDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "many-test-"));
@@ -32,6 +46,383 @@ async function initBareOriginAndClone(
 
   return { originPath, repoPath };
 }
+
+// --- Pure utility tests ---
+
+describe("extractWorktreeName", () => {
+  it("strips repo name prefix from worktree dir", () => {
+    expect(extractWorktreeName("/tmp/myrepo-wt1", "/home/user/myrepo")).toBe(
+      "wt1"
+    );
+  });
+
+  it("returns full dir name when it does not start with repo name", () => {
+    expect(
+      extractWorktreeName("/tmp/other-wt1", "/home/user/myrepo")
+    ).toBe("other-wt1");
+  });
+
+  it("handles repo name that is a prefix of worktree name", () => {
+    expect(
+      extractWorktreeName("/worktrees/app-feature-auth", "/repos/app")
+    ).toBe("feature-auth");
+  });
+});
+
+describe("isTmpBranch", () => {
+  it("returns true for tmp- prefixed branches", () => {
+    expect(isTmpBranch("tmp-wt1")).toBe(true);
+  });
+
+  it("returns true for refs/heads/tmp- branches", () => {
+    expect(isTmpBranch("refs/heads/tmp-wt1")).toBe(true);
+  });
+
+  it("returns false for regular branches", () => {
+    expect(isTmpBranch("feature-1")).toBe(false);
+    expect(isTmpBranch("main")).toBe(false);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isTmpBranch(null)).toBe(false);
+    expect(isTmpBranch(undefined)).toBe(false);
+  });
+});
+
+describe("getLocalBranchName", () => {
+  it("strips refs/heads/ prefix", () => {
+    expect(getLocalBranchName("refs/heads/main")).toBe("main");
+    expect(getLocalBranchName("refs/heads/feature-1")).toBe("feature-1");
+  });
+
+  it("returns branch name unchanged if no prefix", () => {
+    expect(getLocalBranchName("main")).toBe("main");
+  });
+
+  it("returns (detached) for null", () => {
+    expect(getLocalBranchName(null)).toBe("(detached)");
+  });
+});
+
+// --- Git integration tests ---
+
+describe("parseWorktreeList", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("lists the main worktree and added worktrees", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    const wtPath = path.join(tmpDir, "repo-wt1");
+    await repoGit.raw(["worktree", "add", "-b", "feature-1", wtPath]);
+
+    const worktrees = await parseWorktreeList(repoPath);
+
+    // Git resolves symlinks (e.g. /var -> /private/var on macOS)
+    const realRepoPath = await fs.realpath(repoPath);
+    const realWtPath = await fs.realpath(wtPath);
+
+    expect(worktrees).toHaveLength(2);
+    expect(worktrees[0].path).toBe(realRepoPath);
+    expect(worktrees[0].branch).toBe("refs/heads/main");
+    expect(worktrees[1].path).toBe(realWtPath);
+    expect(worktrees[1].branch).toBe("refs/heads/feature-1");
+  });
+});
+
+describe("branchExists", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns true for existing branches", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    expect(await branchExists(repoPath, "main")).toBe(true);
+  });
+
+  it("returns false for non-existent branches", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    expect(await branchExists(repoPath, "no-such-branch")).toBe(false);
+  });
+});
+
+describe("checkBranchMerged", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reports a branch with no extra commits as fully merged", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    // Create a branch at the same commit as main
+    await repoGit.checkout(["-b", "no-changes"]);
+    await repoGit.checkout("main");
+
+    const result = await checkBranchMerged(repoPath, "no-changes", "main");
+    expect(result.isFullyMerged).toBe(true);
+  });
+
+  it("reports a branch with unmerged commits as not fully merged", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    await repoGit.checkout(["-b", "has-changes"]);
+    await fs.writeFile(path.join(repoPath, "extra.txt"), "extra");
+    await repoGit.add("extra.txt");
+    await repoGit.commit("extra commit");
+    await repoGit.checkout("main");
+
+    const result = await checkBranchMerged(repoPath, "has-changes", "main");
+    expect(result.isFullyMerged).toBe(false);
+  });
+});
+
+describe("getWorktreeStatus", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reports clean status when there are no changes", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(false);
+    expect(status.hasStaged).toBe(false);
+  });
+
+  it("detects untracked files", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    await fs.writeFile(path.join(repoPath, "untracked.txt"), "hello");
+
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(true);
+    expect(status.not_added).toContain("untracked.txt");
+  });
+
+  it("detects modified files", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    await fs.writeFile(path.join(repoPath, "file.txt"), "modified");
+
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(true);
+    expect(status.modified).toContain("file.txt");
+  });
+
+  it("detects staged files", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+    await fs.writeFile(path.join(repoPath, "file.txt"), "staged");
+    await repoGit.add("file.txt");
+
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasStaged).toBe(true);
+    expect(status.staged).toContain("file.txt");
+  });
+});
+
+describe("stashChanges", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("stashes modified and untracked files", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    await fs.writeFile(path.join(repoPath, "file.txt"), "modified");
+    await fs.writeFile(path.join(repoPath, "new.txt"), "untracked");
+
+    await stashChanges(repoPath, "test stash");
+
+    // Working tree should be clean
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(false);
+
+    // Stash should exist
+    const stashList = await repoGit.stashList();
+    expect(stashList.total).toBeGreaterThan(0);
+  });
+});
+
+describe("cleanChanges", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("discards modified files and deletes untracked files", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+
+    await fs.writeFile(path.join(repoPath, "file.txt"), "modified");
+    await fs.writeFile(path.join(repoPath, "new.txt"), "untracked");
+
+    await cleanChanges(repoPath);
+
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(false);
+
+    // Original file should be restored
+    const content = await fs.readFile(path.join(repoPath, "file.txt"), "utf8");
+    expect(content).toBe("initial");
+
+    // Untracked file should be gone
+    await expect(
+      fs.access(path.join(repoPath, "new.txt"))
+    ).rejects.toThrow();
+  });
+});
+
+describe("commitChanges", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("stages all changes and creates a commit", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    await fs.writeFile(path.join(repoPath, "new.txt"), "new file");
+
+    await commitChanges(repoPath, "add new file");
+
+    const log = await repoGit.log({ maxCount: 1 });
+    expect(log.latest?.message).toBe("add new file");
+
+    const status = await getWorktreeStatus(repoPath);
+    expect(status.hasChanges).toBe(false);
+  });
+});
+
+describe("removeWorktree", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("removes a worktree directory and cleans up git references", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    const wtPath = path.join(tmpDir, "repo-wt1");
+    await repoGit.raw(["worktree", "add", "-b", "feature-1", wtPath]);
+
+    // Verify worktree exists
+    let worktrees = await parseWorktreeList(repoPath);
+    expect(worktrees).toHaveLength(2);
+
+    await removeWorktree(repoPath, wtPath);
+
+    // Directory should be gone
+    await expect(fs.access(wtPath)).rejects.toThrow();
+
+    // Git should no longer list it
+    worktrees = await parseWorktreeList(repoPath);
+    expect(worktrees).toHaveLength(1);
+  });
+});
+
+describe("claimWorktree", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("creates a new branch from main when branch does not exist", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    const wtPath = path.join(tmpDir, "repo-wt1");
+    await repoGit.raw(["worktree", "add", "-b", "tmp-wt1", wtPath]);
+
+    const result = await claimWorktree(repoPath, wtPath, "new-feature", "main");
+    expect(result).toBe("new-feature");
+
+    const wtGit = simpleGit(wtPath);
+    const status = await wtGit.status();
+    expect(status.current).toBe("new-feature");
+  });
+
+  it("checks out an existing branch", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const repoGit = simpleGit(repoPath);
+
+    // Create a branch with a commit
+    await repoGit.checkout(["-b", "existing-feature"]);
+    await fs.writeFile(path.join(repoPath, "feat.txt"), "feature");
+    await repoGit.add("feat.txt");
+    await repoGit.commit("feature work");
+    await repoGit.checkout("main");
+
+    // Add a worktree on a tmp branch
+    const wtPath = path.join(tmpDir, "repo-wt1");
+    await repoGit.raw(["worktree", "add", "-b", "tmp-wt1", wtPath]);
+
+    const result = await claimWorktree(
+      repoPath,
+      wtPath,
+      "existing-feature",
+      "main"
+    );
+    expect(result).toBe("existing-feature");
+
+    // Should have the feature commit's file
+    const content = await fs.readFile(path.join(wtPath, "feat.txt"), "utf8");
+    expect(content).toBe("feature");
+  });
+});
 
 describe("releaseWorktree", () => {
   let tmpDir: string;
