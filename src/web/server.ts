@@ -146,7 +146,8 @@ const createRouter = () => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        return await gitPool.createWorktree(input.repoPath, input.branchName, repoConfig);
+        const result = await gitPool.createWorktree(input.repoPath, input.branchName, repoConfig);
+        return { ...result, initCommand: repoConfig.initCommand };
       }),
 
     archiveWorktree: t.procedure
@@ -457,7 +458,8 @@ const createRouter = () => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        return await gitPool.createWorktree(input.repoPath, input.worktreeName, repoConfig);
+        const result = await gitPool.createWorktree(input.repoPath, input.worktreeName, repoConfig);
+        return { ...result, initCommand: repoConfig.initCommand };
       }),
   });
 };
@@ -543,6 +545,79 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
           res,
           createContext: () => ({}),
         });
+        return;
+      }
+
+      // SSE endpoint for running init commands with streaming output
+      if (pathname === "/api/run-init" && req.method === "POST") {
+        if (!checkToken(req, url)) {
+          res.writeHead(401, { "Content-Type": "text/plain" });
+          res.end("Unauthorized");
+          return;
+        }
+
+        // Read request body
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        let parsed: { worktreePath: string; initCommand: string };
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Invalid JSON");
+          return;
+        }
+
+        if (!parsed.worktreePath || !parsed.initCommand) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Missing worktreePath or initCommand");
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        });
+
+        const child = spawn(parsed.initCommand, {
+          shell: true,
+          cwd: parsed.worktreePath,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        const sendEvent = (data: object) => {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        child.stdout.on("data", (chunk: Buffer) => {
+          sendEvent({ type: "stdout", text: chunk.toString() });
+        });
+
+        child.stderr.on("data", (chunk: Buffer) => {
+          sendEvent({ type: "stderr", text: chunk.toString() });
+        });
+
+        child.on("error", (error) => {
+          sendEvent({ type: "error", message: error.message });
+          res.end();
+        });
+
+        child.on("close", (code) => {
+          sendEvent({ type: "done", code: code ?? 1 });
+          res.end();
+        });
+
+        // If client disconnects, kill the child process
+        req.on("close", () => {
+          if (!child.killed) {
+            child.kill();
+          }
+        });
+
         return;
       }
 

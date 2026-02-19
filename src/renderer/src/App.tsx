@@ -151,10 +151,43 @@ const App: React.FC = () => {
         await handleWorktreeSelect(newWorktree);
       }
 
-      setShowCreateModal(false);
-
+      // Don't close modal here - modal manages its own lifecycle for init streaming
+      return result;
     } catch (error) {
       console.error("Failed to create worktree:", error);
+      throw error;
+    }
+  };
+
+  const createPoolWorktree = async (worktreeName: string) => {
+    if (!currentRepo) {
+      throw new Error("Please select a repository first");
+    }
+
+    try {
+      const result = await client.createPoolWorktree.mutate({
+        repoPath: currentRepo,
+        worktreeName
+      });
+      console.log("Created pool worktree:", result);
+
+      // Refresh the worktree list
+      const updatedWorktrees = await client.getWorktrees.query({
+        repoPath: currentRepo
+      });
+      setWorktrees(updatedWorktrees);
+
+      // Find the newly created worktree and select it
+      const newWorktree = updatedWorktrees.find(
+        (wt) => wt.path && wt.path === result.path
+      );
+      if (newWorktree) {
+        await handleWorktreeSelect(newWorktree);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Failed to create pool worktree:", error);
       throw error;
     }
   };
@@ -405,6 +438,7 @@ const App: React.FC = () => {
           currentRepo={currentRepo}
           onClose={() => setShowCreateModal(false)}
           onCreate={createWorktree}
+          onCreatePool={createPoolWorktree}
         />
       )}
 

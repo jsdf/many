@@ -274,6 +274,64 @@ body {
     color: #ffffff;
 }
 
+/* Modal tabs */
+.modal-tabs {
+    display: flex;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 0 20px;
+}
+
+.modal-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #8c8c8c;
+    font-size: 14px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-tab:hover {
+    color: #ffffff;
+}
+
+.modal-tab.active {
+    color: #ffffff;
+    border-bottom-color: #0e639c;
+}
+
+/* Init command output area */
+.init-output {
+    background: #1a1a1a;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #cccccc;
+}
+
+.init-output .stderr {
+    color: #FFA726;
+}
+
+.init-output .init-done {
+    color: #4CAF50;
+    margin-top: 8px;
+}
+
+.init-output .init-error {
+    color: #ff6b6b;
+    margin-top: 8px;
+}
+
 .modal-body {
     padding: 20px;
 }
