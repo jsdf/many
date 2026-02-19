@@ -331,7 +331,8 @@ function formatHeadStat(stat: string): string {
 }
 
 // List command - show all worktrees and their status
-async function cmdList(flags: ParsedFlags): Promise<void> {
+async function cmdList(flags: ParsedFlags, options?: { showStat?: boolean }): Promise<void> {
+  const showStat = options?.showStat ?? false;
   const { repoPath, config } = await getRepoAndConfig(flags);
   const worktrees = await getWorktrees(repoPath);
 
@@ -348,9 +349,11 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
       `  ${cyan("●")} ${bold("base")} ${dim(`(${getLocalBranchName(base.branch)})`)} - ${formatStatus(status)}`
     );
     console.log(`    ${dim(base.path)}`);
-    const headStat = await getHeadStat(base.path);
-    if (headStat) {
-      console.log(formatHeadStat(headStat));
+    if (showStat) {
+      const headStat = await getHeadStat(base.path);
+      if (headStat) {
+        console.log(formatHeadStat(headStat));
+      }
     }
     console.log();
   }
@@ -364,9 +367,11 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
         `  ${green("●")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
       );
       console.log(`    ${dim(w.path)}`);
-      const headStat = await getHeadStat(w.path);
-      if (headStat) {
-        console.log(formatHeadStat(headStat));
+      if (showStat) {
+        const headStat = await getHeadStat(w.path);
+        if (headStat) {
+          console.log(formatHeadStat(headStat));
+        }
       }
     }
     console.log();
@@ -380,9 +385,11 @@ async function cmdList(flags: ParsedFlags): Promise<void> {
         `  ${yellow("○")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
       );
       console.log(`    ${dim(w.path)}`);
-      const headStat = await getHeadStat(w.path);
-      if (headStat) {
-        console.log(formatHeadStat(headStat));
+      if (showStat) {
+        const headStat = await getHeadStat(w.path);
+        if (headStat) {
+          console.log(formatHeadStat(headStat));
+        }
       }
     }
     console.log();
@@ -921,6 +928,7 @@ ${bold("USAGE:")}
 ${bold("COMMANDS:")}
   ${bold("version")}                 Show the CLI version
   ${bold("list")}                    List all worktrees and their status
+  ${bold("stat")}                    List worktrees with HEAD commit details
   ${bold("switch")} [branch]         Claim a worktree and checkout the branch
                           Creates branch from default if it doesn't exist
   ${bold("create")} <name>           Create a new worktree with the given name
@@ -944,6 +952,7 @@ ${bold("FLAGS:")}
 
 ${bold("EXAMPLES:")}
   many list                    # Show all worktrees
+  many stat                    # Show worktrees with HEAD commit stats
   many switch feature/login    # Claim a worktree for feature/login branch
   many create worker-2         # Create new worktree named worker-2
   many release                 # Release current worktree
@@ -1019,6 +1028,10 @@ async function main(): Promise<void> {
       case "ls":
       case undefined:
         await cmdList(flags);
+        break;
+
+      case "stat":
+        await cmdList(flags, { showStat: true });
         break;
 
       case "switch":
