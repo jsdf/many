@@ -11,7 +11,8 @@
     "build:cli": "tsc -p tsconfig.cli.json",
     "dev": "vite build && node dist-cli/web/server.js",
     "start": "npm run build && npm run build:cli && node dist-cli/web/server.js",
-    "cli": "npm run build:cli && node dist-cli/cli/index.js"
+    "cli": "npm run build:cli && node dist-cli/cli/index.js",
+    "test": "vitest run"
   },
   "keywords": [
     "git",
@@ -28,7 +29,8 @@
     "@vitejs/plugin-react": "^5.0.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
-    "vite": "^7.1.1"
+    "vite": "^7.1.1",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@trpc/client": "^10.45.2",

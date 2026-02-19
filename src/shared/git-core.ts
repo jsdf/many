@@ -309,14 +309,7 @@ export async function releaseWorktree(
     targetCommit = (await repoGit.raw(["rev-parse", defaultBranch])).trim();
   }
 
-  const tmpExists = await branchExists(repoPath, tmpBranchName);
-
-  if (tmpExists) {
-    await git.checkout(tmpBranchName);
-    await git.reset(["--hard", targetCommit]);
-  } else {
-    await git.checkout(["-B", tmpBranchName, targetCommit]);
-  }
+  await git.raw(["switch", "--force-create", tmpBranchName, targetCommit]);
 
   return { tmpBranch: tmpBranchName, previousBranch };
 }
