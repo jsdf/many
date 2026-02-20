@@ -20,6 +20,7 @@ import {
   isTmpBranch,
   checkBranchMerged,
   archiveWorktree,
+  getDefaultBranch,
   WorktreeInfo,
   GitStatus,
 } from "./git-pool.js";
@@ -291,43 +292,86 @@ function formatStatus(status: GitStatus): string {
   return parts.length > 0 ? parts.join(", ") : green("clean");
 }
 
-// Get HEAD commit stat for a worktree (oneline + diffstat)
-async function getHeadStat(worktreePath: string): Promise<string | null> {
+// Get git status --short output for a worktree
+async function getGitStatusShort(worktreePath: string): Promise<string | null> {
   try {
     const git = simpleGit(worktreePath);
-    const output = await git.raw(["show", "HEAD", "--stat", "--format=oneline"]);
-    return output.trim();
+    const output = await git.raw(["status", "--short"]);
+    return output.trim() || null;
   } catch {
     return null;
   }
 }
 
-// Format HEAD stat output for display (indented, dimmed diffstat lines)
-function formatHeadStat(stat: string): string {
-  const lines = stat.split("\n");
-  if (lines.length === 0) return "";
+// Get HEAD commit oneline, only if branch has diverged from main
+async function getHeadCommitIfDiverged(worktreePath: string, mainBranch: string): Promise<string | null> {
+  try {
+    const git = simpleGit(worktreePath);
+    const [head, mergeBase] = await Promise.all([
+      git.raw(["rev-parse", "HEAD"]).then((s) => s.trim()),
+      git.raw(["merge-base", "HEAD", mainBranch]).then((s) => s.trim()).catch(() => null),
+    ]);
+    if (mergeBase && head === mergeBase) return null; // No unique commits
+    const output = await git.raw(["log", "-1", "--format=%h %s"]);
+    return output.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
-  const result: string[] = [];
-  // First line is the oneline commit summary (hash + message)
-  const firstLine = lines[0];
-  // Split off the hash from the message
-  const spaceIdx = firstLine.indexOf(" ");
+// Format indented, dimmed lines
+function formatStatLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => `    ${dim(l)}`)
+    .join("\n");
+}
+
+// Format HEAD commit oneline (dimmed hash + message)
+function formatHeadCommit(line: string): string {
+  const spaceIdx = line.indexOf(" ");
   if (spaceIdx > 0) {
-    const hash = firstLine.substring(0, 8);
-    const message = firstLine.substring(spaceIdx + 1);
-    result.push(`    ${dim(hash)} ${message}`);
-  } else {
-    result.push(`    ${dim(firstLine)}`);
+    const hash = line.substring(0, spaceIdx);
+    const message = line.substring(spaceIdx + 1);
+    return `    ${dim(hash)} ${message}`;
   }
+  return `    ${dim(line)}`;
+}
 
-  // Remaining lines are the stat (file changes + summary)
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim()) {
-      result.push(`    ${dim(lines[i])}`);
-    }
-  }
+// Prefetch status and stat info for all worktrees in parallel
+interface WorktreeStatInfo {
+  status: GitStatus;
+  statusShort: string | null;
+  headCommit: string | null;
+}
 
-  return result.join("\n");
+async function prefetchWorktreeInfo(
+  worktrees: WorktreeInfo[],
+  showStat: boolean,
+  claimedPaths: Set<string>,
+  mainBranch: string
+): Promise<Map<string, WorktreeStatInfo>> {
+  const results = new Map<string, WorktreeStatInfo>();
+  await Promise.all(
+    worktrees.map(async (w) => {
+      const status = await getWorktreeStatus(w.path);
+      let statusShort: string | null = null;
+      let headCommit: string | null = null;
+      if (showStat) {
+        const isDirty = status.hasChanges || status.hasStaged;
+        const isClaimed = claimedPaths.has(w.path);
+        const [s, h] = await Promise.all([
+          isDirty ? getGitStatusShort(w.path) : null,
+          isClaimed ? getHeadCommitIfDiverged(w.path, mainBranch) : null,
+        ]);
+        statusShort = s;
+        headCommit = h;
+      }
+      results.set(w.path, { status, statusShort, headCommit });
+    })
+  );
+  return results;
 }
 
 // List command - show all worktrees and their status
@@ -336,63 +380,72 @@ async function cmdList(flags: ParsedFlags, options?: { showStat?: boolean }): Pr
   const { repoPath, config } = await getRepoAndConfig(flags);
   const worktrees = await getWorktrees(repoPath);
 
-  console.log(bold(`\nWorktrees for ${path.basename(repoPath)}:\n`));
-
   // Separate into available and claimed
   const available = worktrees.filter((w) => w.isAvailable && !w.bare);
   const claimed = worktrees.filter((w) => !w.isAvailable && !w.bare);
   const base = worktrees.find((w) => w.path === repoPath);
+  const claimedPaths = new Set(claimed.map((w) => w.path));
+
+  // Prefetch all git info in parallel
+  const nonBare = worktrees.filter((w) => !w.bare);
+  const mainBranch = showStat ? await getDefaultBranch(repoPath, config) : "main";
+  const infoMap = await prefetchWorktreeInfo(nonBare, showStat, claimedPaths, mainBranch);
+
+  console.log(bold(`\nWorktrees for ${path.basename(repoPath)}:\n`));
 
   if (base) {
-    const status = await getWorktreeStatus(base.path);
+    const info = infoMap.get(base.path)!;
     console.log(
-      `  ${cyan("●")} ${bold("base")} ${dim(`(${getLocalBranchName(base.branch)})`)} - ${formatStatus(status)}`
+      `  ${cyan("●")} ${bold("base")} ${dim(`(${getLocalBranchName(base.branch)})`)} - ${formatStatus(info.status)}`
     );
     console.log(`    ${dim(base.path)}`);
     if (showStat) {
-      const headStat = await getHeadStat(base.path);
-      if (headStat) {
-        console.log(formatHeadStat(headStat));
-      }
+      if (info.statusShort) console.log(formatStatLines(info.statusShort));
+      if (info.headCommit) console.log(formatHeadCommit(info.headCommit));
     }
     console.log();
   }
 
   if (claimed.length > 0) {
-    console.log(bold("Claimed:"));
+    let headerPrinted = false;
     for (const w of claimed) {
       if (w.path === repoPath) continue; // Skip base
-      const status = await getWorktreeStatus(w.path);
+      if (!headerPrinted) {
+        console.log(bold("Claimed:"));
+        headerPrinted = true;
+      }
+      const info = infoMap.get(w.path)!;
       console.log(
-        `  ${green("●")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
+        `  ${green("●")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(info.status)}`
       );
       console.log(`    ${dim(w.path)}`);
       if (showStat) {
-        const headStat = await getHeadStat(w.path);
-        if (headStat) {
-          console.log(formatHeadStat(headStat));
-        }
+        if (info.statusShort) console.log(formatStatLines(info.statusShort));
+        if (info.headCommit) console.log(formatHeadCommit(info.headCommit));
       }
     }
-    console.log();
+    if (headerPrinted) console.log();
   }
 
   if (available.length > 0) {
-    console.log(bold("Available:"));
+    let headerPrinted = false;
     for (const w of available) {
-      const status = await getWorktreeStatus(w.path);
+      const info = infoMap.get(w.path)!;
+      const isClean = !info.status.hasChanges && !info.status.hasStaged;
+      if (showStat && isClean) continue;
+      if (!headerPrinted) {
+        console.log(bold("Available:"));
+        headerPrinted = true;
+      }
       console.log(
-        `  ${yellow("○")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(status)}`
+        `  ${yellow("○")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(info.status)}`
       );
       console.log(`    ${dim(w.path)}`);
-      if (showStat) {
-        const headStat = await getHeadStat(w.path);
-        if (headStat) {
-          console.log(formatHeadStat(headStat));
-        }
+      if (showStat && info.statusShort) {
+        console.log(formatStatLines(info.statusShort));
       }
     }
-    console.log();
+    if (headerPrinted) console.log();
   }
 
   console.log(dim(`Total: ${worktrees.length - 1} worktrees (${claimed.length - (base ? 1 : 0)} claimed, ${available.length} available)`));
@@ -928,7 +981,7 @@ ${bold("USAGE:")}
 ${bold("COMMANDS:")}
   ${bold("version")}                 Show the CLI version
   ${bold("list")}                    List all worktrees and their status
-  ${bold("stat")}                    List worktrees with HEAD commit details
+  ${bold("stat")}                    Show worktrees with uncommitted changes
   ${bold("switch")} [branch]         Claim a worktree and checkout the branch
                           Creates branch from default if it doesn't exist
   ${bold("create")} <name>           Create a new worktree with the given name
@@ -952,7 +1005,7 @@ ${bold("FLAGS:")}
 
 ${bold("EXAMPLES:")}
   many list                    # Show all worktrees
-  many stat                    # Show worktrees with HEAD commit stats
+  many stat                    # Show worktrees with uncommitted changes
   many switch feature/login    # Claim a worktree for feature/login branch
   many create worker-2         # Create new worktree named worker-2
   many release                 # Release current worktree
