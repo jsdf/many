@@ -453,6 +453,36 @@ const createRouter = () => {
         return true;
       }),
 
+    getBranchDiff: t.procedure
+      .input((input: unknown) => input as { worktreePath: string; repoPath: string })
+      .query(async ({ input }) => {
+        const { simpleGit } = await import("simple-git");
+        const git = simpleGit(input.worktreePath);
+        const appData = await loadAppData();
+        const repoConfig = getRepoConfig(appData, input.repoPath);
+        const mainBranch = await gitPool.getDefaultBranch(input.repoPath, repoConfig);
+
+        // Find the merge-base between HEAD and the main branch
+        let mergeBase: string;
+        try {
+          mergeBase = (await git.raw(["merge-base", mainBranch, "HEAD"])).trim();
+        } catch {
+          // If merge-base fails (e.g. no common ancestor), return empty
+          return { diff: "", mainBranch };
+        }
+
+        // Get committed changes: merge-base..HEAD
+        const committedDiff = await git.raw(["diff", `${mergeBase}...HEAD`]);
+
+        // Get uncommitted changes (staged + unstaged) against HEAD
+        const uncommittedDiff = await git.raw(["diff", "HEAD"]);
+
+        // Combine both diffs
+        const combinedDiff = [committedDiff, uncommittedDiff].filter(Boolean).join("\n");
+
+        return { diff: combinedDiff, mainBranch };
+      }),
+
     createPoolWorktree: t.procedure
       .input((input: unknown) => input as { repoPath: string; worktreeName: string })
       .mutation(async ({ input }) => {
@@ -627,7 +657,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
       const result = await serveStaticFile(filePath);
       res.writeHead(result.status, { "Content-Type": result.contentType });
       res.end(result.body);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Server error:", error);
       res.writeHead(500, { "Content-Type": "text/plain" });
       res.end("Internal server error");

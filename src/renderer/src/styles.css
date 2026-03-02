@@ -19,6 +19,8 @@ body {
 
 .sidebar {
     width: 300px;
+    min-width: 300px;
+    flex-shrink: 0;
     background: #252526;
     border-right: 1px solid #3c3c3c;
     display: flex;
@@ -165,11 +167,11 @@ body {
 
 .main-content {
     flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 40px;
-    width: 100%;
 }
 
 .welcome {
@@ -429,6 +431,7 @@ body {
     padding: 0;
     height: 100vh;
     width: 100%;
+    min-width: 0;
     align-items: stretch;
     justify-content: flex-start;
 }
@@ -640,8 +643,10 @@ body {
 /* Worktree details content */
 .worktree-details-content {
     padding: 20px;
-    overflow-y: auto;
+    overflow: auto;
     height: 100%;
+    width: 100%;
+    min-width: 0;
 }
 
 .worktree-info h2 {
@@ -730,6 +735,75 @@ body {
     font-size: 13px;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
     padding: 3px 0;
+}
+
+/* Branch Changes */
+.branch-changes {
+    margin-top: 20px;
+    width: 100%;
+    min-width: 0;
+}
+
+.branch-changes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.branch-changes-header h3 {
+    margin-bottom: 0;
+    font-size: 16px;
+    color: #ffffff;
+    user-select: none;
+}
+
+.branch-changes-content {
+    background: #2d2d2d;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    padding: 16px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
+.branch-changes-content p {
+    color: #8c8c8c;
+    margin: 0;
+    font-style: italic;
+}
+
+.branch-changes-diff {
+    font-size: 13px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-diff-entry {
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.file-diff-header {
+    padding: 6px 10px;
+    background: #333333;
+    cursor: pointer;
+    user-select: none;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 13px;
+    color: #cccccc;
+}
+
+.file-diff-header:hover {
+    background: #3a3a3a;
+}
+
+.file-diff-body {
+    overflow-x: auto;
 }
 
 /* Worktree Details */

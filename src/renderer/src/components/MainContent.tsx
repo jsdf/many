@@ -14,6 +14,7 @@ interface MainContentProps {
 
 const MainContent: React.FC<MainContentProps> = ({
   selectedWorktree,
+  currentRepo,
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
@@ -35,6 +36,7 @@ const MainContent: React.FC<MainContentProps> = ({
       <WorktreeDetails
         key={`worktree-details-${selectedWorktree.path}`}
         worktree={selectedWorktree}
+        repoPath={currentRepo!}
         onArchiveWorktree={onArchiveWorktree}
         onMergeWorktree={onMergeWorktree}
         onRebaseWorktree={onRebaseWorktree}

@@ -1,26 +1,52 @@
 {
-  "name": "many",
+  "name": "@jsdf/many",
   "version": "1.0.1",
-  "description": "Use git worktrees with AI tools",
-  "type": "module",
+  "description": "Git worktree pool manager for parallel development with AI tools",
+  "keywords": [
+    "ai",
+    "git",
+    "worktree",
+    "claude",
+    "parallel",
+    "development"
+  ],
+  "license": "MIT",
+  "author": "jsdf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsdf/many.git"
+  },
   "bin": {
     "many": "./dist-cli/cli/index.js"
   },
+  "type": "module",
+  "files": [
+    "dist-cli/",
+    "out/",
+    "public/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "build:cli": "tsc -p tsconfig.cli.json",
     "dev": "vite build && node dist-cli/cli/index.js web",
     "start": "npm run build && npm run build:cli && node dist-cli/cli/index.js web",
     "cli": "npm run build:cli && node dist-cli/cli/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm run build:cli"
   },
-  "keywords": [
-    "git",
-    "worktree",
-    "ai"
-  ],
-  "author": "",
-  "license": "MIT",
+  "dependencies": {
+    "@pierre/diffs": "^1.0.11",
+    "@trpc/client": "^10.45.2",
+    "@trpc/server": "^10.45.2",
+    "ink": "^6.7.0",
+    "react": "^19.1.0",
+    "simple-git": "^3.20.0",
+    "superjson": "^2.2.2",
+    "ws": "^8.19.0",
+    "zod": "^4.0.14"
+  },
   "devDependencies": {
     "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
@@ -31,15 +57,5 @@
     "typescript": "^5.8.3",
     "vite": "^7.1.1",
     "vitest": "^4.0.18"
-  },
-  "dependencies": {
-    "@trpc/client": "^10.45.2",
-    "@trpc/server": "^10.45.2",
-    "ink": "^6.7.0",
-    "react": "^19.1.0",
-    "simple-git": "^3.20.0",
-    "superjson": "^2.2.2",
-    "ws": "^8.19.0",
-    "zod": "^4.0.14"
   }
 }

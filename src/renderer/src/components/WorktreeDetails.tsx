@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Worktree, GitStatus, isTmpBranch, formatBranchName } from "../types";
 import { client } from "../main";
+import BranchChanges from "./BranchChanges";
 
 interface WorktreeDetailsProps {
   worktree: Worktree;
+  repoPath: string;
   onArchiveWorktree: (worktree: Worktree) => Promise<void>;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
@@ -12,6 +14,7 @@ interface WorktreeDetailsProps {
 
 const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   worktree,
+  repoPath,
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
@@ -271,6 +274,10 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           )}
         </div>
       </div>
+
+      {worktree.path && repoPath && (
+        <BranchChanges worktreePath={worktree.path} repoPath={repoPath} />
+      )}
     </div>
   );
 };
