@@ -28,7 +28,9 @@ function getFilename(patch: string): string {
   return match ? match[1] : "unknown";
 }
 
-const FileDiffEntry: React.FC<{ patch: string }> = ({ patch }) => {
+type DiffStyle = "unified" | "split";
+
+const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle }> = ({ patch, diffStyle }) => {
   const [collapsed, setCollapsed] = useState(false);
   const filename = useMemo(() => getFilename(patch), [patch]);
 
@@ -46,7 +48,7 @@ const FileDiffEntry: React.FC<{ patch: string }> = ({ patch }) => {
             patch={patch}
             options={{
               theme: "github-dark",
-              diffStyle: "unified",
+              diffStyle,
             }}
           />
         </div>
@@ -61,10 +63,11 @@ interface BranchDiffContentProps {
   refreshKey: number;
 }
 
-const BranchDiffContent: React.FC<BranchDiffContentProps> = ({
+const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyle }> = ({
   worktreePath,
   repoPath,
   refreshKey,
+  diffStyle,
 }) => {
   const [diff, setDiff] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,7 +128,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps> = ({
     <div className="branch-changes-content">
       <div className="branch-changes-diff">
         {filePatches.map((filePatch, i) => (
-          <FileDiffEntry key={i} patch={filePatch} />
+          <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} />
         ))}
       </div>
     </div>
@@ -145,12 +148,21 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
     const stored = localStorage.getItem("branchChangesCollapsed");
     return stored !== null ? stored === "true" : true;
   });
+  const [diffStyle, setDiffStyle] = useState<DiffStyle>(() => {
+    return (localStorage.getItem("diffStyle") as DiffStyle) || "unified";
+  });
   const [refreshKey, setRefreshKey] = useState(0);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem("branchChangesCollapsed", String(next));
+  };
+
+  const toggleDiffStyle = () => {
+    const next: DiffStyle = diffStyle === "unified" ? "split" : "unified";
+    setDiffStyle(next);
+    localStorage.setItem("diffStyle", next);
   };
 
   return (
@@ -160,12 +172,21 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
           {collapsed ? "▶" : "▼"} Branch Changes
         </h3>
         {!collapsed && (
-          <button
-            className="btn btn-secondary"
-            onClick={() => setRefreshKey((k) => k + 1)}
-          >
-            Refresh
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              className="btn btn-secondary"
+              onClick={toggleDiffStyle}
+              title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
+            >
+              {diffStyle === "unified" ? "Split" : "Unified"}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setRefreshKey((k) => k + 1)}
+            >
+              Refresh
+            </button>
+          </div>
         )}
       </div>
       {!collapsed && (
@@ -173,6 +194,7 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
           worktreePath={worktreePath}
           repoPath={repoPath}
           refreshKey={refreshKey}
+          diffStyle={diffStyle}
         />
       )}
     </div>

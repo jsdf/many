@@ -1128,7 +1128,7 @@ async function main(): Promise<void> {
         process.exit(1);
     }
   } catch (error) {
-    console.error(red(`Error: ${error instanceof Error ? error.message : error}`));
+    console.error(red("Error:"), error);
     process.exit(1);
   }
 }

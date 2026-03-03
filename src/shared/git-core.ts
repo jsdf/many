@@ -58,11 +58,27 @@ export function getLocalBranchName(branch: string | null): string {
 
 // --- Core git operations ---
 
+/** Check that a worktree directory exists on disk, throwing a clear error if not */
+async function ensureWorktreeExists(worktreePath: string): Promise<void> {
+  try {
+    await fs.access(worktreePath);
+  } catch {
+    throw new Error(
+      `Worktree directory does not exist: ${worktreePath}\n` +
+      `It may have been manually deleted. The worktree list will be refreshed automatically.`
+    );
+  }
+}
+
 /** Parse `git worktree list --porcelain` output into structured data */
 export async function parseWorktreeList(
   repoPath: string
 ): Promise<ParsedWorktree[]> {
   const git = simpleGit(repoPath);
+
+  // Prune stale worktree entries (e.g. directories manually deleted)
+  await git.raw(["worktree", "prune"]);
+
   const output = await git.raw(["worktree", "list", "--porcelain"]);
 
   const parsed: ParsedWorktree[] = [];
@@ -126,6 +142,7 @@ export async function branchExists(
 export async function getWorktreeStatus(
   worktreePath: string
 ): Promise<GitStatus> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   const status = await git.status();
 
@@ -210,6 +227,7 @@ export async function stashChanges(
   worktreePath: string,
   message?: string
 ): Promise<void> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   const stashMessage =
     message || `Stash from release at ${new Date().toISOString()}`;
@@ -218,6 +236,7 @@ export async function stashChanges(
 
 /** Clean all changes (discard modified + delete untracked) */
 export async function cleanChanges(worktreePath: string): Promise<void> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   await git.reset(["--hard", "HEAD"]);
   await git.clean("fd");
@@ -225,6 +244,7 @@ export async function cleanChanges(worktreePath: string): Promise<void> {
 
 /** Amend changes to the last commit */
 export async function amendChanges(worktreePath: string): Promise<void> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   await git.add("-A");
   await git.commit([], { "--amend": null, "--no-edit": null });
@@ -235,6 +255,7 @@ export async function commitChanges(
   worktreePath: string,
   message: string
 ): Promise<void> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   await git.add("-A");
   await git.commit(message);
@@ -250,6 +271,7 @@ export async function claimWorktree(
   branchName: string,
   mainBranch: string | null
 ): Promise<string> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   const repoGit = simpleGit(repoPath);
 
@@ -281,6 +303,7 @@ export async function releaseWorktree(
   worktreePath: string,
   mainBranch: string | null
 ): Promise<{ tmpBranch: string; previousBranch: string }> {
+  await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   const repoGit = simpleGit(repoPath);
 
