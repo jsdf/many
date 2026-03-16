@@ -640,6 +640,90 @@ body {
     background: transparent !important;
 }
 
+/* Terminal Panel */
+.terminal-panel {
+    margin-top: 20px;
+    border: 1px solid #3c3c3c;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.terminal-panel-header {
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+}
+
+.terminal-panel-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+}
+
+.terminal-panel-label {
+    font-size: 13px;
+    color: #8c8c8c;
+}
+
+.terminal-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 10px;
+    border-top: 1px solid #3c3c3c;
+}
+
+.terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #8c8c8c;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    user-select: none;
+}
+
+.terminal-tab:hover {
+    color: #cccccc;
+    background: #2a2a2a;
+}
+
+.terminal-tab.active {
+    color: #ffffff;
+    border-bottom-color: #0e639c;
+}
+
+.terminal-tab-name {
+    white-space: nowrap;
+}
+
+.terminal-tab-close {
+    background: none;
+    border: none;
+    color: #8c8c8c;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+    border-radius: 3px;
+}
+
+.terminal-tab-close:hover {
+    color: #ffffff;
+    background: #3c3c3c;
+}
+
+.terminal-panel-body {
+    height: 350px;
+    background: #1e1e1e;
+}
+
+.btn-sm {
+    padding: 3px 8px;
+    font-size: 12px;
+}
+
 /* Worktree details content */
 .worktree-details-content {
     padding: 20px;

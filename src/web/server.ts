@@ -9,6 +9,7 @@ import crypto from "crypto";
 import type { AddressInfo } from "net";
 import { initTRPC } from "@trpc/server";
 import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
+import { WebSocketServer, WebSocket } from "ws";
 import * as gitPool from "../cli/git-pool.js";
 import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import {
@@ -17,6 +18,7 @@ import {
   getErrorMessage,
   parseWorktreeList,
 } from "../shared/git-core.js";
+import { TerminalManager } from "./terminal-manager.js";
 
 const execAsync = promisify(exec);
 
@@ -41,6 +43,9 @@ const MIME_TYPES: Record<string, string> = {
 
 // Create tRPC instance
 const t = initTRPC.create();
+
+// Terminal manager - singleton, lives for the server's lifetime
+const terminalManager = new TerminalManager();
 
 // External actions - open apps using child_process
 async function openInFileManager(folderPath: string): Promise<boolean> {
@@ -187,6 +192,9 @@ const createRouter = () => {
             }
           }
         }
+
+        // Kill any terminal sessions for this worktree
+        terminalManager.cleanupWorktree(input.worktreePath);
 
         await removeWorktree(input.repoPath, input.worktreePath);
         return true;
@@ -421,6 +429,9 @@ const createRouter = () => {
         if (!worktree) {
           throw new Error(`Worktree not found: ${input.worktreePath}`);
         }
+        // Kill any terminal sessions for this worktree
+        terminalManager.cleanupWorktree(input.worktreePath);
+
         const newBranch = await gitPool.releaseWorktree(input.repoPath, worktree, repoConfig);
         return { success: true, branch: newBranch };
       }),
@@ -490,6 +501,20 @@ const createRouter = () => {
         const repoConfig = getRepoConfig(appData, input.repoPath);
         const result = await gitPool.createWorktree(input.repoPath, input.worktreeName, repoConfig);
         return { ...result, initCommand: repoConfig.initCommand };
+      }),
+
+    // Terminal management
+    getTerminalSessions: t.procedure
+      .input((input: unknown) => input as { worktreePath: string })
+      .query(({ input }) => {
+        return terminalManager.getSessionsForWorktree(input.worktreePath);
+      }),
+
+    closeTerminal: t.procedure
+      .input((input: unknown) => input as { terminalId: string })
+      .mutation(({ input }) => {
+        terminalManager.closeSession(input.terminalId);
+        return true;
       }),
   });
 };
@@ -663,6 +688,114 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
       res.end("Internal server error");
     }
   });
+
+  // WebSocket server for terminal sessions
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url || "/", `http://${host}:${port}`);
+
+    // Only handle terminal WebSocket connections
+    if (url.pathname !== "/ws/terminal") {
+      socket.destroy();
+      return;
+    }
+
+    // Auth check
+    const queryToken = url.searchParams.get("token");
+    if (queryToken !== token) {
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
+
+  wss.on("connection", (ws: WebSocket) => {
+    let attachedTerminalId: string | null = null;
+
+    const dataListener = (data: string) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "data", terminalId: attachedTerminalId, data }));
+      }
+    };
+
+    const exitListener = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "exit", terminalId: attachedTerminalId }));
+      }
+    };
+
+    ws.on("message", (rawMsg) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(rawMsg.toString());
+      } catch {
+        return;
+      }
+
+      const { type, terminalId } = msg;
+
+      switch (type) {
+        case "create": {
+          const { worktreePath, cols, rows } = msg;
+          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24);
+
+          // Detach from previous terminal if switching
+          if (attachedTerminalId && attachedTerminalId !== terminalId) {
+            terminalManager.removeDataListener(attachedTerminalId, dataListener);
+            terminalManager.removeExitListener(attachedTerminalId, exitListener);
+          }
+
+          attachedTerminalId = terminalId;
+          terminalManager.addDataListener(terminalId, dataListener);
+          terminalManager.addExitListener(terminalId, exitListener);
+
+          // Send buffered output for reconnection
+          if (existed) {
+            const buffered = terminalManager.getBufferedOutput(terminalId);
+            if (buffered) {
+              ws.send(JSON.stringify({ type: "buffered", terminalId, data: buffered }));
+            }
+          }
+          break;
+        }
+
+        case "data": {
+          terminalManager.sendData(terminalId, msg.data);
+          break;
+        }
+
+        case "resize": {
+          terminalManager.resize(terminalId, msg.cols, msg.rows);
+          break;
+        }
+
+        case "close": {
+          terminalManager.closeSession(terminalId);
+          break;
+        }
+      }
+    });
+
+    ws.on("close", () => {
+      // Client disconnected - detach listeners but keep PTY alive
+      if (attachedTerminalId) {
+        terminalManager.removeDataListener(attachedTerminalId, dataListener);
+        terminalManager.removeExitListener(attachedTerminalId, exitListener);
+      }
+    });
+  });
+
+  // Cleanup on server shutdown
+  const cleanupAndExit = () => {
+    terminalManager.cleanup();
+    process.exit(0);
+  };
+  process.on("SIGINT", cleanupAndExit);
+  process.on("SIGTERM", cleanupAndExit);
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
