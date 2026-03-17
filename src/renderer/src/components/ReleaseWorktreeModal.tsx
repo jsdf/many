@@ -19,6 +19,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [isReleasing, setIsReleasing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showForceOption, setShowForceOption] = useState(false)
   const [changeHandling, setChangeHandling] = useState<ChangeHandlingOption>('stash')
   const [commitMessage, setCommitMessage] = useState('')
 
@@ -43,15 +44,16 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
     }
   }
 
-  const handleRelease = async () => {
+  const handleRelease = async (force: boolean = false) => {
     if (!worktree.path || !currentRepo) return
 
     setIsReleasing(true)
     setError(null)
+    setShowForceOption(false)
 
     try {
       // Handle dirty state based on selected option
-      if (status && (status.hasChanges || status.hasStaged)) {
+      if (!force && status && (status.hasChanges || status.hasStaged)) {
         switch (changeHandling) {
           case 'stash':
             await client.stashWorktreeChanges.mutate({
@@ -93,12 +95,14 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
       // Release the worktree
       await client.releaseWorktree.mutate({
         repoPath: currentRepo,
-        worktreePath: worktree.path
+        worktreePath: worktree.path,
+        force
       })
 
       await onRelease()
     } catch (err: any) {
       setError(err.message || 'Failed to release worktree')
+      setShowForceOption(true)
       setIsReleasing(false)
     }
   }
@@ -239,10 +243,21 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
           >
             Cancel
           </button>
+          {showForceOption && (
+            <button
+              type="button"
+              className="btn btn-warning"
+              onClick={() => handleRelease(true)}
+              disabled={isReleasing}
+              title="Force release, discarding submodule and checkout errors"
+            >
+              {isReleasing ? 'Force Releasing...' : 'Force Release'}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
-            onClick={handleRelease}
+            onClick={() => handleRelease(false)}
             disabled={isLoading || isReleasing || (changeHandling === 'commit' && !!hasChanges && !commitMessage.trim())}
           >
             {isReleasing ? 'Releasing...' : 'Release'}

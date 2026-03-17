@@ -44,21 +44,8 @@ export class TerminalManager {
       rows: rows || 24,
       cwd: worktreePath || os.homedir(),
       env: {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME,
-        USER: process.env.USER,
-        SHELL: process.env.SHELL,
+        ...process.env,
         TERM: "xterm-256color",
-        LANG: process.env.LANG || "en_US.UTF-8",
-        LC_ALL: process.env.LC_ALL,
-        TMPDIR: process.env.TMPDIR,
-        EDITOR: process.env.EDITOR,
-        PAGER: process.env.PAGER,
-        GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
-        GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
-        GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL,
-        GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
-        GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL,
       } as Record<string, string>,
     });
 

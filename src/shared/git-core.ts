@@ -301,7 +301,8 @@ export async function claimWorktree(
 export async function releaseWorktree(
   repoPath: string,
   worktreePath: string,
-  mainBranch: string | null
+  mainBranch: string | null,
+  force: boolean = false
 ): Promise<{ tmpBranch: string; previousBranch: string }> {
   await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
@@ -332,7 +333,14 @@ export async function releaseWorktree(
     targetCommit = (await repoGit.raw(["rev-parse", defaultBranch])).trim();
   }
 
-  await git.raw(["switch", "--force-create", tmpBranchName, targetCommit]);
+  if (force) {
+    // Bypass checkout entirely — create/move the branch and update HEAD directly.
+    // This avoids submodule update errors that block normal git switch.
+    await git.raw(["branch", "-f", tmpBranchName, targetCommit]);
+    await git.raw(["symbolic-ref", "HEAD", `refs/heads/${tmpBranchName}`]);
+  } else {
+    await git.raw(["switch", "--force-create", tmpBranchName, targetCommit]);
+  }
 
   return { tmpBranch: tmpBranchName, previousBranch };
 }

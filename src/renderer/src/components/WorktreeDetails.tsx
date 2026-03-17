@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Worktree, GitStatus, isTmpBranch, formatBranchName } from "../types";
 import { client } from "../main";
 import BranchChanges from "./BranchChanges";
-import TerminalPanel from "./TerminalPanel";
 
 interface WorktreeDetailsProps {
   worktree: Worktree;
@@ -280,9 +279,6 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
         <BranchChanges worktreePath={worktree.path} repoPath={repoPath} />
       )}
 
-      {worktree.path && (
-        <TerminalPanel worktreePath={worktree.path} />
-      )}
     </div>
   );
 };

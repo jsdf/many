@@ -142,7 +142,10 @@ App data is stored in a platform-specific location:
 **Layout Structure**:
 
 - Left sidebar: Repository selector, worktree list, action buttons
-- Main content area: Worktree details or welcome screen
+- Main content area: Split pane view
+  - Left pane: Worktree details (overview, actions, git status, branch changes) — scrollable
+  - Right pane: Terminal stack (vertically stacked terminals with resizable dividers)
+  - Horizontal divider between panes is draggable to resize
 - Modal overlays: Repository addition, worktree creation, merge, rebase, switch, release, global settings
 
 **State Management**:
@@ -161,8 +164,9 @@ App data is stored in a platform-specific location:
 - `src/renderer/src/styles.css` - Dark theme styling, responsive design
 - `src/renderer/src/components/` - React components:
   - `Sidebar.tsx` - Repository selector, worktree list
-  - `MainContent.tsx` - Main content area, dispatches to detail view and modals
+  - `MainContent.tsx` - Split pane layout: left (WorktreeDetails) + right (TerminalStack), with draggable divider
   - `WorktreeDetails.tsx` - Worktree detail view with actions
+  - `TerminalStack.tsx` - Vertically stacked terminals with resizable dividers
   - `WelcomeScreen.tsx` - Welcome/empty state view
   - `CreateWorktreeModal.tsx` - Worktree creation dialog
   - `AddRepoModal.tsx` - Repository addition and configuration

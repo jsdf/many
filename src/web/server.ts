@@ -420,7 +420,7 @@ const createRouter = () => {
       }),
 
     releaseWorktree: t.procedure
-      .input((input: unknown) => input as { repoPath: string; worktreePath: string })
+      .input((input: unknown) => input as { repoPath: string; worktreePath: string; force?: boolean })
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
@@ -432,7 +432,7 @@ const createRouter = () => {
         // Kill any terminal sessions for this worktree
         terminalManager.cleanupWorktree(input.worktreePath);
 
-        const newBranch = await gitPool.releaseWorktree(input.repoPath, worktree, repoConfig);
+        const newBranch = await gitPool.releaseWorktree(input.repoPath, worktree, repoConfig, input.force ?? false);
         return { success: true, branch: newBranch };
       }),
 

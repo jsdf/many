@@ -1124,6 +1124,7 @@ body {
 }
 
 .modal-overlay .modal {
+    display: block;
     background: #2d2d2d;
     border: 1px solid #3c3c3c;
     border-radius: 8px;
@@ -1259,4 +1260,121 @@ body {
 
 .radio-hint.warning {
     color: #ff6b6b;
+}
+
+/* Split pane layout */
+.worktree-split-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.worktree-split-left {
+    overflow-y: auto;
+    min-width: 200px;
+}
+
+.worktree-split-right {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.worktree-split-divider {
+    width: 4px;
+    flex-shrink: 0;
+    background: #3c3c3c;
+    cursor: ew-resize;
+    transition: background 0.15s;
+}
+
+.worktree-split-divider:hover,
+.worktree-split-divider.active {
+    background: #0e639c;
+}
+
+/* Terminal stack */
+.terminal-stack {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.terminal-stack-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+}
+
+.terminal-stack-label {
+    font-size: 13px;
+    color: #8c8c8c;
+    font-weight: 500;
+}
+
+.terminal-stack-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.terminal-stack-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #8c8c8c;
+}
+
+.terminal-stack-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 60px;
+}
+
+.terminal-stack-pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 10px;
+    background: #2d2d2d;
+    border-bottom: 1px solid #3c3c3c;
+    flex-shrink: 0;
+}
+
+.terminal-stack-pane-title {
+    font-size: 12px;
+    color: #8c8c8c;
+}
+
+.terminal-stack-pane-body {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.terminal-stack-divider {
+    height: 4px;
+    flex-shrink: 0;
+    background: #3c3c3c;
+    cursor: ns-resize;
+    transition: background 0.15s;
+}
+
+.terminal-stack-divider:hover,
+.terminal-stack-divider.active {
+    background: #0e639c;
 }

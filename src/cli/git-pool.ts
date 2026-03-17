@@ -143,12 +143,14 @@ export async function claimWorktree(
 export async function releaseWorktree(
   repoPath: string,
   worktree: WorktreeInfo,
-  config: RepositoryConfig
+  config: RepositoryConfig,
+  force: boolean = false
 ): Promise<string> {
   const result = await sharedReleaseWorktree(
     repoPath,
     worktree.path,
-    config.mainBranch
+    config.mainBranch,
+    force
   );
   return result.tmpBranch;
 }
