@@ -8,6 +8,8 @@ interface TerminalTabProps {
   terminalId: string;
   worktreePath: string;
   isVisible: boolean;
+  env?: Record<string, string>;
+  initialCommand?: string;
 }
 
 const token = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -21,6 +23,8 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   terminalId,
   worktreePath,
   isVisible,
+  env,
+  initialCommand,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -86,6 +90,8 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
           worktreePath,
           cols: xterm.cols,
           rows: xterm.rows,
+          ...(env ? { env } : {}),
+          ...(initialCommand ? { initialCommand } : {}),
         })
       );
     };

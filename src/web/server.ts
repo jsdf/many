@@ -756,8 +756,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
 
       switch (type) {
         case "create": {
-          const { worktreePath, cols, rows } = msg;
-          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24);
+          const { worktreePath, cols, rows, env, initialCommand } = msg;
+          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, env, initialCommand);
 
           // Detach from previous terminal if switching
           if (attachedTerminalId && attachedTerminalId !== terminalId) {

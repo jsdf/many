@@ -330,6 +330,14 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                               style={{ marginTop: 4 }}
                             />
                           )}
+                          <input
+                            type="text"
+                            value={pool.taskCommand || ""}
+                            onChange={(e) => updatePool(i, { taskCommand: e.target.value || undefined })}
+                            placeholder="Task command (optional, e.g. claude --dangerously-skip-permissions)"
+                            disabled={isLoading}
+                            style={{ marginTop: 4 }}
+                          />
                         </div>
                       ))}
                     </div>

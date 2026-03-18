@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Worktree, PoolConfig, formatBranchName, findWorktreePool } from "../types";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
-import TerminalStack from "./TerminalStack";
+import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 
 interface MainContentProps {
   selectedWorktree: Worktree | null;
@@ -14,10 +14,14 @@ interface MainContentProps {
   onReleaseWorktree?: (worktree: Worktree) => void;
 }
 
+export interface MainContentHandle {
+  launchTaskTerminal: (env: Record<string, string>, initialCommand: string) => void;
+}
+
 const MIN_PANE_WIDTH = 200;
 const DEFAULT_SPLIT = 0.5;
 
-const MainContent: React.FC<MainContentProps> = ({
+const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   selectedWorktree,
   currentRepo,
   pools,
@@ -25,10 +29,17 @@ const MainContent: React.FC<MainContentProps> = ({
   onMergeWorktree,
   onRebaseWorktree,
   onReleaseWorktree,
-}) => {
+}, ref) => {
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalStackRef = useRef<TerminalStackHandle>(null);
+
+  useImperativeHandle(ref, () => ({
+    launchTaskTerminal: (env: Record<string, string>, initialCommand: string) => {
+      terminalStackRef.current?.createTerminalWithCommand(env, initialCommand);
+    },
+  }), []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -106,6 +117,7 @@ const MainContent: React.FC<MainContentProps> = ({
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}
+              ref={terminalStackRef}
               worktreePath={selectedWorktree.path}
             />
           )}
@@ -113,6 +125,6 @@ const MainContent: React.FC<MainContentProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default MainContent;

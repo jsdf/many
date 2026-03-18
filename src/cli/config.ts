@@ -14,6 +14,7 @@ export interface PoolConfig {
   prefix: string;
   type: 'recyclable' | 'ephemeral';
   maintenanceCommand?: string;
+  taskCommand?: string;
 }
 
 export interface RepositoryConfig {

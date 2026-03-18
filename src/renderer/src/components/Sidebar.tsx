@@ -14,6 +14,7 @@ interface SidebarProps {
   onConfigRepo: () => void
   onSwitchWorktree?: () => void
   onClaimPool?: (pool: PoolConfig) => void
+  onNewTask?: () => void
   onGlobalSettings: () => void
 }
 
@@ -36,6 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onConfigRepo,
   onSwitchWorktree,
   onClaimPool,
+  onNewTask,
   onGlobalSettings
 }) => {
   const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
@@ -96,6 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const hasAnyPoolGroups = poolGroups.length > 0;
+  const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
 
   return (
     <div className="sidebar">
@@ -205,6 +208,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="sidebar-actions">
+        {hasTaskPools && onNewTask && (
+          <button
+            onClick={onNewTask}
+            disabled={!currentRepo}
+            className="btn btn-success"
+          >
+            New Task
+          </button>
+        )}
         <button
           data-testid="create-worktree-button"
           onClick={onCreateWorktree}

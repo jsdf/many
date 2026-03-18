@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import { client } from "../main";
 import TerminalTab from "./TerminalTab";
 
@@ -6,13 +6,19 @@ interface TerminalStackProps {
   worktreePath: string;
 }
 
+export interface TerminalStackHandle {
+  createTerminalWithCommand: (env: Record<string, string>, initialCommand: string) => void;
+}
+
 interface TerminalInfo {
   id: string;
+  env?: Record<string, string>;
+  initialCommand?: string;
 }
 
 let terminalCounter = 0;
 
-const TerminalStack: React.FC<TerminalStackProps> = ({ worktreePath }) => {
+const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ worktreePath }, ref) => {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -45,16 +51,25 @@ const TerminalStack: React.FC<TerminalStackProps> = ({ worktreePath }) => {
     };
   }, [worktreePath]);
 
-  const createTerminal = useCallback(() => {
+  const addTerminal = useCallback((env?: Record<string, string>, initialCommand?: string) => {
     terminalCounter++;
     const id = `${worktreePath}-term-${Date.now()}-${terminalCounter}`;
     setTerminals((prev) => {
-      const next = [...prev, { id }];
-      // Distribute sizes evenly
+      const next = [...prev, { id, env, initialCommand }];
       setSizes(next.map(() => 1 / next.length));
       return next;
     });
   }, [worktreePath]);
+
+  const createTerminal = useCallback(() => {
+    addTerminal();
+  }, [addTerminal]);
+
+  useImperativeHandle(ref, () => ({
+    createTerminalWithCommand: (env: Record<string, string>, initialCommand: string) => {
+      addTerminal(env, initialCommand);
+    },
+  }), [addTerminal]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
@@ -96,15 +111,12 @@ const TerminalStack: React.FC<TerminalStackProps> = ({ worktreePath }) => {
 
       setSizes((prev) => {
         const next = [...prev];
-        // Sum of sizes before the divider
         let sumBefore = 0;
         for (let i = 0; i <= dragging; i++) sumBefore += next[i];
-        // Sum of sizes for the two panes around the divider
         const pairSize = next[dragging] + next[dragging + 1];
-        // Where the divider pair starts
         const pairStart = sumBefore - next[dragging];
 
-        const minSize = 0.05; // minimum 5% per pane
+        const minSize = 0.05;
         let newTop = fraction - pairStart;
         newTop = Math.max(minSize, Math.min(pairSize - minSize, newTop));
 
@@ -180,6 +192,8 @@ const TerminalStack: React.FC<TerminalStackProps> = ({ worktreePath }) => {
                   terminalId={term.id}
                   worktreePath={worktreePath}
                   isVisible={true}
+                  env={term.env}
+                  initialCommand={term.initialCommand}
                 />
               </div>
             </div>
@@ -188,6 +202,6 @@ const TerminalStack: React.FC<TerminalStackProps> = ({ worktreePath }) => {
       </div>
     </div>
   );
-};
+});
 
 export default TerminalStack;

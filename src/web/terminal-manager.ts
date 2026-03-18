@@ -25,7 +25,9 @@ export class TerminalManager {
     terminalId: string,
     worktreePath: string,
     cols: number,
-    rows: number
+    rows: number,
+    extraEnv?: Record<string, string>,
+    initialCommand?: string
   ): boolean {
     // If session already exists, just return true (client is reconnecting)
     if (this.sessions.has(terminalId)) {
@@ -46,8 +48,17 @@ export class TerminalManager {
       env: {
         ...process.env,
         TERM: "xterm-256color",
+        ...extraEnv,
       } as Record<string, string>,
     });
+
+    // Auto-run initial command after shell starts
+    if (initialCommand) {
+      // Small delay to let the shell initialize
+      setTimeout(() => {
+        ptyProcess.write(initialCommand + "\n");
+      }, 500);
+    }
 
     const session: TerminalSession = {
       ptyProcess,

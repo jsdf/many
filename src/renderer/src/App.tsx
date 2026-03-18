@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions } from "./types";
+import React, { useState, useEffect, useRef } from "react";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
 import Sidebar from "./components/Sidebar";
-import MainContent from "./components/MainContent";
+import MainContent, { MainContentHandle } from "./components/MainContent";
+import NewTaskModal from "./components/NewTaskModal";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -35,6 +36,8 @@ const App: React.FC = () => {
   const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
   const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const mainContentRef = useRef<MainContentHandle>(null);
 
   useEffect(() => {
     loadSavedRepos();
@@ -420,6 +423,77 @@ const App: React.FC = () => {
     setShowReleaseModal(true);
   };
 
+  // Task launcher: claim/create worktree and launch command with prompt
+  const handleLaunchTask = async (pool: PoolConfig, prompt: string) => {
+    if (!currentRepo) throw new Error("No repository selected");
+
+    let targetWorktreePath: string;
+
+    if (pool.type === 'recyclable') {
+      // Find first available worktree in this pool
+      const available = worktrees.find(
+        w => w.path !== currentRepo && !w.bare && isTmpBranch(w.branch) && w.worktreeName.startsWith(pool.prefix)
+      );
+      if (!available || !available.path) {
+        throw new Error(`No available worktrees in pool "${pool.name}". Create more worktrees with prefix "${pool.prefix}".`);
+      }
+
+      // Generate a branch name from the prompt
+      const branchSlug = prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+      const branchName = `task/${branchSlug}-${Date.now().toString(36)}`;
+
+      await client.claimWorktree.mutate({
+        repoPath: currentRepo,
+        worktreePath: available.path,
+        branchName,
+      });
+
+      if (pool.maintenanceCommand) {
+        try {
+          await client.runMaintenanceCommand.mutate({
+            worktreePath: available.path,
+            command: pool.maintenanceCommand,
+          });
+        } catch (err) {
+          console.error("Maintenance command failed:", err);
+        }
+      }
+
+      targetWorktreePath = available.path;
+    } else {
+      // Ephemeral: create a new worktree
+      const name = `${pool.prefix}-${Date.now().toString(36)}`;
+      const result = await client.createPoolWorktree.mutate({
+        repoPath: currentRepo,
+        worktreeName: name,
+      });
+      targetWorktreePath = result.path;
+    }
+
+    // Refresh worktree list and select the target
+    const updatedWorktrees = await client.getWorktrees.query({
+      repoPath: currentRepo,
+    });
+    setWorktrees(updatedWorktrees);
+
+    const targetWorktree = updatedWorktrees.find(wt => wt.path === targetWorktreePath);
+    if (targetWorktree) {
+      await handleWorktreeSelect(targetWorktree);
+    }
+
+    setShowNewTaskModal(false);
+
+    // Launch the task command in a terminal after a brief delay for the UI to update
+    setTimeout(() => {
+      if (pool.taskCommand) {
+        mainContentRef.current?.launchTaskTerminal(
+          { MANY_TASK_PROMPT: prompt },
+          pool.taskCommand,
+        );
+      }
+    }, 200);
+  };
+
   const handleReleaseComplete = async () => {
     if (!currentRepo) return;
 
@@ -459,10 +533,12 @@ const App: React.FC = () => {
         onConfigRepo={() => setShowRepoConfigModal(true)}
         onSwitchWorktree={() => setShowSwitchModal(true)}
         onClaimPool={handleClaimPool}
+        onNewTask={() => setShowNewTaskModal(true)}
         onGlobalSettings={() => setShowGlobalSettingsModal(true)}
       />
 
       <MainContent
+        ref={mainContentRef}
         selectedWorktree={selectedWorktree}
         currentRepo={currentRepo}
         pools={repoConfig?.pools}
@@ -546,6 +622,14 @@ const App: React.FC = () => {
             setWorktreeToRelease(null);
           }}
           onRelease={handleReleaseComplete}
+        />
+      )}
+
+      {showNewTaskModal && repoConfig?.pools && (
+        <NewTaskModal
+          pools={repoConfig.pools}
+          onClose={() => setShowNewTaskModal(false)}
+          onLaunch={handleLaunchTask}
         />
       )}
 
