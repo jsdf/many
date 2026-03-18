@@ -27,6 +27,7 @@
     "LICENSE",
     "README.md"
   ],
+  "main": "dist-cli/electron/main.js",
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "build:cli": "tsc -p tsconfig.cli.json",
@@ -34,6 +35,10 @@
     "start": "npm run build && npm run build:cli && node dist-cli/cli/index.js web",
     "cli": "npm run build:cli && node dist-cli/cli/index.js",
     "test": "vitest run",
+    "electron:rebuild": "electron-rebuild -f -w @lydell/node-pty",
+    "electron:dev": "npm run build && npm run build:cli && npm run electron:rebuild && electron .",
+    "electron:build": "npm run build && npm run build:cli && electron-builder --mac",
+    "electron:install": "npm run electron:build && ./scripts/install-mac.sh",
     "prepublishOnly": "npm run build && npm run build:cli"
   },
   "dependencies": {
@@ -51,12 +56,34 @@
     "ws": "^8.19.0",
     "zod": "^4.0.14"
   },
+  "build": {
+    "appId": "com.jsdf.many",
+    "productName": "Many",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "public/many-shodan.png",
+      "target": "dir"
+    },
+    "files": [
+      "dist-cli/**/*",
+      "out/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [],
+    "asar": false,
+    "electronLanguages": ["en"]
+  },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
     "react-dom": "^19.2.4",
     "typescript": "^5.8.3",
     "vite": "^7.1.1",
