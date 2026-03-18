@@ -9,10 +9,18 @@ export interface Repository {
   addedAt: string;
 }
 
+export interface PoolConfig {
+  name: string;
+  prefix: string;
+  type: 'recyclable' | 'ephemeral';
+  maintenanceCommand?: string;
+}
+
 export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
   worktreeDirectory: string | null;
+  pools?: PoolConfig[];
 }
 
 export interface GlobalSettings {

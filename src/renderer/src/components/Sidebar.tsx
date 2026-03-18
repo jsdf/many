@@ -1,18 +1,26 @@
 import React, { useMemo } from 'react'
-import { Repository, Worktree, isTmpBranch, formatBranchName } from '../types'
+import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
 
 interface SidebarProps {
   repositories: Repository[]
   currentRepo: string | null
   worktrees: Worktree[]
   selectedWorktree: Worktree | null
+  pools?: PoolConfig[]
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onAddRepo: () => void
   onCreateWorktree: () => void
   onConfigRepo: () => void
   onSwitchWorktree?: () => void
+  onClaimPool?: (pool: PoolConfig) => void
   onGlobalSettings: () => void
+}
+
+interface PoolGroup {
+  pool: PoolConfig;
+  claimed: Worktree[];
+  available: Worktree[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -20,28 +28,54 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentRepo,
   worktrees,
   selectedWorktree,
+  pools,
   onRepoSelect,
   onWorktreeSelect,
   onAddRepo,
   onCreateWorktree,
   onConfigRepo,
   onSwitchWorktree,
+  onClaimPool,
   onGlobalSettings
 }) => {
-  // Separate worktrees into categories
-  const { baseWorktree, claimedWorktrees, availableWorktrees } = useMemo(() => {
+  const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
     const base = worktrees.find(w => w.path === currentRepo);
     const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
 
-    const claimed = others.filter(w => !isTmpBranch(w.branch));
-    const available = others.filter(w => isTmpBranch(w.branch));
+    if (!pools || pools.length === 0) {
+      // No pools configured — fall back to flat claimed/available
+      const claimed = others.filter(w => !isTmpBranch(w.branch));
+      const available = others.filter(w => isTmpBranch(w.branch));
+      return {
+        baseWorktree: base,
+        poolGroups: [] as PoolGroup[],
+        ungroupedClaimed: claimed,
+        ungroupedAvailable: available
+      };
+    }
+
+    // Group worktrees by pool
+    const grouped = new Set<string>();
+    const groups: PoolGroup[] = pools.map(pool => {
+      const poolWorktrees = others.filter(w => w.worktreeName.startsWith(pool.prefix));
+      poolWorktrees.forEach(w => grouped.add(w.path));
+      return {
+        pool,
+        claimed: poolWorktrees.filter(w => !isTmpBranch(w.branch)),
+        available: poolWorktrees.filter(w => isTmpBranch(w.branch))
+      };
+    });
+
+    // Ungrouped worktrees
+    const ungrouped = others.filter(w => !grouped.has(w.path));
 
     return {
       baseWorktree: base,
-      claimedWorktrees: claimed,
-      availableWorktrees: available
+      poolGroups: groups,
+      ungroupedClaimed: ungrouped.filter(w => !isTmpBranch(w.branch)),
+      ungroupedAvailable: ungrouped.filter(w => isTmpBranch(w.branch))
     };
-  }, [worktrees, currentRepo]);
+  }, [worktrees, currentRepo, pools]);
 
   const renderWorktreeItem = (worktree: Worktree, isBase = false, isAvailable = false) => (
     <div
@@ -60,6 +94,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="worktree-dirname" title={worktree.path}>{worktree.path}</div>
     </div>
   );
+
+  const hasAnyPoolGroups = poolGroups.length > 0;
 
   return (
     <div className="sidebar">
@@ -113,20 +149,56 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Base worktree */}
             {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
 
-            {/* Claimed worktrees */}
-            {claimedWorktrees.length > 0 && (
-              <div className="worktree-section">
-                <div className="worktree-section-header">Claimed</div>
-                {claimedWorktrees.map(w => renderWorktreeItem(w, false, false))}
-              </div>
-            )}
+            {/* Pool groups */}
+            {poolGroups.map(({ pool, claimed, available }) => {
+              if (claimed.length === 0 && available.length === 0) return null;
+              return (
+                <div className="worktree-section" key={pool.prefix}>
+                  <div className="worktree-section-header-row">
+                    <span className="worktree-section-header">{pool.name}</span>
+                    {pool.type === 'recyclable' && available.length > 0 && onClaimPool && (
+                      <button
+                        className="btn btn-sm btn-secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClaimPool(pool);
+                        }}
+                        title={`Claim an available ${pool.name} worktree`}
+                      >
+                        Claim
+                      </button>
+                    )}
+                  </div>
+                  {claimed.map(w => renderWorktreeItem(w, false, false))}
+                  {available.map(w => renderWorktreeItem(w, false, true))}
+                </div>
+              );
+            })}
 
-            {/* Available worktrees */}
-            {availableWorktrees.length > 0 && (
-              <div className="worktree-section">
-                <div className="worktree-section-header">Available</div>
-                {availableWorktrees.map(w => renderWorktreeItem(w, false, true))}
-              </div>
+            {/* Ungrouped worktrees */}
+            {!hasAnyPoolGroups ? (
+              <>
+                {ungroupedClaimed.length > 0 && (
+                  <div className="worktree-section">
+                    <div className="worktree-section-header">Claimed</div>
+                    {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
+                  </div>
+                )}
+                {ungroupedAvailable.length > 0 && (
+                  <div className="worktree-section">
+                    <div className="worktree-section-header">Available</div>
+                    {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
+                  </div>
+                )}
+              </>
+            ) : (
+              (ungroupedClaimed.length > 0 || ungroupedAvailable.length > 0) && (
+                <div className="worktree-section">
+                  <div className="worktree-section-header">Other</div>
+                  {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
+                  {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
+                </div>
+              )
             )}
           </>
         )}
@@ -141,7 +213,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           + Create Worktree
         </button>
-        {availableWorktrees.length > 0 && onSwitchWorktree && (
+        {!hasAnyPoolGroups && ungroupedAvailable.length > 0 && onSwitchWorktree && (
           <button
             data-testid="switch-worktree-button"
             onClick={onSwitchWorktree}

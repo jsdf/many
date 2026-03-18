@@ -1378,3 +1378,64 @@ body {
 .terminal-stack-divider.active {
     background: #0e639c;
 }
+
+/* Pool section header with claim button */
+.worktree-section-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 4px;
+    margin-bottom: 4px;
+}
+
+.worktree-section-header-row .worktree-section-header {
+    margin-bottom: 0;
+}
+
+/* Pool config in repo settings */
+.pool-config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pool-config-item {
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.pool-config-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.pool-input-name {
+    flex: 2;
+}
+
+.pool-input-prefix {
+    flex: 1;
+}
+
+.pool-input-type {
+    flex: 1;
+}
+
+.pool-config-item input,
+.pool-config-item select {
+    padding: 6px 8px;
+    background: #3c3c3c;
+    border: 1px solid #565656;
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 13px;
+}
+
+.pool-config-item input:focus,
+.pool-config-item select:focus {
+    outline: none;
+    border-color: #0e639c;
+}

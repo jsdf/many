@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Worktree, formatBranchName } from "../types";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Worktree, PoolConfig, formatBranchName, findWorktreePool } from "../types";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import TerminalStack from "./TerminalStack";
@@ -7,6 +7,7 @@ import TerminalStack from "./TerminalStack";
 interface MainContentProps {
   selectedWorktree: Worktree | null;
   currentRepo: string | null;
+  pools?: PoolConfig[];
   onArchiveWorktree: (worktree: Worktree) => Promise<void>;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
@@ -19,6 +20,7 @@ const DEFAULT_SPLIT = 0.5;
 const MainContent: React.FC<MainContentProps> = ({
   selectedWorktree,
   currentRepo,
+  pools,
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
@@ -58,6 +60,10 @@ const MainContent: React.FC<MainContentProps> = ({
     };
   }, [dragging]);
 
+  // Determine if release should be shown based on pool type
+  const worktreePool = selectedWorktree ? findWorktreePool(selectedWorktree, pools) : null;
+  const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
+
   if (!selectedWorktree) {
     return <WelcomeScreen />;
   }
@@ -87,7 +93,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onArchiveWorktree={onArchiveWorktree}
             onMergeWorktree={onMergeWorktree}
             onRebaseWorktree={onRebaseWorktree}
-            onReleaseWorktree={onReleaseWorktree}
+            onReleaseWorktree={showRelease ? onReleaseWorktree : undefined}
           />
         </div>
 

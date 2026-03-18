@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { RepositoryConfig } from "../types";
+import { RepositoryConfig, PoolConfig } from "../types";
 import { client } from "../main";
 
 interface AddRepoModalProps {
@@ -9,6 +9,12 @@ interface AddRepoModalProps {
   onAdd?: (repoPath: string) => Promise<void>;
   onSaveConfig?: (config: RepositoryConfig) => Promise<void>;
 }
+
+const emptyPool = (): PoolConfig => ({
+  name: "",
+  prefix: "",
+  type: "recyclable",
+});
 
 const AddRepoModal: React.FC<AddRepoModalProps> = ({
   mode,
@@ -21,6 +27,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   const [mainBranch, setMainBranch] = useState("");
   const [initCommand, setInitCommand] = useState("");
   const [worktreeDirectory, setWorktreeDirectory] = useState("");
+  const [pools, setPools] = useState<PoolConfig[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -50,6 +57,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           setMainBranch(config.mainBranch || "");
           setInitCommand(config.initCommand || "");
           setWorktreeDirectory(config.worktreeDirectory || "");
+          setPools(config.pools || []);
 
           // Load available branches
           const repoBranches = await client.getBranches.query({
@@ -89,6 +97,9 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
         return;
       }
 
+      // Validate pools
+      const validPools = pools.filter(p => p.name.trim() && p.prefix.trim());
+
       setIsLoading(true);
       setError(null);
 
@@ -97,6 +108,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           mainBranch: mainBranch.trim(),
           initCommand: initCommand.trim() || null,
           worktreeDirectory: worktreeDirectory.trim() || null,
+          pools: validPools.length > 0 ? validPools : undefined,
         });
       } catch (error) {
         setError(
@@ -158,9 +170,17 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
     }
   };
 
+  const updatePool = (index: number, updates: Partial<PoolConfig>) => {
+    setPools(prev => prev.map((p, i) => i === index ? { ...p, ...updates } : p));
+  };
+
+  const removePool = (index: number) => {
+    setPools(prev => prev.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="modal show" onClick={handleBackdropClick}>
-      <div className="modal-content">
+      <div className="modal-content" style={isConfigMode ? { maxWidth: 600 } : undefined}>
         <div className="modal-header">
           <h3>
             {isConfigMode ? "Repository Configuration" : "Add Repository"}
@@ -193,13 +213,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                       </>
                     )}
                   </select>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "#8c8c8c",
-                      marginTop: "8px",
-                    }}
-                  >
+                  <p className="form-hint">
                     This branch will be used as the default base branch when
                     creating new worktrees.
                   </p>
@@ -216,13 +230,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     placeholder="e.g. npm install"
                     disabled={isLoading}
                   />
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "#8c8c8c",
-                      marginTop: "8px",
-                    }}
-                  >
+                  <p className="form-hint">
                     This command will be executed in each new worktree after
                     it's created.
                   </p>
@@ -249,15 +257,86 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                       Browse...
                     </button>
                   </div>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: "#8c8c8c",
-                      marginTop: "8px",
-                    }}
-                  >
+                  <p className="form-hint">
                     Directory where new worktrees will be created. Defaults to
                     parent directory of the repository if not set.
+                  </p>
+                </div>
+
+                {/* Pools configuration */}
+                <div className="form-group">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <label style={{ margin: 0 }}>Worktree Pools:</label>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setPools(prev => [...prev, emptyPool()])}
+                      disabled={isLoading}
+                    >
+                      + Add Pool
+                    </button>
+                  </div>
+                  {pools.length === 0 ? (
+                    <p className="form-hint" style={{ margin: 0 }}>
+                      No pools configured. Worktrees will be shown in a flat list.
+                    </p>
+                  ) : (
+                    <div className="pool-config-list">
+                      {pools.map((pool, i) => (
+                        <div key={i} className="pool-config-item">
+                          <div className="pool-config-row">
+                            <input
+                              type="text"
+                              value={pool.name}
+                              onChange={(e) => updatePool(i, { name: e.target.value })}
+                              placeholder="Pool name"
+                              disabled={isLoading}
+                              className="pool-input-name"
+                            />
+                            <input
+                              type="text"
+                              value={pool.prefix}
+                              onChange={(e) => updatePool(i, { prefix: e.target.value })}
+                              placeholder="Prefix"
+                              disabled={isLoading}
+                              className="pool-input-prefix"
+                            />
+                            <select
+                              value={pool.type}
+                              onChange={(e) => updatePool(i, { type: e.target.value as PoolConfig['type'] })}
+                              disabled={isLoading}
+                              className="pool-input-type"
+                            >
+                              <option value="recyclable">Recyclable</option>
+                              <option value="ephemeral">Ephemeral</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => removePool(i)}
+                              disabled={isLoading}
+                              title="Remove pool"
+                            >
+                              x
+                            </button>
+                          </div>
+                          {pool.type === 'recyclable' && (
+                            <input
+                              type="text"
+                              value={pool.maintenanceCommand || ""}
+                              onChange={(e) => updatePool(i, { maintenanceCommand: e.target.value || undefined })}
+                              placeholder="Maintenance command (optional, e.g. npm install)"
+                              disabled={isLoading}
+                              style={{ marginTop: 4 }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="form-hint">
+                    Group worktrees by name prefix. Recyclable pools have claim/release;
+                    ephemeral pools are one-time use.
                   </p>
                 </div>
               </>

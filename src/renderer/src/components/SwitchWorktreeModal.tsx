@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Worktree, isTmpBranch, GitStatus, formatBranchName } from '../types'
+import { Worktree, PoolConfig, isTmpBranch, GitStatus, formatBranchName } from '../types'
 import { client } from '../main'
 
 interface SwitchWorktreeModalProps {
   currentRepo: string | null
   worktrees: Worktree[]
+  poolFilter?: PoolConfig
   onClose: () => void
   onSwitch: (worktreePath: string, branchName: string) => Promise<void>
 }
@@ -12,6 +13,7 @@ interface SwitchWorktreeModalProps {
 const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   currentRepo,
   worktrees,
+  poolFilter,
   onClose,
   onSwitch
 }) => {
@@ -22,10 +24,12 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [worktreeStatus, setWorktreeStatus] = useState<GitStatus | null>(null)
 
-  // Filter to only show available worktrees
-  const availableWorktrees = worktrees.filter(w =>
-    w.path !== currentRepo && !w.bare && isTmpBranch(w.branch)
-  )
+  // Filter to only show available worktrees, optionally scoped to a pool
+  const availableWorktrees = worktrees.filter(w => {
+    if (w.path === currentRepo || w.bare || !isTmpBranch(w.branch)) return false;
+    if (poolFilter) return w.worktreeName.startsWith(poolFilter.prefix);
+    return true;
+  })
 
   useEffect(() => {
     if (currentRepo) {
@@ -110,7 +114,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Switch Worktree to Branch</h3>
+          <h3>{poolFilter ? `Claim ${poolFilter.name} Worktree` : 'Switch Worktree to Branch'}</h3>
           <button className="modal-close" onClick={onClose}>&times;</button>
         </div>
 

@@ -464,6 +464,22 @@ const createRouter = () => {
         return true;
       }),
 
+    runMaintenanceCommand: t.procedure
+      .input((input: unknown) => input as { worktreePath: string; command: string })
+      .mutation(async ({ input }) => {
+        const { execSync } = await import("child_process");
+        try {
+          execSync(input.command, {
+            cwd: input.worktreePath,
+            stdio: "pipe",
+            timeout: 120000,
+          });
+          return { success: true };
+        } catch (err: any) {
+          throw new Error(`Maintenance command failed: ${err.message}`);
+        }
+      }),
+
     getBranchDiff: t.procedure
       .input((input: unknown) => input as { worktreePath: string; repoPath: string })
       .query(async ({ input }) => {

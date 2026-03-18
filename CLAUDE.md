@@ -18,6 +18,7 @@ Features/TODO
   - [x] checks if branch is fully merged into main branch before archiving
   - [x] prompts user for confirmation if branch is not merged
 - [x] claim/release worktrees (worktree pool workflow)
+- [x] multiple named pools per repo (prefix-based grouping, recyclable/ephemeral types, maintenance commands)
 - [x] switch worktree to a different branch
 - [x] rebase worktree branch onto main
 - [x] merge worktree branch into main
@@ -129,7 +130,7 @@ App data is stored in a platform-specific location:
 ```typescript
 {
   repositories: [{ path, name, addedAt }],
-  repositoryConfigs: { [repoPath]: { mainBranch, initCommand, worktreeDirectory } },
+  repositoryConfigs: { [repoPath]: { mainBranch, initCommand, worktreeDirectory, pools? } },
   selectedRepo: string | null,
   recentWorktrees: { [repoPath]: worktreePath },
   windowBounds: { width, height, x?, y? },

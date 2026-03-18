@@ -37,13 +37,27 @@ export const extractWorktreeName = (worktreePath: string, repoPath: string): str
   return worktreeDirName;
 };
 
+// Find which pool a worktree belongs to based on its name prefix
+export const findWorktreePool = (worktree: Worktree, pools?: PoolConfig[]): PoolConfig | null => {
+  if (!pools || pools.length === 0) return null;
+  return pools.find(pool => worktree.worktreeName.startsWith(pool.prefix)) || null;
+};
+
 // Pool change handling options
 export type ChangeHandlingOption = "stash" | "commit" | "amend" | "clean" | "cancel";
+
+export interface PoolConfig {
+  name: string;
+  prefix: string;
+  type: 'recyclable' | 'ephemeral';
+  maintenanceCommand?: string;
+}
 
 export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
   worktreeDirectory: string | null;
+  pools?: PoolConfig[];
 }
 
 export interface MergeOptions {

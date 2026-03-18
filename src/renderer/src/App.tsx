@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Repository, Worktree, RepositoryConfig, MergeOptions } from "./types";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions } from "./types";
 import Sidebar from "./components/Sidebar";
 import MainContent from "./components/MainContent";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
@@ -33,6 +33,8 @@ const App: React.FC = () => {
     null
   );
   const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
+  const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
+  const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
 
   useEffect(() => {
     loadSavedRepos();
@@ -73,6 +75,7 @@ const App: React.FC = () => {
       setCurrentRepo(null);
       setWorktrees([]);
       setSelectedWorktree(null);
+      setRepoConfig(null);
       await client.setSelectedRepo.mutate({ repoPath: null });
       return;
     }
@@ -81,7 +84,11 @@ const App: React.FC = () => {
 
     try {
       await client.setSelectedRepo.mutate({ repoPath });
-      const repoWorktrees = await client.getWorktrees.query({ repoPath });
+      const [repoWorktrees, config] = await Promise.all([
+        client.getWorktrees.query({ repoPath }),
+        client.getRepoConfig.query({ repoPath }),
+      ]);
+      setRepoConfig(config);
       setWorktrees(repoWorktrees);
 
       // Auto-select the most recent worktree or default to main/base branch
@@ -206,6 +213,7 @@ const App: React.FC = () => {
 
     try {
       await client.saveRepoConfig.mutate({ repoPath: currentRepo, config });
+      setRepoConfig(config);
       setShowRepoConfigModal(false);
     } catch (error) {
       console.error("Failed to save repo config:", error);
@@ -364,6 +372,20 @@ const App: React.FC = () => {
         branchName
       });
 
+      // If claiming from a pool with a maintenance command, run it
+      const pool = claimPoolTarget;
+      if (pool?.maintenanceCommand) {
+        try {
+          await client.runMaintenanceCommand.mutate({
+            worktreePath,
+            command: pool.maintenanceCommand,
+          });
+        } catch (err) {
+          console.error("Maintenance command failed:", err);
+          // Don't block the claim on maintenance failure
+        }
+      }
+
       // Refresh the worktree list
       const updatedWorktrees = await client.getWorktrees.query({
         repoPath: currentRepo
@@ -379,10 +401,17 @@ const App: React.FC = () => {
       }
 
       setShowSwitchModal(false);
+      setClaimPoolTarget(null);
     } catch (error) {
       console.error("Failed to switch worktree:", error);
       throw error;
     }
+  };
+
+  // Pool management: Claim a worktree from a specific pool
+  const handleClaimPool = (pool: PoolConfig) => {
+    setClaimPoolTarget(pool);
+    setShowSwitchModal(true);
   };
 
   // Pool management: Release a worktree back to the pool
@@ -422,18 +451,21 @@ const App: React.FC = () => {
         currentRepo={currentRepo}
         worktrees={worktrees}
         selectedWorktree={selectedWorktree}
+        pools={repoConfig?.pools}
         onRepoSelect={selectRepo}
         onWorktreeSelect={handleWorktreeSelect}
         onAddRepo={() => setShowAddRepoModal(true)}
         onCreateWorktree={() => setShowCreateModal(true)}
         onConfigRepo={() => setShowRepoConfigModal(true)}
         onSwitchWorktree={() => setShowSwitchModal(true)}
+        onClaimPool={handleClaimPool}
         onGlobalSettings={() => setShowGlobalSettingsModal(true)}
       />
 
       <MainContent
         selectedWorktree={selectedWorktree}
         currentRepo={currentRepo}
+        pools={repoConfig?.pools}
         onArchiveWorktree={archiveWorktree}
         onMergeWorktree={openMergeModal}
         onRebaseWorktree={openRebaseModal}
@@ -496,7 +528,11 @@ const App: React.FC = () => {
         <SwitchWorktreeModal
           currentRepo={currentRepo}
           worktrees={worktrees}
-          onClose={() => setShowSwitchModal(false)}
+          poolFilter={claimPoolTarget ?? undefined}
+          onClose={() => {
+            setShowSwitchModal(false);
+            setClaimPoolTarget(null);
+          }}
           onSwitch={switchWorktree}
         />
       )}
