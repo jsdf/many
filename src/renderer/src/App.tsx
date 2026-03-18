@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const mainContentRef = useRef<MainContentHandle>(null);
 
   useEffect(() => {
@@ -519,8 +520,16 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      
-      <Sidebar
+      {sidebarCollapsed && (
+        <button
+          className="sidebar-expand-btn"
+          onClick={() => setSidebarCollapsed(false)}
+          title="Show sidebar"
+        >
+          &#9776;
+        </button>
+      )}
+      {!sidebarCollapsed && <Sidebar
         repositories={repositories}
         currentRepo={currentRepo}
         worktrees={worktrees}
@@ -535,7 +544,8 @@ const App: React.FC = () => {
         onClaimPool={handleClaimPool}
         onNewTask={() => setShowNewTaskModal(true)}
         onGlobalSettings={() => setShowGlobalSettingsModal(true)}
-      />
+        onCollapse={() => setSidebarCollapsed(true)}
+      />}
 
       <MainContent
         ref={mainContentRef}

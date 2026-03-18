@@ -16,6 +16,7 @@ interface SidebarProps {
   onClaimPool?: (pool: PoolConfig) => void
   onNewTask?: () => void
   onGlobalSettings: () => void
+  onCollapse?: () => void
 }
 
 interface PoolGroup {
@@ -38,7 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSwitchWorktree,
   onClaimPool,
   onNewTask,
-  onGlobalSettings
+  onGlobalSettings,
+  onCollapse
 }) => {
   const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
     const base = worktrees.find(w => w.path === currentRepo);
@@ -114,6 +116,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-secondary">
             Add Repo
           </button>
+          {onCollapse && (
+            <button onClick={onCollapse} className="btn btn-secondary" title="Hide sidebar">
+              &#x2039;
+            </button>
+          )}
         </div>
       </div>
 

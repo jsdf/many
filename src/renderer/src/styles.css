@@ -1439,3 +1439,28 @@ body {
     outline: none;
     border-color: #0e639c;
 }
+
+/* Sidebar expand button (when collapsed) */
+.sidebar-expand-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    color: #8c8c8c;
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sidebar-expand-btn:hover {
+    background: #3c3c3c;
+    color: #ffffff;
+}
