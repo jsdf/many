@@ -70,7 +70,9 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
-    xterm.loadAddon(new WebLinksAddon());
+    xterm.loadAddon(new WebLinksAddon((_event, uri) => {
+      window.open(uri);
+    }));
 
     xterm.open(containerRef.current);
     fitAddon.fit();
