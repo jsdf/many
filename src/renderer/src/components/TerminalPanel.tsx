@@ -17,7 +17,6 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // On mount, check for existing server-side sessions for this worktree
   useEffect(() => {
     let cancelled = false;
 
@@ -62,7 +61,6 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
       }
       setTerminals((prev) => {
         const next = prev.filter((t) => t.id !== terminalId);
-        // If we closed the active tab, switch to another
         if (activeTerminalId === terminalId) {
           setActiveTerminalId(next.length > 0 ? next[next.length - 1].id : null);
         }
@@ -75,37 +73,39 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
   const hasTerminals = terminals.length > 0;
 
   return (
-    <div className="terminal-panel">
-      <div className="terminal-panel-header">
-        <div className="terminal-panel-title-row">
+    <div className="mt-5 border border-base-300 rounded-lg overflow-hidden">
+      <div className="bg-base-200 border-b border-base-300">
+        <div className="flex items-center justify-between px-2.5 py-1.5">
           {hasTerminals && (
             <button
-              className="btn btn-sm"
+              className="btn btn-ghost btn-xs"
               onClick={() => setIsCollapsed(!isCollapsed)}
               title={isCollapsed ? "Expand terminal" : "Collapse terminal"}
             >
               {isCollapsed ? "▶" : "▼"} Terminal
             </button>
           )}
-          {!hasTerminals && <span className="terminal-panel-label">Terminal</span>}
-          <button className="btn btn-sm btn-secondary" onClick={createTerminal}>
+          {!hasTerminals && <span className="text-sm text-base-content/60">Terminal</span>}
+          <button className="btn btn-neutral btn-xs" onClick={createTerminal}>
             + New Terminal
           </button>
         </div>
 
         {hasTerminals && !isCollapsed && (
-          <div className="terminal-tabs">
+          <div className="flex gap-0 px-2.5 border-t border-base-300">
             {terminals.map((term, i) => (
               <div
                 key={term.id}
-                className={`terminal-tab ${
-                  activeTerminalId === term.id ? "active" : ""
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-b-2 select-none ${
+                  activeTerminalId === term.id
+                    ? 'text-base-content border-b-primary'
+                    : 'text-base-content/60 border-b-transparent hover:text-base-content/80 hover:bg-base-300'
                 }`}
                 onClick={() => setActiveTerminalId(term.id)}
               >
-                <span className="terminal-tab-name">Terminal {i + 1}</span>
+                <span className="whitespace-nowrap">Terminal {i + 1}</span>
                 <button
-                  className="terminal-tab-close"
+                  className="btn btn-ghost btn-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     closeTerminal(term.id);
@@ -121,7 +121,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
       </div>
 
       {hasTerminals && !isCollapsed && (
-        <div className="terminal-panel-body">
+        <div className="h-[350px] bg-base-100">
           {terminals.map((term) => (
             <TerminalTab
               key={term.id}

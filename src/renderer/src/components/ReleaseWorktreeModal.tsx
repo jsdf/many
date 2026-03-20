@@ -52,7 +52,6 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
     setShowForceOption(false)
 
     try {
-      // Handle dirty state based on selected option
       if (!force && status && (status.hasChanges || status.hasStaged)) {
         switch (changeHandling) {
           case 'stash':
@@ -92,7 +91,6 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
         }
       }
 
-      // Release the worktree
       await client.releaseWorktree.mutate({
         repoPath: currentRepo,
         worktreePath: worktree.path,
@@ -110,114 +108,81 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
   const hasChanges = status && (status.hasChanges || status.hasStaged)
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Release Worktree</h3>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={onClose}>
+      <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">Release Worktree</h3>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>&times;</button>
         </div>
 
-        <div className="modal-content">
-          <p>
+        <div className="p-5">
+          <p className="mb-2">
             Release worktree <strong>{worktree.path?.split('/').pop()}</strong> back to the pool.
           </p>
-          <p className="text-muted">
+          <p className="text-sm text-base-content/60 mb-2">
             Current branch: <strong>{branchName}</strong>
           </p>
-          <p className="text-muted">
+          <p className="text-sm text-base-content/60 mb-4">
             The branch will still exist and can be reclaimed later with "Switch Branch".
           </p>
 
           {isLoading ? (
-            <p>Loading worktree status...</p>
+            <p className="text-base-content/60 italic">Loading worktree status...</p>
           ) : hasChanges ? (
-            <div className="release-changes">
-              <h4>Uncommitted Changes</h4>
-              <div className="change-summary">
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold mb-3 text-warning">Uncommitted Changes</h4>
+              <div className="bg-base-100 rounded p-3 mb-4">
                 {status.staged.length > 0 && (
-                  <p className="change-staged">Staged: {status.staged.length} file(s)</p>
+                  <p className="text-xs my-1 text-success">Staged: {status.staged.length} file(s)</p>
                 )}
                 {status.modified.length > 0 && (
-                  <p className="change-modified">Modified: {status.modified.length} file(s)</p>
+                  <p className="text-xs my-1 text-warning">Modified: {status.modified.length} file(s)</p>
                 )}
                 {status.not_added.length > 0 && (
-                  <p className="change-untracked">Untracked: {status.not_added.length} file(s)</p>
+                  <p className="text-xs my-1 text-base-content/60">Untracked: {status.not_added.length} file(s)</p>
                 )}
                 {status.deleted.length > 0 && (
-                  <p className="change-deleted">Deleted: {status.deleted.length} file(s)</p>
+                  <p className="text-xs my-1 text-error">Deleted: {status.deleted.length} file(s)</p>
                 )}
               </div>
 
-              <div className="form-group">
-                <label>How would you like to handle these changes?</label>
-                <div className="radio-group">
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="changeHandling"
-                      value="stash"
-                      checked={changeHandling === 'stash'}
-                      onChange={() => setChangeHandling('stash')}
-                      disabled={isReleasing}
-                    />
-                    <div>
-                      <strong>Stash</strong>
-                      <p className="radio-hint">Save changes to stash for later</p>
-                    </div>
-                  </label>
-
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="changeHandling"
-                      value="commit"
-                      checked={changeHandling === 'commit'}
-                      onChange={() => setChangeHandling('commit')}
-                      disabled={isReleasing}
-                    />
-                    <div>
-                      <strong>Commit</strong>
-                      <p className="radio-hint">Create a new commit with these changes</p>
-                    </div>
-                  </label>
-
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="changeHandling"
-                      value="amend"
-                      checked={changeHandling === 'amend'}
-                      onChange={() => setChangeHandling('amend')}
-                      disabled={isReleasing}
-                    />
-                    <div>
-                      <strong>Amend</strong>
-                      <p className="radio-hint">Add changes to the last commit</p>
-                    </div>
-                  </label>
-
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="changeHandling"
-                      value="clean"
-                      checked={changeHandling === 'clean'}
-                      onChange={() => setChangeHandling('clean')}
-                      disabled={isReleasing}
-                    />
-                    <div>
-                      <strong>Discard</strong>
-                      <p className="radio-hint warning">Permanently delete all uncommitted changes</p>
-                    </div>
-                  </label>
+              <div className="mb-4">
+                <label className="block mb-2 text-sm font-medium">How would you like to handle these changes?</label>
+                <div className="flex flex-col gap-2 mt-2">
+                  {[
+                    { value: 'stash', label: 'Stash', hint: 'Save changes to stash for later', hintClass: 'text-base-content/60' },
+                    { value: 'commit', label: 'Commit', hint: 'Create a new commit with these changes', hintClass: 'text-base-content/60' },
+                    { value: 'amend', label: 'Amend', hint: 'Add changes to the last commit', hintClass: 'text-base-content/60' },
+                    { value: 'clean', label: 'Discard', hint: 'Permanently delete all uncommitted changes', hintClass: 'text-error' },
+                  ].map(opt => (
+                    <label
+                      key={opt.value}
+                      className="flex items-start gap-2.5 px-3 py-2.5 bg-base-100 border border-base-300 rounded cursor-pointer hover:border-base-content/30 transition-colors"
+                    >
+                      <input
+                        type="radio"
+                        name="changeHandling"
+                        value={opt.value}
+                        checked={changeHandling === opt.value}
+                        onChange={() => setChangeHandling(opt.value as ChangeHandlingOption)}
+                        disabled={isReleasing}
+                        className="radio radio-sm mt-0.5"
+                      />
+                      <div>
+                        <strong className="text-sm block">{opt.label}</strong>
+                        <p className={`text-xs mt-0.5 ${opt.hintClass}`}>{opt.hint}</p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
 
                 {changeHandling === 'commit' && (
-                  <div className="form-group" style={{ marginTop: '1rem' }}>
-                    <label htmlFor="commit-message">Commit Message</label>
+                  <div className="mt-4">
+                    <label className="block mb-2 text-sm font-medium" htmlFor="commit-message">Commit Message</label>
                     <input
                       id="commit-message"
                       type="text"
+                      className="input input-bordered w-full"
                       value={commitMessage}
                       onChange={e => setCommitMessage(e.target.value)}
                       placeholder="Enter commit message"
@@ -231,13 +196,13 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
             <p className="text-success">Worktree is clean. Ready to release.</p>
           )}
 
-          {error && <p className="form-error">{error}</p>}
+          {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
         </div>
 
-        <div className="modal-actions">
+        <div className="flex justify-end gap-3 p-5 border-t border-base-300">
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-neutral"
             onClick={onClose}
             disabled={isReleasing}
           >

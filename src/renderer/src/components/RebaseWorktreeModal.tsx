@@ -47,17 +47,14 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
           client.getRepoConfig.query({ repoPath: currentRepo }),
         ]);
 
-        // Filter out the current branch since we can't rebase onto ourselves
         const availableBranches = repoBranches
           .filter((branch) => branch !== fromBranch)
           .map(formatBranchName);
         setBranches(availableBranches);
 
-        // Set default target branch
         let defaultBranch =
           formatBranchName(repoConfig.mainBranch || undefined) || "main";
 
-        // If the configured main branch doesn't exist or is the current branch, find an alternative
         if (!availableBranches.includes(defaultBranch)) {
           defaultBranch =
             defaultBranches.find((branch) =>
@@ -72,7 +69,6 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
         console.error("Failed to load branches:", error);
         setError("Failed to load branch list");
 
-        // Set fallback default branches
         const fallbackBranches = defaultBranches.filter(
           (branch) => branch !== formatBranchName(fromBranch)
         );
@@ -112,27 +108,27 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Rebase Branch</h2>
-          <button className="modal-close" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={onClose}>
+      <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">Rebase Branch</h3>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
             ×
           </button>
         </div>
 
-        <div className="modal-content">
-          <p>
-            Rebase <strong>{formatBranchName(fromBranch)}</strong> onto another
-            branch.
+        <div className="p-5">
+          <p className="mb-4">
+            Rebase <strong>{formatBranchName(fromBranch)}</strong> onto another branch.
           </p>
 
           <form onSubmit={handleRebase}>
-            <div className="form-group">
-              <label htmlFor="onto-branch">Target branch:</label>
-              <div className="branch-select-container">
+            <div className="mb-5">
+              <label className="block mb-2 text-sm font-medium" htmlFor="onto-branch">Target branch:</label>
+              <div className="flex gap-2 items-center">
                 <select
                   id="onto-branch"
+                  className="select select-bordered flex-1"
                   value={ontoBranch}
                   onChange={(e) => setOntoBranch(e.target.value)}
                   disabled={isLoadingBranches || isRebasing}
@@ -146,27 +142,24 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
                   ))}
                 </select>
                 {isLoadingBranches && (
-                  <span className="loading-spinner">Loading...</span>
+                  <span className="text-sm text-base-content/60">Loading...</span>
                 )}
               </div>
             </div>
 
-            <div className="info-box">
-              <p>
-                <strong>Note:</strong> This will rebase the current branch (
-                {fromBranch}) onto {ontoBranch || "the selected branch"}. The
-                operation will replay your commits on top of the target branch.
+            <div className="mb-5 p-3 bg-base-100 border border-base-300 rounded-lg text-sm">
+              <p className="mb-2">
+                <strong>Note:</strong> This will rebase the current branch ({fromBranch}) onto {ontoBranch || "the selected branch"}. The operation will replay your commits on top of the target branch.
               </p>
-              <p>
-                <strong>Warning:</strong> Rebasing rewrites commit history. Only
-                rebase branches that haven't been pushed or shared with others.
+              <p className="text-warning">
+                <strong>Warning:</strong> Rebasing rewrites commit history. Only rebase branches that haven't been pushed or shared with others.
               </p>
             </div>
 
-            {error && <div className="error-message">{error}</div>}
+            {error && <div className="text-error text-sm mt-2 p-2 bg-error/10 rounded mb-4">{error}</div>}
 
-            <div className="modal-actions">
-              <button type="button" onClick={onClose} disabled={isRebasing}>
+            <div className="flex justify-end gap-3">
+              <button type="button" className="btn btn-neutral" onClick={onClose} disabled={isRebasing}>
                 Cancel
               </button>
               <button

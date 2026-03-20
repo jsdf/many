@@ -24,7 +24,6 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [worktreeStatus, setWorktreeStatus] = useState<GitStatus | null>(null)
 
-  // Filter to only show available worktrees, optionally scoped to a pool
   const availableWorktrees = worktrees.filter(w => {
     if (w.path === currentRepo || w.bare || !isTmpBranch(w.branch)) return false;
     if (poolFilter) return w.worktreeName.startsWith(poolFilter.prefix);
@@ -35,7 +34,6 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
     if (currentRepo) {
       loadBranches()
     }
-    // Auto-select first available worktree
     if (availableWorktrees.length > 0 && !selectedWorktree) {
       setSelectedWorktree(availableWorktrees[0].path || '')
     }
@@ -81,14 +79,12 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
       return
     }
 
-    // Check for dirty state
     if (worktreeStatus && (worktreeStatus.hasChanges || worktreeStatus.hasStaged)) {
       const confirmed = confirm(
         'The selected worktree has uncommitted changes that will be lost. Continue?'
       )
       if (!confirmed) return
 
-      // Clean the worktree
       try {
         await client.cleanWorktreeChanges.mutate({ worktreePath: selectedWorktree })
       } catch (err) {
@@ -111,73 +107,79 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   const branchExists = existingBranches.includes(branchName.trim())
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{poolFilter ? `Claim ${poolFilter.name} Worktree` : 'Switch Worktree to Branch'}</h3>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={onClose}>
+      <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">
+            {poolFilter ? `Claim ${poolFilter.name} Worktree` : 'Switch Worktree to Branch'}
+          </h3>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>&times;</button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="worktree-select">Select Worktree</label>
-            <select
-              id="worktree-select"
-              value={selectedWorktree}
-              onChange={e => setSelectedWorktree(e.target.value)}
-              disabled={isLoading}
-            >
-              {availableWorktrees.length === 0 ? (
-                <option value="">No available worktrees</option>
-              ) : (
-                availableWorktrees.map(w => (
-                  <option key={w.path} value={w.path}>
-                    {w.path?.split('/').pop()} ({formatBranchName(w.branch)})
-                  </option>
-                ))
+          <div className="p-5">
+            <div className="mb-5">
+              <label className="block mb-2 text-sm font-medium" htmlFor="worktree-select">Select Worktree</label>
+              <select
+                id="worktree-select"
+                className="select select-bordered w-full"
+                value={selectedWorktree}
+                onChange={e => setSelectedWorktree(e.target.value)}
+                disabled={isLoading}
+              >
+                {availableWorktrees.length === 0 ? (
+                  <option value="">No available worktrees</option>
+                ) : (
+                  availableWorktrees.map(w => (
+                    <option key={w.path} value={w.path}>
+                      {w.path?.split('/').pop()} ({formatBranchName(w.branch)})
+                    </option>
+                  ))
+                )}
+              </select>
+              {worktreeStatus && (worktreeStatus.hasChanges || worktreeStatus.hasStaged) && (
+                <p className="text-xs text-warning mt-1.5">
+                  ⚠️ This worktree has uncommitted changes that will be discarded
+                </p>
               )}
-            </select>
-            {worktreeStatus && (worktreeStatus.hasChanges || worktreeStatus.hasStaged) && (
-              <p className="form-warning">
-                ⚠️ This worktree has uncommitted changes that will be discarded
+            </div>
+
+            <div className="mb-5">
+              <label className="block mb-2 text-sm font-medium" htmlFor="branch-input">Branch Name</label>
+              <input
+                id="branch-input"
+                type="text"
+                className="input input-bordered w-full"
+                value={branchName}
+                onChange={e => setBranchName(e.target.value)}
+                placeholder="e.g., feature/my-feature"
+                disabled={isLoading}
+                autoFocus
+                list="branch-suggestions"
+              />
+              <datalist id="branch-suggestions">
+                {existingBranches
+                  .filter(b => !b.startsWith('tmp-'))
+                  .map(b => (
+                    <option key={b} value={b} />
+                  ))}
+              </datalist>
+              <p className="text-xs text-base-content/50 mt-1.5">
+                {branchExists
+                  ? `Will checkout existing branch "${branchName}"`
+                  : branchName.trim()
+                  ? `Will create new branch "${branchName}" from default branch`
+                  : 'Enter a branch name to claim this worktree'}
               </p>
-            )}
+            </div>
+
+            {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="branch-input">Branch Name</label>
-            <input
-              id="branch-input"
-              type="text"
-              value={branchName}
-              onChange={e => setBranchName(e.target.value)}
-              placeholder="e.g., feature/my-feature"
-              disabled={isLoading}
-              autoFocus
-              list="branch-suggestions"
-            />
-            <datalist id="branch-suggestions">
-              {existingBranches
-                .filter(b => !b.startsWith('tmp-'))
-                .map(b => (
-                  <option key={b} value={b} />
-                ))}
-            </datalist>
-            <p className="form-hint">
-              {branchExists
-                ? `Will checkout existing branch "${branchName}"`
-                : branchName.trim()
-                ? `Will create new branch "${branchName}" from default branch`
-                : 'Enter a branch name to claim this worktree'}
-            </p>
-          </div>
-
-          {error && <p className="form-error">{error}</p>}
-
-          <div className="modal-actions">
+          <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-neutral"
               onClick={onClose}
               disabled={isLoading}
             >

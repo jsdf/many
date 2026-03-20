@@ -52,20 +52,17 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
       if (isConfigMode && currentRepo) {
         setIsLoadingBranches(true);
         try {
-          // Load current config
           const config = await client.getRepoConfig.query({ repoPath: currentRepo });
           setMainBranch(config.mainBranch || "");
           setInitCommand(config.initCommand || "");
           setWorktreeDirectory(config.worktreeDirectory || "");
           setPools(config.pools || []);
 
-          // Load available branches
           const repoBranches = await client.getBranches.query({
             repoPath: currentRepo
           });
           setBranches(repoBranches);
 
-          // Auto-select default if no main branch is configured
           if (!config.mainBranch) {
             const defaultBranch = defaultBranches.find((branch) =>
               repoBranches.includes(branch)
@@ -97,7 +94,6 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
         return;
       }
 
-      // Validate pools
       const validPools = pools.filter(p => p.name.trim() && p.prefix.trim());
 
       setIsLoading(true);
@@ -179,24 +175,28 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   };
 
   return (
-    <div className="modal show" onClick={handleBackdropClick}>
-      <div className="modal-content" style={isConfigMode ? { maxWidth: 600 } : undefined}>
-        <div className="modal-header">
-          <h3>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={handleBackdropClick}>
+      <div
+        className="bg-base-200 border border-base-300 rounded-xl overflow-y-auto"
+        style={{ width: '90%', maxWidth: isConfigMode ? 600 : 500, maxHeight: '90vh' }}
+      >
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">
             {isConfigMode ? "Repository Configuration" : "Add Repository"}
           </h3>
-          <button className="modal-close" onClick={onClose}>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
             &times;
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+          <div className="p-5">
             {isConfigMode ? (
               <>
-                <div className="form-group">
-                  <label htmlFor="main-branch-select">Main branch:</label>
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="main-branch-select">Main branch:</label>
                   <select
                     id="main-branch-select"
+                    className="select select-bordered w-full"
                     value={mainBranch}
                     onChange={(e) => setMainBranch(e.target.value)}
                     disabled={isLoading || isLoadingBranches}
@@ -213,36 +213,36 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                       </>
                     )}
                   </select>
-                  <p className="form-hint">
-                    This branch will be used as the default base branch when
-                    creating new worktrees.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    This branch will be used as the default base branch when creating new worktrees.
                   </p>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="init-command-input">
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="init-command-input">
                     Initialization command (optional):
                   </label>
                   <input
                     type="text"
                     id="init-command-input"
+                    className="input input-bordered w-full"
                     value={initCommand}
                     onChange={(e) => setInitCommand(e.target.value)}
                     placeholder="e.g. npm install"
                     disabled={isLoading}
                   />
-                  <p className="form-hint">
-                    This command will be executed in each new worktree after
-                    it's created.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    This command will be executed in each new worktree after it's created.
                   </p>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="worktree-directory-input">
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="worktree-directory-input">
                     Worktree directory (optional):
                   </label>
-                  <div className="path-input-group">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       id="worktree-directory-input"
+                      className="input input-bordered flex-1"
                       value={worktreeDirectory}
                       onChange={(e) => setWorktreeDirectory(e.target.value)}
                       placeholder="Leave empty to use parent directory of repo"
@@ -250,26 +250,24 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     />
                     <button
                       type="button"
-                      className="btn btn-secondary"
+                      className="btn btn-neutral"
                       onClick={handleBrowseWorktreeDir}
                       disabled={isLoading}
                     >
                       Browse...
                     </button>
                   </div>
-                  <p className="form-hint">
-                    Directory where new worktrees will be created. Defaults to
-                    parent directory of the repository if not set.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Directory where new worktrees will be created. Defaults to parent directory of the repository if not set.
                   </p>
                 </div>
 
-                {/* Pools configuration */}
-                <div className="form-group">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <label style={{ margin: 0 }}>Worktree Pools:</label>
+                <div className="mb-5">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium">Worktree Pools:</label>
                     <button
                       type="button"
-                      className="btn btn-sm btn-secondary"
+                      className="btn btn-neutral btn-xs"
                       onClick={() => setPools(prev => [...prev, emptyPool()])}
                       disabled={isLoading}
                     >
@@ -277,21 +275,21 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     </button>
                   </div>
                   {pools.length === 0 ? (
-                    <p className="form-hint" style={{ margin: 0 }}>
+                    <p className="text-xs text-base-content/50">
                       No pools configured. Worktrees will be shown in a flat list.
                     </p>
                   ) : (
-                    <div className="pool-config-list">
+                    <div className="flex flex-col gap-2">
                       {pools.map((pool, i) => (
-                        <div key={i} className="pool-config-item">
-                          <div className="pool-config-row">
+                        <div key={i} className="bg-base-100 border border-base-300 rounded p-2">
+                          <div className="flex gap-1.5 items-center">
                             <input
                               type="text"
                               value={pool.name}
                               onChange={(e) => updatePool(i, { name: e.target.value })}
                               placeholder="Pool name"
                               disabled={isLoading}
-                              className="pool-input-name"
+                              className="input input-bordered input-sm flex-[2]"
                             />
                             <input
                               type="text"
@@ -299,20 +297,20 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                               onChange={(e) => updatePool(i, { prefix: e.target.value })}
                               placeholder="Prefix"
                               disabled={isLoading}
-                              className="pool-input-prefix"
+                              className="input input-bordered input-sm flex-1"
                             />
                             <select
                               value={pool.type}
                               onChange={(e) => updatePool(i, { type: e.target.value as PoolConfig['type'] })}
                               disabled={isLoading}
-                              className="pool-input-type"
+                              className="select select-bordered select-sm flex-1"
                             >
                               <option value="recyclable">Recyclable</option>
                               <option value="ephemeral">Ephemeral</option>
                             </select>
                             <button
                               type="button"
-                              className="btn btn-sm btn-secondary"
+                              className="btn btn-neutral btn-xs"
                               onClick={() => removePool(i)}
                               disabled={isLoading}
                               title="Remove pool"
@@ -327,7 +325,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                               onChange={(e) => updatePool(i, { maintenanceCommand: e.target.value || undefined })}
                               placeholder="Maintenance command (optional, e.g. npm install)"
                               disabled={isLoading}
-                              style={{ marginTop: 4 }}
+                              className="input input-bordered input-sm w-full mt-1"
                             />
                           )}
                           <input
@@ -336,26 +334,26 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                             onChange={(e) => updatePool(i, { taskCommand: e.target.value || undefined })}
                             placeholder="Task command (optional, e.g. claude --dangerously-skip-permissions)"
                             disabled={isLoading}
-                            style={{ marginTop: 4 }}
+                            className="input input-bordered input-sm w-full mt-1"
                           />
                         </div>
                       ))}
                     </div>
                   )}
-                  <p className="form-hint">
-                    Group worktrees by name prefix. Recyclable pools have claim/release;
-                    ephemeral pools are one-time use.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Group worktrees by name prefix. Recyclable pools have claim/release; ephemeral pools are one-time use.
                   </p>
                 </div>
               </>
             ) : (
-              <div className="form-group">
-                <label htmlFor="repo-path-input">Repository path:</label>
-                <div className="path-input-group">
+              <div className="mb-5">
+                <label className="block mb-2 text-sm font-medium" htmlFor="repo-path-input">Repository path:</label>
+                <div className="flex gap-2">
                   <input
                     type="text"
                     id="repo-path-input"
                     data-testid="repo-path-input"
+                    className="input input-bordered flex-1"
                     value={repoPath}
                     onChange={(e) => setRepoPath(e.target.value)}
                     placeholder="/path/to/your/repo"
@@ -365,7 +363,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   <button
                     type="button"
                     data-testid="browse-folder-button"
-                    className="btn btn-secondary"
+                    className="btn btn-neutral"
                     onClick={handleBrowse}
                     disabled={isLoading}
                   >
@@ -374,13 +372,13 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                 </div>
               </div>
             )}
-            {error && <p className="error-message">{error}</p>}
+            {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
           </div>
-          <div className="modal-footer">
+          <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
               data-testid="add-repo-cancel"
-              className="btn btn-secondary"
+              className="btn btn-neutral"
               onClick={onClose}
               disabled={isLoading}
             >

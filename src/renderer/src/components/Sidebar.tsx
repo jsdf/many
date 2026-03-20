@@ -47,7 +47,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
 
     if (!pools || pools.length === 0) {
-      // No pools configured — fall back to flat claimed/available
       const claimed = others.filter(w => !isTmpBranch(w.branch));
       const available = others.filter(w => isTmpBranch(w.branch));
       return {
@@ -58,7 +57,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       };
     }
 
-    // Group worktrees by pool
     const grouped = new Set<string>();
     const groups: PoolGroup[] = pools.map(pool => {
       const poolWorktrees = others.filter(w => w.worktreeName.startsWith(pool.prefix));
@@ -70,7 +68,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       };
     });
 
-    // Ungrouped worktrees
     const ungrouped = others.filter(w => !grouped.has(w.path));
 
     return {
@@ -85,17 +82,26 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div
       key={worktree.path}
       data-testid={`worktree-item-${worktree.branch || 'main'}`}
-      className={`worktree-item ${selectedWorktree?.path === worktree.path ? 'active' : ''} ${isAvailable ? 'available' : ''}`}
+      className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
+        selectedWorktree?.path === worktree.path
+          ? 'border-l-primary bg-primary/15'
+          : 'border-l-transparent hover:bg-base-content/5'
+      } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''}`}
       onClick={() => onWorktreeSelect(worktree)}
     >
-      <div className="worktree-item-header">
-        <span className={`worktree-status-dot ${isAvailable ? 'available' : 'claimed'}`} title={isAvailable ? 'Available' : 'Claimed'} />
-        <div className="worktree-branch" title={formatBranchName(worktree.branch)}>
+      <div className="flex items-center gap-2">
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
+          title={isAvailable ? 'Available' : 'Claimed'}
+        />
+        <div className="text-sm font-semibold leading-tight" title={formatBranchName(worktree.branch)}>
           {formatBranchName(worktree.branch)}
-          {isBase && <span className="worktree-tag base">base</span>}
+          {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
         </div>
       </div>
-      <div className="worktree-dirname" title={worktree.path}>{worktree.path}</div>
+      <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
+        {worktree.path}
+      </div>
     </div>
   );
 
@@ -103,30 +109,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <div className="sidebar-header-title">
-          <img src="/many-shodan.png" alt="" className="sidebar-icon" />
-          <h2>Worktrees</h2>
+    <div className="w-[300px] min-w-[200px] max-w-[600px] shrink-0 bg-base-200 border-r border-base-300 flex flex-col p-2 resize-x overflow-auto">
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center gap-2">
+          <img src="/many-shodan.png" alt="" className="w-12 h-12" />
+          <h2 className="text-lg font-semibold">Worktrees</h2>
         </div>
-        <div className="sidebar-header-actions">
-          <button onClick={onGlobalSettings} className="btn btn-secondary" title="Global settings">
+        <div className="flex gap-1.5">
+          <button onClick={onGlobalSettings} className="btn btn-neutral btn-sm" title="Global settings">
             &#9881;
           </button>
-          <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-secondary">
+          <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-neutral btn-sm">
             Add Repo
           </button>
           {onCollapse && (
-            <button onClick={onCollapse} className="btn btn-secondary" title="Hide sidebar">
+            <button onClick={onCollapse} className="btn btn-neutral btn-sm" title="Hide sidebar">
               &#x2039;
             </button>
           )}
         </div>
       </div>
 
-      <div className="repo-selector">
+      <div className="mb-3 flex gap-2 items-center">
         <select
           data-testid="repo-selector"
+          className="select select-bordered select-sm flex-1"
           value={currentRepo || ''}
           onChange={(e) => onRepoSelect(e.target.value || null)}
         >
@@ -141,7 +148,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             data-testid="repo-config-button"
             onClick={onConfigRepo}
-            className="btn btn-secondary repo-config-btn"
+            className="btn btn-neutral btn-sm"
             title="Configure repository settings"
           >
             ⚙️
@@ -149,26 +156,26 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="worktree-list">
+      <div className="flex-1 overflow-y-auto mb-3">
         {worktrees.length === 0 ? (
-          <p className="empty-state">
+          <p className="text-base-content/50 italic text-center mt-12">
             {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
           </p>
         ) : (
           <>
-            {/* Base worktree */}
             {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
 
-            {/* Pool groups */}
             {poolGroups.map(({ pool, claimed, available }) => {
               if (claimed.length === 0 && available.length === 0) return null;
               return (
-                <div className="worktree-section" key={pool.prefix}>
-                  <div className="worktree-section-header-row">
-                    <span className="worktree-section-header">{pool.name}</span>
+                <div className="mt-2" key={pool.prefix}>
+                  <div className="flex items-center justify-between pr-1 mb-1">
+                    <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
+                      {pool.name}
+                    </span>
                     {pool.type === 'recyclable' && available.length > 0 && onClaimPool && (
                       <button
-                        className="btn btn-sm btn-secondary"
+                        className="btn btn-neutral btn-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           onClaimPool(pool);
@@ -185,26 +192,31 @@ const Sidebar: React.FC<SidebarProps> = ({
               );
             })}
 
-            {/* Ungrouped worktrees */}
             {!hasAnyPoolGroups ? (
               <>
                 {ungroupedClaimed.length > 0 && (
-                  <div className="worktree-section">
-                    <div className="worktree-section-header">Claimed</div>
+                  <div className="mt-2">
+                    <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                      Claimed
+                    </div>
                     {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
                   </div>
                 )}
                 {ungroupedAvailable.length > 0 && (
-                  <div className="worktree-section">
-                    <div className="worktree-section-header">Available</div>
+                  <div className="mt-2">
+                    <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                      Available
+                    </div>
                     {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
                   </div>
                 )}
               </>
             ) : (
               (ungroupedClaimed.length > 0 || ungroupedAvailable.length > 0) && (
-                <div className="worktree-section">
-                  <div className="worktree-section-header">Other</div>
+                <div className="mt-2">
+                  <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                    Other
+                  </div>
                   {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
                   {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
                 </div>
@@ -214,12 +226,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="sidebar-actions">
+      <div className="flex flex-col gap-2">
         {hasTaskPools && onNewTask && (
           <button
             onClick={onNewTask}
             disabled={!currentRepo}
-            className="btn btn-success"
+            className="btn btn-success w-full"
           >
             New Task
           </button>
@@ -228,7 +240,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           data-testid="create-worktree-button"
           onClick={onCreateWorktree}
           disabled={!currentRepo}
-          className="btn btn-primary"
+          className="btn btn-primary w-full"
         >
           + Create Worktree
         </button>
@@ -237,7 +249,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             data-testid="switch-worktree-button"
             onClick={onSwitchWorktree}
             disabled={!currentRepo}
-            className="btn btn-secondary"
+            className="btn btn-neutral w-full"
             title="Claim an available worktree for a branch"
           >
             Switch Branch

@@ -24,7 +24,6 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [dragging, setDragging] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load existing sessions on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -141,21 +140,21 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const hasTerminals = terminals.length > 0;
 
   return (
-    <div className="terminal-stack" ref={containerRef}>
-      <div className="terminal-stack-header">
-        <span className="terminal-stack-label">Terminals</span>
-        <button className="btn btn-sm btn-secondary" onClick={createTerminal}>
+    <div className="flex flex-col h-full overflow-hidden" ref={containerRef}>
+      <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-200 border-b border-base-300 shrink-0">
+        <span className="text-sm text-base-content/60 font-medium">Terminals</span>
+        <button className="btn btn-neutral btn-xs" onClick={createTerminal}>
           + New
         </button>
       </div>
       <div
-        className="terminal-stack-body"
+        className="flex-1 flex flex-col overflow-hidden min-h-0"
         style={{ userSelect: dragging !== null ? "none" : undefined }}
       >
         {!hasTerminals && (
-          <div className="terminal-stack-empty">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60">
             <p>No terminals open</p>
-            <button className="btn btn-secondary" onClick={createTerminal}>
+            <button className="btn btn-neutral" onClick={createTerminal}>
               + New Terminal
             </button>
           </div>
@@ -164,30 +163,30 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           <React.Fragment key={term.id}>
             {i > 0 && (
               <div
-                className={`terminal-stack-divider ${dragging === i - 1 ? "active" : ""}`}
+                className={`h-1 shrink-0 cursor-ns-resize transition-colors ${dragging === i - 1 ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
                 onMouseDown={(e) => handleMouseDown(i - 1, e)}
               />
             )}
             <div
-              className="terminal-stack-pane"
+              className="flex flex-col overflow-hidden min-h-[60px]"
               style={{
                 flex: `${sizes[i] ?? 1 / terminals.length} 0 0`,
                 minHeight: 0,
               }}
             >
-              <div className="terminal-stack-pane-header">
-                <span className="terminal-stack-pane-title">
+              <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-300 border-b border-base-300 shrink-0">
+                <span className="text-xs text-base-content/60">
                   Terminal {i + 1}
                 </span>
                 <button
-                  className="terminal-tab-close"
+                  className="btn btn-ghost btn-xs"
                   onClick={() => closeTerminal(term.id)}
                   title="Close terminal"
                 >
                   ×
                 </button>
               </div>
-              <div className="terminal-stack-pane-body">
+              <div className="flex-1 overflow-hidden min-h-0">
                 <TerminalTab
                   terminalId={term.id}
                   worktreePath={worktreePath}

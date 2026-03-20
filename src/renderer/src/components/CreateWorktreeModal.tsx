@@ -85,7 +85,6 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
     loadBranches()
   }, [currentRepo])
 
-  // Auto-scroll init output
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
@@ -122,9 +121,8 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
 
         buffer += decoder.decode(value, { stream: true })
 
-        // Parse SSE events from buffer
         const lines = buffer.split('\n')
-        buffer = lines.pop() || '' // Keep incomplete line in buffer
+        buffer = lines.pop() || ''
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -193,11 +191,9 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
 
       setIsCreating(false)
 
-      // If there's an init command, stream its output
       if (result.initCommand) {
         await runInitStream(result.path, result.initCommand)
       } else {
-        // No init command, close immediately
         onClose()
       }
     } catch (error) {
@@ -212,36 +208,35 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
     }
   }
 
-  // After creation + init, show the output area instead of the form
   const showInitOutput = initRunning || initDone
 
   return (
-    <div className="modal show" onClick={handleBackdropClick}>
-      <div className="modal-content">
-        <div className="modal-header">
-          <h3>Create New Worktree</h3>
-          <button className="modal-close" onClick={onClose} disabled={initRunning}>&times;</button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={handleBackdropClick}>
+      <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">Create New Worktree</h3>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose} disabled={initRunning}>&times;</button>
         </div>
 
         {!showInitOutput && (
           <>
-            <div className="modal-tabs">
+            <div className="flex border-b border-base-300 px-5">
               <button
-                className={`modal-tab${activeTab === 'free' ? ' active' : ''}`}
+                className={`bg-transparent border-none border-b-2 text-sm px-4 py-2.5 cursor-pointer transition-colors ${activeTab === 'free' ? 'text-base-content border-b-primary' : 'text-base-content/60 border-b-transparent hover:text-base-content'}`}
                 onClick={() => setActiveTab('free')}
                 type="button"
               >
                 Free Worktree
               </button>
               <button
-                className={`modal-tab${activeTab === 'newBranch' ? ' active' : ''}`}
+                className={`bg-transparent border-none border-b-2 text-sm px-4 py-2.5 cursor-pointer transition-colors ${activeTab === 'newBranch' ? 'text-base-content border-b-primary' : 'text-base-content/60 border-b-transparent hover:text-base-content'}`}
                 onClick={() => setActiveTab('newBranch')}
                 type="button"
               >
                 New Branch
               </button>
               <button
-                className={`modal-tab${activeTab === 'existingBranch' ? ' active' : ''}`}
+                className={`bg-transparent border-none border-b-2 text-sm px-4 py-2.5 cursor-pointer transition-colors ${activeTab === 'existingBranch' ? 'text-base-content border-b-primary' : 'text-base-content/60 border-b-transparent hover:text-base-content'}`}
                 onClick={() => setActiveTab('existingBranch')}
                 type="button"
               >
@@ -250,32 +245,34 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div className="modal-body">
+              <div className="p-5">
                 {activeTab === 'free' && (
-                  <div className="form-group">
-                    <label htmlFor="worktree-name-input">Worktree name:</label>
+                  <div className="mb-5">
+                    <label className="block mb-2 text-sm font-medium" htmlFor="worktree-name-input">Worktree name:</label>
                     <input
                       type="text"
                       id="worktree-name-input"
                       data-testid="worktree-name-input"
+                      className="input input-bordered w-full"
                       value={worktreeName}
                       onChange={(e) => setWorktreeName(e.target.value)}
                       placeholder="e.g., feature-1, experiment, task-42..."
                       autoFocus
                       disabled={isCreating}
                     />
-                    <p className="form-hint">Creates a pool worktree on a temporary branch, ready to be claimed later.</p>
+                    <p className="text-xs text-base-content/50 mt-1.5">Creates a pool worktree on a temporary branch, ready to be claimed later.</p>
                   </div>
                 )}
 
                 {activeTab === 'newBranch' && (
                   <>
-                    <div className="form-group">
-                      <label htmlFor="branch-input">New branch name:</label>
+                    <div className="mb-5">
+                      <label className="block mb-2 text-sm font-medium" htmlFor="branch-input">New branch name:</label>
                       <input
                         type="text"
                         id="branch-input"
                         data-testid="branch-name-input"
+                        className="input input-bordered w-full"
                         value={branchName}
                         onChange={(e) => setBranchName(e.target.value)}
                         placeholder="e.g., username/feature-name, fix-bug, add-feature..."
@@ -284,10 +281,11 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
                       />
                     </div>
 
-                    <div className="form-group">
-                      <label htmlFor="base-branch-select">Base branch:</label>
+                    <div className="mb-5">
+                      <label className="block mb-2 text-sm font-medium" htmlFor="base-branch-select">Base branch:</label>
                       <select
                         id="base-branch-select"
+                        className="select select-bordered w-full"
                         value={baseBranch}
                         onChange={(e) => setBaseBranch(e.target.value)}
                         disabled={isCreating || isLoadingBranches}
@@ -307,10 +305,11 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
                 )}
 
                 {activeTab === 'existingBranch' && (
-                  <div className="form-group">
-                    <label htmlFor="existing-branch-select">Select existing branch:</label>
+                  <div className="mb-5">
+                    <label className="block mb-2 text-sm font-medium" htmlFor="existing-branch-select">Select existing branch:</label>
                     <select
                       id="existing-branch-select"
+                      className="select select-bordered w-full"
                       value={selectedExistingBranch}
                       onChange={(e) => setSelectedExistingBranch(e.target.value)}
                       disabled={isCreating || isLoadingBranches}
@@ -325,13 +324,13 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
                   </div>
                 )}
 
-                {error && <p className="error-message">{error}</p>}
+                {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
               </div>
-              <div className="modal-footer">
+              <div className="flex justify-end gap-3 p-5 border-t border-base-300">
                 <button
                   type="button"
                   data-testid="create-worktree-cancel"
-                  className="btn btn-secondary"
+                  className="btn btn-neutral"
                   onClick={onClose}
                   disabled={isCreating}
                 >
@@ -356,18 +355,21 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
 
         {showInitOutput && (
           <>
-            <div className="modal-body">
-              <p style={{ marginBottom: 12, color: '#cccccc' }}>
+            <div className="p-5">
+              <p className="mb-3 text-base-content/80">
                 Running init command...
               </p>
-              <div className="init-output" ref={outputRef}>
+              <div
+                className="bg-base-100 border border-base-300 rounded p-3 max-h-[300px] overflow-y-auto font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-base-content/80"
+                ref={outputRef}
+              >
                 {initOutput.map((line, i) => (
-                  <span key={i} className={line.type === 'stderr' ? 'stderr' : undefined}>
+                  <span key={i} className={line.type === 'stderr' ? 'text-warning' : undefined}>
                     {line.text}
                   </span>
                 ))}
                 {initDone && (
-                  <div className={initExitCode === 0 ? 'init-done' : 'init-error'}>
+                  <div className={`mt-2 ${initExitCode === 0 ? 'text-success' : 'text-error'}`}>
                     {initExitCode === 0
                       ? '\nInit command completed successfully.'
                       : `\nInit command failed with exit code ${initExitCode}.`}
@@ -375,7 +377,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
                 )}
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="flex justify-end gap-3 p-5 border-t border-base-300">
               <button
                 type="button"
                 className="btn btn-primary"

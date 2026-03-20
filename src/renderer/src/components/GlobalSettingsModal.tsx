@@ -68,60 +68,60 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose }) =>
   };
 
   return (
-    <div className="modal show" onClick={handleBackdropClick}>
-      <div className="modal-content">
-        <div className="modal-header">
-          <h3>Global Settings</h3>
-          <button className="modal-close" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={handleBackdropClick}>
+      <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center p-5 border-b border-base-300">
+          <h3 className="text-lg font-semibold m-0">Global Settings</h3>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
             &times;
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
+          <div className="p-5">
             {isLoading ? (
-              <p className="text-muted">Loading settings...</p>
+              <p className="text-base-content/60 italic">Loading settings...</p>
             ) : (
               <>
-                <div className="form-group">
-                  <label htmlFor="default-editor-input">Default Editor:</label>
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="default-editor-input">Default Editor:</label>
                   <input
                     type="text"
                     id="default-editor-input"
+                    className="input input-bordered w-full"
                     value={defaultEditor}
                     onChange={(e) => setDefaultEditor(e.target.value)}
                     placeholder="e.g. code, cursor, subl"
                     disabled={isSaving}
                   />
-                  <p className="form-hint">
-                    Command used to open worktrees in an editor. Leave empty to
-                    auto-detect.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Command used to open worktrees in an editor. Leave empty to auto-detect.
                   </p>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="default-terminal-input">
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="default-terminal-input">
                     Default Terminal:
                   </label>
                   <input
                     type="text"
                     id="default-terminal-input"
+                    className="input input-bordered w-full"
                     value={defaultTerminal}
                     onChange={(e) => setDefaultTerminal(e.target.value)}
                     placeholder="e.g. Terminal, iTerm, Warp"
                     disabled={isSaving}
                   />
-                  <p className="form-hint">
-                    Terminal app name (macOS) or command (Linux). Leave empty to
-                    use system default.
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Terminal app name (macOS) or command (Linux). Leave empty to use system default.
                   </p>
                 </div>
               </>
             )}
-            {error && <p className="error-message">{error}</p>}
+            {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
           </div>
-          <div className="modal-footer">
+          <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-neutral"
               onClick={onClose}
               disabled={isSaving}
             >

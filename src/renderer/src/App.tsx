@@ -248,58 +248,24 @@ const App: React.FC = () => {
       throw new Error("No repository selected");
     }
 
-    const performArchive = async (force = false) => {
-      if (worktree.path) {
-        await client.archiveWorktree.mutate({
-          repoPath: currentRepo,
-          worktreePath: worktree.path,
-          force
-        });
-      }
+    if (worktree.path) {
+      await client.archiveWorktree.mutate({
+        repoPath: currentRepo,
+        worktreePath: worktree.path,
+        force: true
+      });
+    }
 
-      // Refresh the worktree list
-      if (currentRepo) {
-        const updatedWorktrees = await client.getWorktrees.query({
-          repoPath: currentRepo
-        });
-        setWorktrees(updatedWorktrees);
+    // Refresh the worktree list
+    if (currentRepo) {
+      const updatedWorktrees = await client.getWorktrees.query({
+        repoPath: currentRepo
+      });
+      setWorktrees(updatedWorktrees);
 
-        // Clear selection if the archived worktree was selected
-        if (selectedWorktree === worktree) {
-          setSelectedWorktree(null);
-        }
-      }
-    };
-
-    const handleMergeError = async (error: any, errorPrefix: string) => {
-      const branchInfo = error.message.replace(errorPrefix, "");
-      const confirmed = confirm(
-        `${branchInfo}\n\nAre you sure you want to archive this worktree anyway? The branch will be preserved in git.`
-      );
-
-      if (confirmed) {
-        try {
-          await performArchive(true);
-        } catch (forceError) {
-          console.error("Failed to force archive worktree:", forceError);
-          throw forceError;
-        }
-      }
-    };
-
-    try {
-      await performArchive();
-    } catch (error: any) {
-      console.error("Failed to archive worktree:", error);
-
-      // Handle special merge check errors with user confirmation
-      if (error?.message?.includes("UNMERGED_BRANCH:")) {
-        await handleMergeError(error, "UNMERGED_BRANCH:");
-      } else if (error?.message?.includes("MERGE_CHECK_FAILED:")) {
-        await handleMergeError(error, "MERGE_CHECK_FAILED:");
-      } else {
-        // Re-throw other errors
-        throw error;
+      // Clear selection if the archived worktree was selected
+      if (selectedWorktree === worktree) {
+        setSelectedWorktree(null);
       }
     }
   };
@@ -425,8 +391,18 @@ const App: React.FC = () => {
   };
 
   // Task launcher: claim/create worktree and launch command with prompt
-  const handleLaunchTask = async (pool: PoolConfig, prompt: string) => {
+  const handleLaunchTask = async (pool: PoolConfig, prompt: string, startingPoint?: string) => {
     if (!currentRepo) throw new Error("No repository selected");
+
+    // Resolve starting point to a branch name if provided
+    let resolvedBranch: string | undefined;
+    if (startingPoint) {
+      const result = await client.resolveStartingPoint.mutate({
+        repoPath: currentRepo,
+        startingPoint,
+      });
+      resolvedBranch = result.branchName;
+    }
 
     let targetWorktreePath: string;
 
@@ -439,9 +415,9 @@ const App: React.FC = () => {
         throw new Error(`No available worktrees in pool "${pool.name}". Create more worktrees with prefix "${pool.prefix}".`);
       }
 
-      // Generate a branch name from the prompt
-      const branchSlug = prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
-      const branchName = `task/${branchSlug}-${Date.now().toString(36)}`;
+      // Use resolved branch from starting point, or generate from prompt
+      const branchName = resolvedBranch
+        ?? `task/${prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()}-${Date.now().toString(36)}`;
 
       await client.claimWorktree.mutate({
         repoPath: currentRepo,
@@ -469,6 +445,27 @@ const App: React.FC = () => {
         worktreeName: name,
       });
       targetWorktreePath = result.path;
+
+      // If there's a starting point branch, check it out in the new worktree
+      if (resolvedBranch) {
+        await client.claimWorktree.mutate({
+          repoPath: currentRepo,
+          worktreePath: result.path,
+          branchName: resolvedBranch,
+        });
+      }
+
+      // Run the repo init command (e.g. npm install) if configured
+      if (result.initCommand) {
+        try {
+          await client.runMaintenanceCommand.mutate({
+            worktreePath: result.path,
+            command: result.initCommand,
+          });
+        } catch (err) {
+          console.error("Init command failed:", err);
+        }
+      }
     }
 
     // Refresh worktree list and select the target
@@ -519,10 +516,10 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app">
+    <div className="flex h-screen">
       {sidebarCollapsed && (
         <button
-          className="sidebar-expand-btn"
+          className="btn btn-ghost btn-sm absolute top-2 left-2 z-10"
           onClick={() => setSidebarCollapsed(false)}
           title="Show sidebar"
         >

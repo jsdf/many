@@ -35,15 +35,15 @@ const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle }> = ({ patc
   const filename = useMemo(() => getFilename(patch), [patch]);
 
   return (
-    <div className="file-diff-entry">
+    <div className="border border-base-300 rounded overflow-hidden">
       <div
-        className="file-diff-header"
+        className="px-2.5 py-1.5 bg-base-300 cursor-pointer select-none font-mono text-sm text-base-content/80 hover:bg-base-300/80"
         onClick={() => setCollapsed(!collapsed)}
       >
         <span>{collapsed ? "▶" : "▼"} {filename}</span>
       </div>
       {!collapsed && (
-        <div className="file-diff-body">
+        <div className="overflow-x-auto">
           <PatchDiff
             patch={patch}
             options={{
@@ -100,33 +100,31 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
 
   if (loading && !diff) {
     return (
-      <div className="branch-changes-content">
-        <p>Loading...</p>
+      <div className="bg-base-200 border border-base-300 rounded-lg p-4">
+        <p className="text-base-content/60 italic m-0">Loading...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="branch-changes-content">
-        <p className="text-error">{error}</p>
+      <div className="bg-base-200 border border-base-300 rounded-lg p-4">
+        <p className="text-error m-0">{error}</p>
       </div>
     );
   }
 
   if (filePatches.length === 0) {
     return (
-      <div className="branch-changes-content">
-        <p style={{ margin: 0, color: "#8c8c8c", fontStyle: "italic" }}>
-          No changes on this branch
-        </p>
+      <div className="bg-base-200 border border-base-300 rounded-lg p-4">
+        <p className="text-base-content/60 italic m-0">No changes on this branch</p>
       </div>
     );
   }
 
   return (
-    <div className="branch-changes-content">
-      <div className="branch-changes-diff">
+    <div className="bg-base-200 border border-base-300 rounded-lg p-4 overflow-hidden w-full max-w-full">
+      <div className="text-sm overflow-hidden flex flex-col gap-2">
         {filePatches.map((filePatch, i) => (
           <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} />
         ))}
@@ -166,22 +164,22 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
   };
 
   return (
-    <div className="branch-changes">
-      <div className="branch-changes-header">
-        <h3 onClick={toggleCollapsed} style={{ cursor: "pointer" }}>
+    <div className="mt-5 w-full min-w-0">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-base font-semibold cursor-pointer select-none" onClick={toggleCollapsed}>
           {collapsed ? "▶" : "▼"} Branch Changes
         </h3>
         {!collapsed && (
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div className="flex gap-2">
             <button
-              className="btn btn-secondary"
+              className="btn btn-neutral btn-sm"
               onClick={toggleDiffStyle}
               title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
             >
               {diffStyle === "unified" ? "Split" : "Unified"}
             </button>
             <button
-              className="btn btn-secondary"
+              className="btn btn-neutral btn-sm"
               onClick={() => setRefreshKey((k) => k + 1)}
             >
               Refresh

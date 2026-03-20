@@ -71,7 +71,6 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     };
   }, [dragging]);
 
-  // Determine if release should be shown based on pool type
   const worktreePool = selectedWorktree ? findWorktreePool(selectedWorktree, pools) : null;
   const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
 
@@ -80,21 +79,21 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   }
 
   return (
-    <div className="main-content worktree-view">
-      <div className="worktree-header">
-        <div className="worktree-title">
-          <h2>{formatBranchName(selectedWorktree.branch)}</h2>
-          <span className="worktree-path">{selectedWorktree.path}</span>
+    <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
+      <div className="flex justify-between items-center px-5 py-3 bg-base-200 border-b border-base-300 shrink-0">
+        <div>
+          <h2 className="m-0 text-base font-semibold">{formatBranchName(selectedWorktree.branch)}</h2>
+          <span className="block text-xs text-base-content/50 mt-0.5">{selectedWorktree.path}</span>
         </div>
       </div>
 
       <div
-        className="worktree-split-container"
+        className="flex-1 flex overflow-hidden min-h-0"
         ref={containerRef}
         style={{ userSelect: dragging ? "none" : undefined }}
       >
         <div
-          className="worktree-split-left"
+          className="overflow-y-auto min-w-[200px]"
           style={{ flex: `0 0 ${splitFraction * 100}%` }}
         >
           <WorktreeDetails
@@ -109,11 +108,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         </div>
 
         <div
-          className={`worktree-split-divider ${dragging ? "active" : ""}`}
+          className={`w-1 shrink-0 bg-base-300 cursor-ew-resize transition-colors ${dragging ? 'bg-primary' : 'hover:bg-primary'}`}
           onMouseDown={handleMouseDown}
         />
 
-        <div className="worktree-split-right">
+        <div className="flex-1 min-w-[200px] flex flex-col overflow-hidden">
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}
