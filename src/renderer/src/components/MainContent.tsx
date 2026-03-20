@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { Worktree, PoolConfig, formatBranchName, findWorktreePool } from "../types";
+import { Worktree, PoolConfig, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
+import { client } from "../main";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
@@ -32,6 +33,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 }, ref) => {
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
 
@@ -75,17 +77,70 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
   const showArchive = !(worktreePool?.type === 'recyclable');
 
+  const handleArchive = async () => {
+    if (!selectedWorktree) return;
+    const confirmed = confirm(
+      `Are you sure you want to archive the worktree "${formatBranchName(selectedWorktree.branch)}"?\n\nThis will remove the working directory but keep the branch in git.`
+    );
+    if (!confirmed) return;
+    setIsArchiving(true);
+    try {
+      await onArchiveWorktree(selectedWorktree);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   if (!selectedWorktree) {
     return <WelcomeScreen />;
   }
 
   return (
     <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
-      <div className="flex justify-between items-center px-5 py-3 bg-base-200 border-b border-base-300 shrink-0">
-        <div>
-          <h2 className="m-0 text-base font-semibold">{formatBranchName(selectedWorktree.branch)}</h2>
-          <span className="block text-xs text-base-content/50 mt-0.5" title={selectedWorktree.path}>{selectedWorktree.worktreeName}</span>
+      <div className="flex items-center gap-3 px-4 py-2 bg-base-200 border-b border-base-300 shrink-0 flex-wrap">
+        <div className="mr-2">
+          <h2 className="m-0 text-base font-semibold leading-tight">{formatBranchName(selectedWorktree.branch)}</h2>
+          <span className="block text-xs text-base-content/50 leading-tight" title={selectedWorktree.path}>{selectedWorktree.worktreeName}</span>
         </div>
+
+        <button
+          className="btn btn-neutral btn-sm"
+          onClick={() => selectedWorktree.path && client.openInFileManager.mutate({ folderPath: selectedWorktree.path })}
+        >
+          📁 Folder
+        </button>
+        <button
+          className="btn btn-neutral btn-sm"
+          onClick={() => selectedWorktree.path && client.openInEditor.mutate({ folderPath: selectedWorktree.path })}
+        >
+          📝 Editor
+        </button>
+        <button
+          className="btn btn-neutral btn-sm"
+          onClick={() => selectedWorktree.path && client.openInTerminal.mutate({ folderPath: selectedWorktree.path })}
+        >
+          💻 Terminal
+        </button>
+
+        {showRelease && onReleaseWorktree && !isTmpBranch(selectedWorktree.branch) && (
+          <button
+            className="btn btn-neutral btn-sm"
+            onClick={() => onReleaseWorktree(selectedWorktree)}
+            title="Release this worktree back to the pool"
+          >
+            🔓 Release
+          </button>
+        )}
+
+        {showArchive && (
+          <button
+            className="btn btn-warning btn-sm"
+            onClick={handleArchive}
+            disabled={isArchiving}
+          >
+            📦 {isArchiving ? "Archiving..." : "Archive"}
+          </button>
+        )}
       </div>
 
       <div
@@ -101,10 +156,6 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             key={`worktree-details-${selectedWorktree.path}`}
             worktree={selectedWorktree}
             repoPath={currentRepo!}
-            onArchiveWorktree={showArchive ? onArchiveWorktree : undefined}
-            onMergeWorktree={onMergeWorktree}
-            onRebaseWorktree={onRebaseWorktree}
-            onReleaseWorktree={showRelease ? onReleaseWorktree : undefined}
           />
         </div>
 
