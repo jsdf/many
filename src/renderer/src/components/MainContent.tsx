@@ -77,7 +77,8 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
   const worktreePool = selectedWorktree ? findWorktreePool(selectedWorktree, pools) : null;
   const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
-  const showArchive = !(worktreePool?.type === 'recyclable');
+  const isBaseWorktree = selectedWorktree?.path === currentRepo;
+  const showArchive = !isBaseWorktree && !(worktreePool?.type === 'recyclable');
 
   const handleArchive = async () => {
     if (!selectedWorktree) return;

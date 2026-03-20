@@ -39,7 +39,26 @@ const App: React.FC = () => {
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [draggingSidebar, setDraggingSidebar] = useState(false);
+  const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
+
+  useEffect(() => {
+    if (!draggingSidebar) return;
+    const onMouseMove = (e: MouseEvent) => {
+      if (!sidebarDragRef.current) return;
+      const dx = e.clientX - sidebarDragRef.current.startX;
+      setSidebarWidth(Math.max(200, Math.min(600, sidebarDragRef.current.startWidth + dx)));
+    };
+    const onMouseUp = () => setDraggingSidebar(false);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [draggingSidebar]);
 
   useEffect(() => {
     loadSavedRepos();
@@ -527,32 +546,47 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen">
-      {sidebarCollapsed && (
-        <button
-          className="btn btn-ghost btn-sm absolute top-2 left-2 z-10"
-          onClick={() => setSidebarCollapsed(false)}
-          title="Show sidebar"
-        >
-          &#9776;
-        </button>
+      {sidebarCollapsed ? (
+        <div className="w-10 shrink-0 bg-base-200 border-r border-base-300 flex flex-col items-center pt-2">
+          <button
+            className="btn btn-ghost btn-sm btn-square"
+            onClick={() => setSidebarCollapsed(false)}
+            title="Show sidebar"
+          >
+            &#9776;
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600, flexShrink: 0 }}>
+            <Sidebar
+              repositories={repositories}
+              currentRepo={currentRepo}
+              worktrees={worktrees}
+              selectedWorktree={selectedWorktree}
+              pools={repoConfig?.pools}
+              onRepoSelect={selectRepo}
+              onWorktreeSelect={handleWorktreeSelect}
+              onAddRepo={() => setShowAddRepoModal(true)}
+              onCreateWorktree={() => setShowCreateModal(true)}
+              onConfigRepo={() => setShowRepoConfigModal(true)}
+              onSwitchWorktree={() => setShowSwitchModal(true)}
+              onClaimPool={handleClaimPool}
+              onNewTask={() => setShowNewTaskModal(true)}
+              onGlobalSettings={() => setShowGlobalSettingsModal(true)}
+              onCollapse={() => setSidebarCollapsed(true)}
+            />
+          </div>
+          <div
+            className={`w-1 shrink-0 cursor-ew-resize transition-colors ${draggingSidebar ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              sidebarDragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+              setDraggingSidebar(true);
+            }}
+          />
+        </>
       )}
-      {!sidebarCollapsed && <Sidebar
-        repositories={repositories}
-        currentRepo={currentRepo}
-        worktrees={worktrees}
-        selectedWorktree={selectedWorktree}
-        pools={repoConfig?.pools}
-        onRepoSelect={selectRepo}
-        onWorktreeSelect={handleWorktreeSelect}
-        onAddRepo={() => setShowAddRepoModal(true)}
-        onCreateWorktree={() => setShowCreateModal(true)}
-        onConfigRepo={() => setShowRepoConfigModal(true)}
-        onSwitchWorktree={() => setShowSwitchModal(true)}
-        onClaimPool={handleClaimPool}
-        onNewTask={() => setShowNewTaskModal(true)}
-        onGlobalSettings={() => setShowGlobalSettingsModal(true)}
-        onCollapse={() => setSidebarCollapsed(true)}
-      />}
 
       <MainContent
         ref={mainContentRef}

@@ -109,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
 
   return (
-    <div className="w-[300px] min-w-[200px] max-w-[600px] shrink-0 bg-base-200 border-r border-base-300 flex flex-col p-2 resize-x overflow-auto">
+    <div className="bg-base-200 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <img src="/many-shodan.png" alt="" className="w-12 h-12" />
@@ -228,9 +228,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           data-testid="create-worktree-button"
           onClick={onCreateWorktree}
           disabled={!currentRepo}
-          className="btn btn-primary w-full"
+          className="btn btn-success w-full"
         >
-          + Create Worktree
+          Create Worktree
         </button>
         {!hasAnyPoolGroups && ungroupedAvailable.length > 0 && onSwitchWorktree && (
           <button
