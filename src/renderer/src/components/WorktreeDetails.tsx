@@ -6,7 +6,7 @@ import BranchChanges from "./BranchChanges";
 interface WorktreeDetailsProps {
   worktree: Worktree;
   repoPath: string;
-  onArchiveWorktree: (worktree: Worktree) => Promise<void>;
+  onArchiveWorktree?: (worktree: Worktree) => Promise<void>;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
   onReleaseWorktree?: (worktree: Worktree) => void;
@@ -69,7 +69,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     if (!confirmed) return;
 
     await handleAction("archive", async () => {
-      await onArchiveWorktree(worktree);
+      await onArchiveWorktree!(worktree);
     });
   };
 
@@ -140,22 +140,6 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
       <div className="mt-8 pt-5 border-t border-base-300">
         <h3 className="text-base font-semibold mb-4">Worktree Management</h3>
         <div className="flex gap-2.5 flex-wrap">
-          <button
-            className="btn btn-success"
-            onClick={mergeWorktree}
-            disabled={!worktree?.branch}
-          >
-            🔀 Merge Changes
-          </button>
-
-          <button
-            className="btn btn-info"
-            onClick={rebaseWorktree}
-            disabled={!worktree?.branch}
-          >
-            🌿 Rebase Branch
-          </button>
-
           {onReleaseWorktree && !isTmpBranch(worktree.branch) && (
             <button
               className="btn btn-neutral"
@@ -167,13 +151,15 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
             </button>
           )}
 
-          <button
-            className="btn btn-warning"
-            onClick={archiveWorktree}
-            disabled={isLoading === "archive"}
-          >
-            📦 {isLoading === "archive" ? "Archiving..." : "Archive Worktree"}
-          </button>
+          {onArchiveWorktree && (
+            <button
+              className="btn btn-warning"
+              onClick={archiveWorktree}
+              disabled={isLoading === "archive"}
+            >
+              📦 {isLoading === "archive" ? "Archiving..." : "Archive Worktree"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -73,6 +73,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
   const worktreePool = selectedWorktree ? findWorktreePool(selectedWorktree, pools) : null;
   const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
+  const showArchive = !(worktreePool?.type === 'recyclable');
 
   if (!selectedWorktree) {
     return <WelcomeScreen />;
@@ -100,7 +101,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             key={`worktree-details-${selectedWorktree.path}`}
             worktree={selectedWorktree}
             repoPath={currentRepo!}
-            onArchiveWorktree={onArchiveWorktree}
+            onArchiveWorktree={showArchive ? onArchiveWorktree : undefined}
             onMergeWorktree={onMergeWorktree}
             onRebaseWorktree={onRebaseWorktree}
             onReleaseWorktree={showRelease ? onReleaseWorktree : undefined}
