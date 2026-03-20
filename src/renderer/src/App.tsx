@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
   const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
+  const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const mainContentRef = useRef<MainContentHandle>(null);
@@ -372,6 +373,7 @@ const App: React.FC = () => {
 
       setShowSwitchModal(false);
       setClaimPoolTarget(null);
+      setClaimPreselectedPath(null);
     } catch (error) {
       console.error("Failed to switch worktree:", error);
       throw error;
@@ -381,6 +383,14 @@ const App: React.FC = () => {
   // Pool management: Claim a worktree from a specific pool
   const handleClaimPool = (pool: PoolConfig) => {
     setClaimPoolTarget(pool);
+    setClaimPreselectedPath(null);
+    setShowSwitchModal(true);
+  };
+
+  // Pool management: Claim a specific available worktree from the detail header
+  const handleClaimWorktree = (worktree: Worktree) => {
+    setClaimPoolTarget(null);
+    setClaimPreselectedPath(worktree.path);
     setShowSwitchModal(true);
   };
 
@@ -553,6 +563,7 @@ const App: React.FC = () => {
         onMergeWorktree={openMergeModal}
         onRebaseWorktree={openRebaseModal}
         onReleaseWorktree={openReleaseModal}
+        onClaimWorktree={handleClaimWorktree}
       />
 
       {showCreateModal && (
@@ -612,9 +623,11 @@ const App: React.FC = () => {
           currentRepo={currentRepo}
           worktrees={worktrees}
           poolFilter={claimPoolTarget ?? undefined}
+          preSelectedWorktreePath={claimPreselectedPath ?? undefined}
           onClose={() => {
             setShowSwitchModal(false);
             setClaimPoolTarget(null);
+            setClaimPreselectedPath(null);
           }}
           onSwitch={switchWorktree}
         />

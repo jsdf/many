@@ -6,6 +6,7 @@ interface SwitchWorktreeModalProps {
   currentRepo: string | null
   worktrees: Worktree[]
   poolFilter?: PoolConfig
+  preSelectedWorktreePath?: string
   onClose: () => void
   onSwitch: (worktreePath: string, branchName: string) => Promise<void>
 }
@@ -14,11 +15,12 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   currentRepo,
   worktrees,
   poolFilter,
+  preSelectedWorktreePath,
   onClose,
   onSwitch
 }) => {
   const [branchName, setBranchName] = useState('')
-  const [selectedWorktree, setSelectedWorktree] = useState<string>('')
+  const [selectedWorktree, setSelectedWorktree] = useState<string>(preSelectedWorktreePath || '')
   const [existingBranches, setExistingBranches] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

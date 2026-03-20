@@ -173,18 +173,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
                       {pool.name}
                     </span>
-                    {pool.type === 'recyclable' && available.length > 0 && onClaimPool && (
-                      <button
-                        className="btn btn-neutral btn-xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onClaimPool(pool);
-                        }}
-                        title={`Claim an available ${pool.name} worktree`}
-                      >
-                        Claim
-                      </button>
-                    )}
                   </div>
                   {claimed.map(w => renderWorktreeItem(w, false, false))}
                   {available.map(w => renderWorktreeItem(w, false, true))}

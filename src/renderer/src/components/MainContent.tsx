@@ -13,6 +13,7 @@ interface MainContentProps {
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
   onReleaseWorktree?: (worktree: Worktree) => void;
+  onClaimWorktree?: (worktree: Worktree) => void;
 }
 
 export interface MainContentHandle {
@@ -30,6 +31,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   onMergeWorktree,
   onRebaseWorktree,
   onReleaseWorktree,
+  onClaimWorktree,
 }, ref) => {
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
@@ -121,6 +123,15 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         >
           💻 Terminal
         </button>
+
+        {isTmpBranch(selectedWorktree.branch) && onClaimWorktree && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => onClaimWorktree(selectedWorktree)}
+          >
+            ⚡ Claim
+          </button>
+        )}
 
         {showRelease && onReleaseWorktree && !isTmpBranch(selectedWorktree.branch) && (
           <button
