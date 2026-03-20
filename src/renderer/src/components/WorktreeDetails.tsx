@@ -88,7 +88,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 bg-base-200 border border-base-300 rounded-lg p-4">
           <div className="info-item">
             <label className="text-base-content/60 text-sm font-medium">Path:</label>
-            <span className="text-sm font-mono">{worktree.path}</span>
+            <span className="text-sm font-mono" title={worktree.path}>{worktree.worktreeName}</span>
           </div>
           <div className="info-item">
             <label className="text-base-content/60 text-sm font-medium">Branch:</label>

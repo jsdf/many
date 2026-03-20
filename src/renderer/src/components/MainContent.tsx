@@ -84,7 +84,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
       <div className="flex justify-between items-center px-5 py-3 bg-base-200 border-b border-base-300 shrink-0">
         <div>
           <h2 className="m-0 text-base font-semibold">{formatBranchName(selectedWorktree.branch)}</h2>
-          <span className="block text-xs text-base-content/50 mt-0.5">{selectedWorktree.path}</span>
+          <span className="block text-xs text-base-content/50 mt-0.5" title={selectedWorktree.path}>{selectedWorktree.worktreeName}</span>
         </div>
       </div>
 

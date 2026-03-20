@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
       <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
-        {worktree.path}
+        {worktree.worktreeName}
       </div>
     </div>
   );
