@@ -1,24 +1,6 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: dark --default;
-}
-
-/* Override dark theme to match original VS Code-inspired palette */
-[data-theme="dark"] {
-  /* #1e1e1e — main/terminal background */
-  --color-base-100: oklch(13.71% 0 0);
-  /* #252526 — sidebar, headers, modals */
-  --color-base-200: oklch(16.85% 0 0);
-  /* #3c3c3c — borders, file diff headers */
-  --color-base-300: oklch(26.15% 0 0);
-  /* #ffffff — primary text */
-  --color-base-content: oklch(100% 0 0);
-  /* #0e639c — VS Code blue accent */
-  --color-primary: oklch(43.75% 0.146 253);
-  --color-primary-content: oklch(100% 0 0);
-  /* #2d2d2d — neutral/card backgrounds */
-  --color-neutral: oklch(20.03% 0 0);
-  --color-neutral-content: oklch(100% 0 0);
+  themes: forest --default;
 }
 
 /* xterm terminal overrides */
