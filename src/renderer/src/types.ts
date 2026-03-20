@@ -58,6 +58,7 @@ export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
   worktreeDirectory: string | null;
+  terminalLogDir?: string | null;
   pools?: PoolConfig[];
 }
 

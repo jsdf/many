@@ -1,6 +1,8 @@
 // @ts-ignore - types exist at node-pty.d.ts but aren't resolved via package.json exports
 import * as pty from "@lydell/node-pty";
 import os from "os";
+import { promises as fs } from "fs";
+import path from "path";
 
 interface OutputBlock {
   data: string;
@@ -16,6 +18,7 @@ interface TerminalSession {
   maxBlockSize: number;
   dataListeners: Set<(data: string) => void>;
   exitListeners: Set<() => void>;
+  logFileHandle?: fs.FileHandle;
 }
 
 export class TerminalManager {
@@ -27,7 +30,8 @@ export class TerminalManager {
     cols: number,
     rows: number,
     extraEnv?: Record<string, string>,
-    initialCommand?: string
+    initialCommand?: string,
+    terminalLogDir?: string | null
   ): boolean {
     // If session already exists, just return true (client is reconnecting)
     if (this.sessions.has(terminalId)) {
@@ -73,14 +77,37 @@ export class TerminalManager {
 
     this.sessions.set(terminalId, session);
 
+    // Open log file if configured
+    if (terminalLogDir) {
+      const worktreeName = path.basename(worktreePath);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const logFileName = `${worktreeName}-${timestamp}.log`;
+      const logFilePath = path.join(terminalLogDir, logFileName);
+      fs.mkdir(terminalLogDir, { recursive: true })
+        .then(() => fs.open(logFilePath, "a"))
+        .then((handle) => {
+          session.logFileHandle = handle;
+        })
+        .catch((err) => {
+          console.error(`Failed to open terminal log file ${logFilePath}:`, err);
+        });
+    }
+
     ptyProcess.onData((data: string) => {
       this.appendOutput(session, data);
+      if (session.logFileHandle) {
+        session.logFileHandle.write(data).catch(() => {});
+      }
       for (const listener of session.dataListeners) {
         listener(data);
       }
     });
 
     ptyProcess.onExit(() => {
+      if (session.logFileHandle) {
+        session.logFileHandle.close().catch(() => {});
+        session.logFileHandle = undefined;
+      }
       for (const listener of session.exitListeners) {
         listener();
       }
@@ -115,6 +142,10 @@ export class TerminalManager {
         session.ptyProcess.kill();
       } catch (err) {
         // Already dead
+      }
+      if (session.logFileHandle) {
+        session.logFileHandle.close().catch(() => {});
+        session.logFileHandle = undefined;
       }
       this.sessions.delete(terminalId);
     }

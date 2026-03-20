@@ -532,6 +532,54 @@ const createRouter = () => {
         terminalManager.closeSession(input.terminalId);
         return true;
       }),
+
+    // Resolve a starting point (branch name, PR number, PR URL) to a branch name and fetch it
+    resolveStartingPoint: t.procedure
+      .input((input: unknown) => input as { repoPath: string; startingPoint: string })
+      .mutation(async ({ input }) => {
+        const { simpleGit } = await import("simple-git");
+        const git = simpleGit(input.repoPath);
+        const sp = input.startingPoint.trim();
+
+        let branchName: string;
+
+        // Try to parse as GitHub PR URL: https://github.com/owner/repo/pull/123
+        const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+        // Try to parse as Graphite PR URL: https://app.graphite.dev/github/pr/owner/repo/123
+        const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
+        // Try to parse as plain PR number
+        const prNumberMatch = sp.match(/^#?(\d+)$/);
+
+        const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
+
+        if (prNumber) {
+          // Resolve PR number to branch name using gh CLI
+          try {
+            const { stdout } = await execAsync(
+              `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
+              { cwd: input.repoPath }
+            );
+            branchName = stdout.trim();
+            if (!branchName) {
+              throw new Error(`Could not resolve PR #${prNumber} to a branch name`);
+            }
+          } catch (err: any) {
+            throw new Error(`Failed to resolve PR #${prNumber}: ${err.message}`);
+          }
+        } else {
+          // Treat as a branch name directly
+          branchName = sp;
+        }
+
+        // Fetch the branch from origin
+        try {
+          await git.fetch("origin", branchName);
+        } catch (err: any) {
+          throw new Error(`Failed to fetch branch '${branchName}': ${err.message}`);
+        }
+
+        return { branchName };
+      }),
   });
 };
 
@@ -559,7 +607,12 @@ export interface WebServerOptions {
   token?: string;
 }
 
-export async function startWebServer(options: WebServerOptions = {}): Promise<void> {
+export interface WebServerResult {
+  url: string;
+  port: number;
+}
+
+export async function startWebServer(options: WebServerOptions = {}): Promise<WebServerResult> {
   const port = options.port ?? 0;
   const host = options.host || "localhost";
   const token = options.token || crypto.randomBytes(24).toString("hex");
@@ -744,7 +797,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
       }
     };
 
-    ws.on("message", (rawMsg) => {
+    ws.on("message", async (rawMsg) => {
       let msg: any;
       try {
         msg = JSON.parse(rawMsg.toString());
@@ -757,7 +810,17 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
       switch (type) {
         case "create": {
           const { worktreePath, cols, rows, env, initialCommand } = msg;
-          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, env, initialCommand);
+          // Find which repo this worktree belongs to so we can get its terminalLogDir
+          let terminalLogDir: string | null = null;
+          const appData = await loadAppData();
+          for (const [repoPath, cfg] of Object.entries(appData.repositoryConfigs)) {
+            const worktreeDir = (cfg as any).worktreeDirectory || path.dirname(repoPath);
+            if (worktreePath === repoPath || worktreePath.startsWith(worktreeDir + path.sep)) {
+              terminalLogDir = (cfg as any).terminalLogDir || null;
+              break;
+            }
+          }
+          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, env, initialCommand, terminalLogDir);
 
           // Detach from previous terminal if switching
           if (attachedTerminalId && attachedTerminalId !== terminalId) {
@@ -833,7 +896,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
         }
       }
 
-      resolve();
+      resolve({ url: serverUrl, port: actualPort });
     });
   });
 }

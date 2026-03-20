@@ -27,6 +27,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   const [mainBranch, setMainBranch] = useState("");
   const [initCommand, setInitCommand] = useState("");
   const [worktreeDirectory, setWorktreeDirectory] = useState("");
+  const [terminalLogDir, setTerminalLogDir] = useState("");
   const [pools, setPools] = useState<PoolConfig[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +57,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           setMainBranch(config.mainBranch || "");
           setInitCommand(config.initCommand || "");
           setWorktreeDirectory(config.worktreeDirectory || "");
+          setTerminalLogDir(config.terminalLogDir || "");
           setPools(config.pools || []);
 
           const repoBranches = await client.getBranches.query({
@@ -104,6 +106,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           mainBranch: mainBranch.trim(),
           initCommand: initCommand.trim() || null,
           worktreeDirectory: worktreeDirectory.trim() || null,
+          terminalLogDir: terminalLogDir.trim() || null,
           pools: validPools.length > 0 ? validPools : undefined,
         });
       } catch (error) {
@@ -259,6 +262,38 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   </div>
                   <p className="text-xs text-base-content/50 mt-1.5">
                     Directory where new worktrees will be created. Defaults to parent directory of the repository if not set.
+                  </p>
+                </div>
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="terminal-log-dir-input">
+                    Terminal log directory (optional):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="terminal-log-dir-input"
+                      className="input input-bordered flex-1"
+                      value={terminalLogDir}
+                      onChange={(e) => setTerminalLogDir(e.target.value)}
+                      placeholder="Leave empty to disable terminal logging"
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-neutral"
+                      onClick={async () => {
+                        try {
+                          const folderPath = await client.selectFolder.mutate();
+                          if (folderPath) setTerminalLogDir(folderPath);
+                        } catch {}
+                      }}
+                      disabled={isLoading}
+                    >
+                      Browse...
+                    </button>
+                  </div>
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Terminal output will be written to timestamped log files in this directory.
                   </p>
                 </div>
 

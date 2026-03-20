@@ -21,6 +21,7 @@ export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
   worktreeDirectory: string | null;
+  terminalLogDir?: string | null;
   pools?: PoolConfig[];
 }
 
@@ -69,12 +70,18 @@ export function getDataFilePath(): string {
 }
 
 export async function loadAppData(): Promise<AppData> {
+  const dataPath = getDataFilePath();
   try {
-    const dataPath = getDataFilePath();
     const data = await fs.readFile(dataPath, "utf-8");
     return { ...defaultAppData, ...JSON.parse(data) };
-  } catch {
-    return defaultAppData;
+  } catch (error: unknown) {
+    // Only return defaults if the file doesn't exist yet (first run)
+    if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "ENOENT") {
+      return defaultAppData;
+    }
+    // For any other error (parse error, permission error, etc.), throw so we
+    // don't silently lose data by later saving empty defaults over real config
+    throw new Error(`Failed to load config from ${dataPath}: ${error instanceof Error ? error.message : error}`);
   }
 }
 
@@ -82,7 +89,10 @@ export async function saveAppData(data: AppData): Promise<void> {
   const dataPath = getDataFilePath();
   const dir = path.dirname(dataPath);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
+  // Write to a temp file first, then rename for atomic write
+  const tmpPath = dataPath + ".tmp";
+  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2));
+  await fs.rename(tmpPath, dataPath);
 }
 
 export function getGlobalSettings(appData: AppData): GlobalSettings {
