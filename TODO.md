@@ -1,0 +1,6 @@
+- [x] remove the archive button from recyclable worktrees
+- [x] remove the merge changes and rebase branch buttons
+- [x] remove the worktree dir prefix from all the places that the worktree path is displayed
+- [x] remove worktree overview, move quick actions and worktree management buttons into the header bar as a single row of buttons
+- [x] move claim button to the header bar of the worktree pane and have the dialog auto select the worktree where the button was clicked from
+- [x] add a feature in the repo config of a dir to write terminal logs to. the log should be named by the branch and have a max size

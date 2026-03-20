@@ -9,6 +9,8 @@ interface OutputBlock {
   timestamp: number;
 }
 
+const MAX_LOG_BYTES = 10 * 1024 * 1024; // 10 MB
+
 interface TerminalSession {
   ptyProcess: pty.IPty;
   worktreePath: string;
@@ -19,6 +21,7 @@ interface TerminalSession {
   dataListeners: Set<(data: string) => void>;
   exitListeners: Set<() => void>;
   logFileHandle?: fs.FileHandle;
+  logBytesWritten: number;
 }
 
 export class TerminalManager {
@@ -73,15 +76,16 @@ export class TerminalManager {
       maxBlockSize: 1000,
       dataListeners: new Set(),
       exitListeners: new Set(),
+      logBytesWritten: 0,
     };
 
     this.sessions.set(terminalId, session);
 
     // Open log file if configured
     if (terminalLogDir) {
-      const worktreeName = path.basename(worktreePath);
+      const label = path.basename(worktreePath).replace(/[/\\:*?"<>|]/g, "_");
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const logFileName = `${worktreeName}-${timestamp}.log`;
+      const logFileName = `${label}-${timestamp}.log`;
       const logFilePath = path.join(terminalLogDir, logFileName);
       fs.mkdir(terminalLogDir, { recursive: true })
         .then(() => fs.open(logFilePath, "a"))
@@ -95,8 +99,13 @@ export class TerminalManager {
 
     ptyProcess.onData((data: string) => {
       this.appendOutput(session, data);
-      if (session.logFileHandle) {
+      if (session.logFileHandle && session.logBytesWritten < MAX_LOG_BYTES) {
+        const bytes = Buffer.byteLength(data, "utf8");
+        session.logBytesWritten += bytes;
         session.logFileHandle.write(data).catch(() => {});
+        if (session.logBytesWritten >= MAX_LOG_BYTES) {
+          session.logFileHandle.write("\n[log truncated at 10MB]\n").catch(() => {});
+        }
       }
       for (const listener of session.dataListeners) {
         listener(data);
