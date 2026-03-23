@@ -164,6 +164,11 @@ export class TerminalManager {
     return this.sessions.has(terminalId);
   }
 
+  getSessionPid(terminalId: string): number | null {
+    const session = this.sessions.get(terminalId);
+    return session ? session.ptyProcess.pid : null;
+  }
+
   getSessionsForWorktree(worktreePath: string): string[] {
     const ids: string[] = [];
     for (const [id, session] of this.sessions) {
@@ -218,6 +223,38 @@ export class TerminalManager {
     for (const id of ids) {
       this.closeSession(id);
     }
+  }
+
+  /**
+   * Save buffered output from all active sessions to log files.
+   * Returns metadata for each saved session so callers can register task records.
+   */
+  async saveAllSessionLogs(logDir: string): Promise<Array<{
+    terminalId: string;
+    worktreePath: string;
+    logFile: string;
+  }>> {
+    await fs.mkdir(logDir, { recursive: true });
+    const results: Array<{ terminalId: string; worktreePath: string; logFile: string }> = [];
+
+    for (const [id, session] of this.sessions) {
+      const output = this.getBufferedOutput(id);
+      if (!output) continue;
+
+      const label = path.basename(session.worktreePath).replace(/[/\\:*?"<>|]/g, "_");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const logFileName = `terminal-${label}-${timestamp}.log`;
+      const logFile = path.join(logDir, logFileName);
+
+      try {
+        await fs.writeFile(logFile, output);
+        results.push({ terminalId: id, worktreePath: session.worktreePath, logFile });
+      } catch (err) {
+        console.error(`Failed to save terminal log for ${id}:`, err);
+      }
+    }
+
+    return results;
   }
 
   cleanup(): void {

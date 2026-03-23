@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Many CLI - Git worktree pool manager
 
-import { loadAppData, getRepoConfig, RepositoryConfig } from "./config.js";
+import { loadAppData, getRepoConfig, RepositoryConfig, PoolConfig, getDataPath } from "./config.js";
 import {
   getWorktrees,
   getAvailableWorktrees,
@@ -26,8 +26,28 @@ import {
 } from "./git-pool.js";
 import { simpleGit } from "simple-git";
 import path from "path";
+import { spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { exec } from "node:child_process";
 import { createRequire } from "node:module";
+
+const execAsync = promisify(exec);
 import { selectFromList, confirm, textInput } from "./ink-prompts.js";
+import {
+  registerTask,
+  markTaskCompleted,
+  updateTaskPid,
+  reconcileTasks,
+  listTasks,
+  getTask,
+  killTask as killTaskById,
+  pruneOldTasks,
+  getTaskLogDir,
+  TaskRecord,
+  TaskStatus,
+} from "./task-registry.js";
+import { createReadStream, existsSync } from "node:fs";
+import { promises as fsPromises } from "node:fs";
 
 // Parsed flags for non-interactive use
 interface ParsedFlags {
@@ -40,6 +60,8 @@ interface ParsedFlags {
   commitMessage: string | null; // --commit "msg" : commit changes on release
   amend: boolean;              // --amend : amend last commit on release
   force: boolean;              // --force : skip merge checks (archive)
+  pool: string | null;         // --pool <prefix> : select which pool for task
+  startingPoint: string | null; // --starting-point <ref> : branch/PR to start from
 }
 
 function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags } {
@@ -54,6 +76,8 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
     commitMessage: null,
     amend: false,
     force: false,
+    pool: null,
+    startingPoint: null,
   };
 
   let i = 0;
@@ -102,6 +126,21 @@ function parseFlags(args: string[]): { positional: string[]; flags: ParsedFlags 
       case "--force":
       case "-f":
         flags.force = true;
+        break;
+      case "--pool":
+        flags.pool = args[++i] ?? null;
+        if (!flags.pool) {
+          console.error(red("Error: --pool requires a value"));
+          process.exit(1);
+        }
+        break;
+      case "--starting-point":
+      case "--from":
+        flags.startingPoint = args[++i] ?? null;
+        if (!flags.startingPoint) {
+          console.error(red("Error: --starting-point requires a value"));
+          process.exit(1);
+        }
         break;
       default:
         positional.push(arg);
@@ -610,6 +649,18 @@ async function cmdSwitch(branchName: string | null, flags: ParsedFlags): Promise
   await claimWorktree(repoPath, targetWorktree, branchName, config);
 
   console.log(green(`\nWorktree claimed for branch '${branchName}'`));
+
+  // Run init command if configured
+  if (config.initCommand) {
+    console.log(`\nRunning init command...`);
+    try {
+      await runInitCommand(targetWorktree.path, config.initCommand);
+      console.log(green("Init command completed successfully."));
+    } catch (error) {
+      console.log(yellow(`Init command failed: ${error}`));
+    }
+  }
+
   console.log(`\nTo start working:\n  cd ${targetWorktree.path}`);
 }
 
@@ -970,6 +1021,408 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
   console.log(`The branch '${branchName}' still exists in git.`);
 }
 
+// Task command - launch a task in a pool worktree
+async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<void> {
+  const { repoPath, config } = await getRepoAndConfig(flags);
+
+  const taskPools = (config.pools || []).filter((p) => p.backgroundTaskCommand || p.taskCommand);
+  if (taskPools.length === 0) {
+    console.error(red("No pools with a task command configured for this repository."));
+    process.exit(1);
+  }
+
+  // Select pool
+  let pool: PoolConfig;
+  const poolSelector = flags.pool ?? config.defaultTaskPool;
+  if (poolSelector) {
+    const match = taskPools.find((p) => p.prefix === poolSelector || p.name === poolSelector);
+    if (!match) {
+      console.error(red(`Pool "${poolSelector}" not found. Available: ${taskPools.map((p) => p.prefix).join(", ")}`));
+      process.exit(1);
+    }
+    pool = match;
+  } else if (taskPools.length === 1) {
+    pool = taskPools[0];
+  } else if (flags.noInteractive) {
+    exitNonInteractive(
+      "Multiple task pools available",
+      [`--pool <prefix>    Select pool (${taskPools.map((p) => p.prefix).join(", ")})`],
+    );
+  } else {
+    const items = taskPools.map((p) => ({
+      label: `${p.name} (${p.type}) — ${p.backgroundTaskCommand || p.taskCommand}`,
+      value: p,
+    }));
+    const selected = await selectFromList(items, { title: "Select a pool:" });
+    if (!selected) {
+      console.log("Cancelled.");
+      process.exit(0);
+    }
+    pool = selected;
+  }
+
+  const effectiveTaskCommand = pool.backgroundTaskCommand || pool.taskCommand;
+  if (!effectiveTaskCommand) {
+    console.error(red("Selected pool has no task command configured."));
+    process.exit(1);
+  }
+
+  // Get prompt
+  let prompt = promptArg;
+  if (!prompt) {
+    if (flags.noInteractive) {
+      exitNonInteractive("Prompt is required", ["many task \"your prompt here\""]);
+    }
+    prompt = await textInput("Task prompt:");
+    if (!prompt?.trim()) {
+      console.log("Cancelled.");
+      process.exit(0);
+    }
+  }
+  prompt = prompt.trim();
+
+  const startingPoint = flags.startingPoint;
+
+  // Resolve starting point
+  let resolvedBranch: string | undefined;
+  if (startingPoint) {
+    console.log(cyan(`→ Resolving starting point: ${startingPoint}`));
+    const git = simpleGit(repoPath);
+    const sp = startingPoint.trim();
+
+    const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+    const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
+    const prNumberMatch = sp.match(/^#?(\d+)$/);
+    const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
+
+    if (prNumber) {
+      const { stdout } = await execAsync(
+        `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
+        { cwd: repoPath },
+      );
+      const branchName = stdout.trim();
+      if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
+      resolvedBranch = branchName;
+    } else {
+      resolvedBranch = sp;
+    }
+
+    await git.fetch("origin", resolvedBranch);
+    console.log(green(`  Resolved to branch: ${resolvedBranch}`));
+  }
+
+  let targetWorktreePath: string;
+  let taskBranch: string;
+
+  if (pool.type === "recyclable") {
+    // Find available worktree
+    console.log(cyan(`→ Finding available worktree in pool "${pool.prefix}"...`));
+    const worktrees = await getWorktrees(repoPath);
+    const available = worktrees.find(
+      (w) =>
+        w.path !== repoPath &&
+        !w.bare &&
+        (w.branch?.replace(/^refs\/heads\//, "") || "").startsWith("tmp-") &&
+        w.worktreeName.startsWith(pool.prefix),
+    );
+    if (!available || !available.path) {
+      console.error(red(`No available worktrees in pool with prefix "${pool.prefix}".`));
+      process.exit(1);
+    }
+    console.log(green(`  Using worktree: ${available.worktreeName}`));
+
+    // Claim worktree
+    taskBranch =
+      resolvedBranch ??
+      `task/${prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}-${Date.now().toString(36)}`;
+    console.log(cyan(`→ Claiming worktree → branch: ${taskBranch}`));
+    await claimWorktree(repoPath, available, taskBranch, config);
+    console.log(green("  Worktree claimed"));
+
+    // Run maintenance command
+    if (pool.maintenanceCommand) {
+      console.log(cyan(`→ Running maintenance command: ${pool.maintenanceCommand}`));
+      const code = await runShellCommand(pool.maintenanceCommand, available.path);
+      if (code !== 0) {
+        console.log(yellow(`  Maintenance command exited with code ${code} (continuing anyway)`));
+      } else {
+        console.log(green("  Maintenance command completed"));
+      }
+    }
+
+    targetWorktreePath = available.path;
+  } else {
+    // Ephemeral: create new worktree
+    const name = `${pool.prefix}-${Date.now().toString(36)}`;
+    console.log(cyan(`→ Creating worktree: ${name}`));
+    const result = await createWorktree(repoPath, name, config);
+    targetWorktreePath = result.path;
+    console.log(green(`  Worktree created at ${result.path}`));
+
+    // Check out starting branch if provided
+    if (resolvedBranch) {
+      console.log(cyan(`→ Checking out branch: ${resolvedBranch}`));
+      const worktrees = await getWorktrees(repoPath);
+      const wt = worktrees.find((w) => w.path === targetWorktreePath);
+      if (wt) {
+        await claimWorktree(repoPath, wt, resolvedBranch, config);
+      }
+      console.log(green("  Branch checked out"));
+    }
+
+    taskBranch = resolvedBranch ?? `tmp-${path.basename(targetWorktreePath)}`;
+
+    // Run init command
+    if (config.initCommand) {
+      console.log(cyan(`→ Running init command: ${config.initCommand}`));
+      const code = await runShellCommand(config.initCommand, targetWorktreePath);
+      if (code !== 0) {
+        console.log(yellow(`  Init command exited with code ${code} (continuing anyway)`));
+      } else {
+        console.log(green("  Init command completed"));
+      }
+    }
+  }
+
+  // Set up log file
+  const logDir = config.terminalLogDir || getTaskLogDir();
+  await fsPromises.mkdir(logDir, { recursive: true });
+  const taskId = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const logFile = path.join(logDir, `${taskId}.log`);
+
+  // Register task before launching
+  const taskRecord = await registerTask({
+    pid: 0, // will update after spawn
+    repoPath,
+    worktreePath: targetWorktreePath,
+    poolPrefix: pool.prefix,
+    poolName: pool.name,
+    branch: taskBranch,
+    prompt,
+    taskCommand: effectiveTaskCommand,
+    logFile,
+    launchedBy: "cli",
+  });
+
+  // Launch task command via `script` to capture output while preserving TTY
+  console.log(cyan(`→ Launching task command: ${effectiveTaskCommand}`));
+  console.log(dim(`  Worktree: ${targetWorktreePath}`));
+  console.log(dim(`  Task ID: ${taskRecord.id}`));
+  console.log(dim(`  Log: ${logFile}`));
+  console.log(dim(`  Prompt: ${prompt}\n`));
+
+  // Use login shell to pick up user aliases/profile
+  const shellCmd = effectiveTaskCommand;
+  const loginShell = process.env.SHELL || "/bin/zsh";
+  const taskProc = spawn("script", ["-q", logFile, loginShell, "-li", "-c", shellCmd], {
+    cwd: targetWorktreePath,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      MANY_TASK_PROMPT: prompt,
+      MANY_TASK_ID: taskRecord.id,
+    },
+  });
+
+  // Update registry with actual PID
+  if (taskProc.pid) {
+    await updateTaskPid(taskRecord.id, taskProc.pid);
+  }
+
+  const exitCode = await new Promise<number>((resolve) => {
+    taskProc.on("error", (err) => {
+      console.error(red(`Failed to run task command: ${err.message}`));
+      resolve(1);
+    });
+    taskProc.on("close", (c) => resolve(c ?? 1));
+  });
+
+  await markTaskCompleted(taskRecord.id, exitCode);
+
+  if (exitCode !== 0) {
+    console.error(red(`Task command exited with code ${exitCode}`));
+    process.exit(exitCode);
+  }
+
+  console.log(green("\nTask completed successfully."));
+  console.log(`Worktree: ${targetWorktreePath}`);
+}
+
+// Tasks command - list/manage tracked tasks
+async function cmdTasks(subcommand: string | null, args: string[], flags: ParsedFlags): Promise<void> {
+  await reconcileTasks();
+
+  if (!subcommand || subcommand === "list") {
+    const filter: { repoPath?: string; status?: TaskStatus } = {};
+    if (flags.repo) filter.repoPath = path.resolve(flags.repo);
+
+    // Check for --status flag in args
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--status" && args[i + 1]) {
+        filter.status = args[i + 1] as TaskStatus;
+      }
+    }
+
+    // Try to auto-detect repo if not specified
+    if (!filter.repoPath) {
+      try {
+        const { repoPath } = await getRepoAndConfig(flags);
+        filter.repoPath = repoPath;
+      } catch {
+        // Show all tasks if not in a repo
+      }
+    }
+
+    const tasks = await listTasks(filter);
+
+    if (tasks.length === 0) {
+      console.log(dim("No tasks found."));
+      return;
+    }
+
+    const statusColor = (s: TaskStatus) => {
+      switch (s) {
+        case "running": return green(s);
+        case "completed": return dim(s);
+        case "failed": return red(s);
+        case "unknown": return yellow(s);
+      }
+    };
+
+    console.log(bold("\nTasks:\n"));
+    for (const t of tasks) {
+      const age = formatAge(new Date(t.startedAt));
+      const promptShort = t.prompt.length > 60 ? t.prompt.slice(0, 57) + "..." : t.prompt;
+      console.log(`  ${dim(t.id)}  ${statusColor(t.status).padEnd(20)}  ${age.padEnd(8)}  ${t.launchedBy.padEnd(4)}  ${dim(path.basename(t.worktreePath))}`);
+      console.log(`    ${promptShort}`);
+    }
+    console.log();
+    return;
+  }
+
+  if (subcommand === "log") {
+    const taskId = args[0];
+    if (!taskId) {
+      console.error(red("Usage: many tasks log <task-id>"));
+      process.exit(1);
+    }
+
+    const task = await findTaskByIdPrefix(taskId);
+    if (!task) {
+      console.error(red(`Task not found: ${taskId}`));
+      process.exit(1);
+    }
+
+    if (!task.logFile) {
+      console.error(red("No log file for this task."));
+      process.exit(1);
+    }
+
+    if (!existsSync(task.logFile)) {
+      console.error(red(`Log file not found: ${task.logFile}`));
+      process.exit(1);
+    }
+
+    const follow = args.includes("-f") || args.includes("--follow");
+
+    if (follow) {
+      // tail -f the log file
+      const tail = spawn("tail", ["-f", task.logFile], { stdio: "inherit" });
+      await new Promise<void>((resolve) => {
+        tail.on("close", () => resolve());
+        process.on("SIGINT", () => { tail.kill(); resolve(); });
+      });
+    } else {
+      // Just cat the file, pipe through less if terminal
+      const content = await fsPromises.readFile(task.logFile, "utf-8");
+      process.stdout.write(content);
+    }
+    return;
+  }
+
+  if (subcommand === "kill") {
+    const taskId = args[0];
+    if (!taskId) {
+      console.error(red("Usage: many tasks kill <task-id>"));
+      process.exit(1);
+    }
+
+    const task = await findTaskByIdPrefix(taskId);
+    if (!task) {
+      console.error(red(`Task not found: ${taskId}`));
+      process.exit(1);
+    }
+
+    if (task.status !== "running") {
+      console.error(red(`Task is not running (status: ${task.status})`));
+      process.exit(1);
+    }
+
+    const killed = await killTaskById(task.id);
+    if (killed) {
+      console.log(green(`Sent SIGTERM to task ${task.id} (PID ${task.pid})`));
+    } else {
+      console.error(red("Failed to kill task (process may already be dead)."));
+    }
+    return;
+  }
+
+  if (subcommand === "prune") {
+    let days = 30;
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--days" && args[i + 1]) {
+        days = parseInt(args[i + 1], 10);
+      }
+    }
+    const removed = await pruneOldTasks(days);
+    console.log(removed > 0 ? green(`Pruned ${removed} old task(s).`) : dim("Nothing to prune."));
+    return;
+  }
+
+  console.error(red(`Unknown tasks subcommand: ${subcommand}`));
+  console.log("Usage: many tasks [list|log|kill|prune]");
+  process.exit(1);
+}
+
+// Find a task by ID prefix (allows short IDs)
+async function findTaskByIdPrefix(prefix: string): Promise<TaskRecord | null> {
+  const tasks = await listTasks();
+  const matches = tasks.filter((t) => t.id.startsWith(prefix) || t.id === prefix);
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) {
+    console.error(red(`Ambiguous task ID prefix "${prefix}" matches ${matches.length} tasks:`));
+    for (const m of matches) console.error(`  ${m.id}`);
+    process.exit(1);
+  }
+  return null;
+}
+
+// Format a date as relative age (e.g. "2h ago", "3d ago")
+function formatAge(date: Date): string {
+  const ms = Date.now() - date.getTime();
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Run a shell command with inherited stdio, return exit code
+function runShellCommand(command: string, cwd: string): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn(command, {
+      shell: true,
+      cwd,
+      stdio: "inherit",
+    });
+    child.on("error", () => resolve(1));
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
 // Help command
 function showHelp(): void {
   console.log(`
@@ -990,6 +1443,12 @@ ${bold("COMMANDS:")}
                           Handles uncommitted changes interactively
   ${bold("archive")} [branch|name]   Remove a worktree directory (keeps branch in git)
                           Checks if branch is merged first
+  ${bold("task")} [prompt]           Launch a task in a pool worktree
+                          Claims/creates worktree & runs pool task command
+  ${bold("tasks")}                   List tracked tasks and their status
+  ${bold("tasks log")} <id>          View a task's output log (-f to follow)
+  ${bold("tasks kill")} <id>         Kill a running task
+  ${bold("tasks prune")}             Remove old completed/failed task records
 
 ${bold("FLAGS:")}
   ${bold("--repo")} <path>           Specify which repository to operate on
@@ -1002,6 +1461,8 @@ ${bold("FLAGS:")}
   ${bold("--stash")}                 Stash uncommitted changes (release)
   ${bold("--commit")} "message"      Commit uncommitted changes (release)
   ${bold("--amend")}                 Amend uncommitted changes to last commit (release)
+  ${bold("--pool")} <prefix>          Select which pool to use (task)
+  ${bold("--starting-point")} <ref>   Branch/PR to start from (task). Alias: --from
 
 ${bold("EXAMPLES:")}
   many list                    # Show all worktrees
@@ -1012,6 +1473,13 @@ ${bold("EXAMPLES:")}
   many release feature/login   # Release worktree with that branch
   many archive feature/login   # Archive worktree for that branch
   many archive --force         # Archive current worktree, skip merge check
+
+  many task "add login button"  # Launch task with prompt
+  many task "fix bug" --from 123  # Start from PR #123
+  many tasks                     # List all tracked tasks
+  many tasks log task-abc123     # View task output
+  many tasks log task-abc123 -f  # Follow task output (tail -f)
+  many tasks kill task-abc123    # Kill a running task
 
   ${dim("# Non-interactive usage (for scripts/automation):")}
   many switch feature/login --no-interactive --worktree worker-1 --clean
@@ -1032,7 +1500,8 @@ ${bold("WEB UI:")}
 // Web command - start the web server
 async function cmdWeb(args: string[]): Promise<void> {
   let port = 0; // 0 = auto-select free port
-  let open = true;
+  let open = !process.env.MANY_NO_OPEN;
+  let token: string | undefined;
 
   // Parse arguments
   for (let i = 0; i < args.length; i++) {
@@ -1042,6 +1511,9 @@ async function cmdWeb(args: string[]): Promise<void> {
         console.log(red("Error: Invalid port number"));
         process.exit(1);
       }
+      i++;
+    } else if (args[i] === "--token") {
+      token = args[i + 1];
       i++;
     } else if (args[i] === "--open" || args[i] === "-o") {
       open = true;
@@ -1054,7 +1526,7 @@ async function cmdWeb(args: string[]): Promise<void> {
 
   // Dynamic import to avoid loading web server dependencies for other commands
   const { startWebServer } = await import("../web/server.js");
-  await startWebServer({ port, open });
+  await startWebServer({ port, open, token });
 }
 
 function getVersion(): string {
@@ -1110,6 +1582,14 @@ async function main(): Promise<void> {
       case "archive":
       case "ar":
         await cmdArchive(positional[1], flags);
+        break;
+
+      case "task":
+        await cmdTask(positional[1] || null, flags);
+        break;
+
+      case "tasks":
+        await cmdTasks(positional[1] || null, positional.slice(2), flags);
         break;
 
       case "web":

@@ -130,13 +130,15 @@ export async function claimWorktree(
   repoPath: string,
   worktree: WorktreeInfo,
   branchName: string,
-  config: RepositoryConfig
+  config: RepositoryConfig,
+  pullLatest: boolean = true
 ): Promise<void> {
   await sharedClaimWorktree(
     repoPath,
     worktree.path,
     branchName,
-    config.mainBranch
+    config.mainBranch,
+    pullLatest
   );
 }
 

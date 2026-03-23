@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: forest --default;
+  themes: acid --default, forest --prefersdark;
 }
 
 /* xterm terminal overrides */

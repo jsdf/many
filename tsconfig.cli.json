@@ -20,7 +20,8 @@
   "include": [
     "src/cli/**/*",
     "src/web/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "src/electron/**/*"
   ],
   "exclude": [
     "node_modules"

@@ -11,7 +11,16 @@ import { initTRPC } from "@trpc/server";
 import { nodeHTTPRequestHandler } from "@trpc/server/adapters/node-http";
 import { WebSocketServer, WebSocket } from "ws";
 import * as gitPool from "../cli/git-pool.js";
-import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
+import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings, getDataPath } from "../cli/config.js";
+import {
+  registerTask,
+  markTaskCompleted,
+  updateTaskPid,
+  reconcileTasks,
+  listTasks as listTaskRecords,
+  killTask as killTaskById,
+  TaskRecord,
+} from "../cli/task-registry.js";
 import {
   checkBranchMerged,
   removeWorktree,
@@ -19,8 +28,17 @@ import {
   parseWorktreeList,
 } from "../shared/git-core.js";
 import { TerminalManager } from "./terminal-manager.js";
+import { getClaudeSessions, getSessionMessages } from "./claude-sessions.js";
+import { RepoWatcher } from "./git-watcher.js";
 
-const execAsync = promisify(exec);
+const _execAsync = promisify(exec);
+const userShell = process.env.SHELL || "/bin/bash";
+// Run commands in a login shell so PATH includes tools like gh, node, etc.
+function execAsync(command: string, options?: Record<string, unknown>) {
+  // Wrap command to run in a login shell, ensuring PATH is fully configured
+  const loginCommand = `${userShell} -l -c ${JSON.stringify(command)}`;
+  return _execAsync(loginCommand, { ...options });
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -390,6 +408,62 @@ const createRouter = () => {
       .input((input: unknown) => input as { dirPath: string })
       .mutation(async ({ input }) => openVSCode(input.dirPath)),
 
+    // GitHub integration
+    getGitHubLink: t.procedure
+      .input((input: unknown) => input as { repoPath: string; branch: string })
+      .query(async ({ input }) => {
+        const branch = input.branch.replace(/^refs\/heads\//, "");
+
+        // Helper: get GitHub repo URL from git remote
+        const getGitHubRepoUrl = async (): Promise<string | null> => {
+          try {
+            const { simpleGit } = await import("simple-git");
+            const git = simpleGit(input.repoPath);
+            const remoteUrl = (await git.remote(["get-url", "origin"])) as string;
+            const trimmed = remoteUrl.trim();
+            // Convert git@github.com:owner/repo.git or https://github.com/owner/repo.git to https://github.com/owner/repo
+            const sshMatch = trimmed.match(/git@github\.com:(.+?)(?:\.git)?$/);
+            if (sshMatch) return `https://github.com/${sshMatch[1]}`;
+            const httpsMatch = trimmed.match(/(https:\/\/github\.com\/[^/]+\/[^/]+?)(?:\.git)?$/);
+            if (httpsMatch) return httpsMatch[1];
+          } catch {
+            // not a git repo or no remote
+          }
+          return null;
+        };
+
+        // Try to get PR URL for this branch
+        try {
+          const { stdout, stderr } = await execAsync(
+            `gh pr view ${JSON.stringify(branch)} --json url --jq .url`,
+            { cwd: input.repoPath }
+          );
+          const url = stdout.trim();
+          if (url) return { type: "pr" as const, url };
+          if (stderr.trim()) console.log(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.log(`[getGitHubLink] gh pr view failed for branch=${branch} cwd=${input.repoPath}: ${msg}`);
+        }
+        // Fall back to branch URL on GitHub
+        try {
+          const { stdout } = await execAsync(
+            `gh browse -n --branch ${JSON.stringify(branch)}`,
+            { cwd: input.repoPath }
+          );
+          const url = stdout.trim();
+          if (url) return { type: "branch" as const, url };
+        } catch {
+          // gh not available, fall through to git remote fallback
+        }
+        // Final fallback: construct URL from git remote
+        const repoUrl = await getGitHubRepoUrl();
+        if (repoUrl) {
+          return { type: "branch" as const, url: `${repoUrl}/tree/${branch}` };
+        }
+        return null;
+      }),
+
     // Pool management operations
     isTmpBranch: t.procedure
       .input((input: unknown) => input as { branchName: string | null })
@@ -571,14 +645,75 @@ const createRouter = () => {
           branchName = sp;
         }
 
-        // Fetch the branch from origin
+        // Fetch the branch from origin, fall back to local
         try {
           await git.fetch("origin", branchName);
-        } catch (err: any) {
-          throw new Error(`Failed to fetch branch '${branchName}': ${err.message}`);
+        } catch {
+          const branches = await git.branch();
+          if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
+            throw new Error(`Branch "${branchName}" not found locally or on remote`);
+          }
         }
 
         return { branchName };
+      }),
+
+    // Task registry endpoints
+    listTasks: t.procedure
+      .input((v: unknown) => v as { repoPath?: string; status?: string })
+      .query(async ({ input }) => {
+        await reconcileTasks();
+        const filter: { repoPath?: string; status?: any } = {};
+        if (input && typeof input === "object") {
+          if ((input as any).repoPath) filter.repoPath = (input as any).repoPath;
+          if ((input as any).status) filter.status = (input as any).status;
+        }
+        return listTaskRecords(filter);
+      }),
+
+    killTaskById: t.procedure
+      .input((v: unknown) => v as { taskId: string })
+      .mutation(async ({ input }) => {
+        const killed = await killTaskById((input as any).taskId);
+        return { success: killed };
+      }),
+
+    getTaskLog: t.procedure
+      .input((v: unknown) => v as { taskId: string; offset?: number })
+      .query(async ({ input }) => {
+        const { getTask } = await import("../cli/task-registry.js");
+        const task = await getTask((input as any).taskId);
+        if (!task?.logFile) return { content: "", size: 0 };
+        try {
+          const stat = await fs.stat(task.logFile);
+          const offset = (input as any).offset || 0;
+          // Read from offset, cap at 100KB per request
+          const maxRead = 100 * 1024;
+          const start = Math.max(offset, 0);
+          const fh = await fs.open(task.logFile, "r");
+          const buf = Buffer.alloc(Math.min(maxRead, stat.size - start));
+          if (buf.length > 0) {
+            await fh.read(buf, 0, buf.length, start);
+          }
+          await fh.close();
+          return { content: buf.toString("utf-8"), size: stat.size };
+        } catch {
+          return { content: "", size: 0 };
+        }
+      }),
+
+    // Claude session discovery
+    getClaudeSessions: t.procedure
+      .input((v: unknown) => v as { worktreePath: string })
+      .query(async ({ input }) => {
+        return getClaudeSessions((input as any).worktreePath);
+      }),
+
+    getSessionMessages: t.procedure
+      .input((v: unknown) => v as { sessionId: string; worktreePath: string; offset?: number; limit?: number })
+      .query(async ({ input }) => {
+        const { sessionId, worktreePath, offset, limit } = input as any;
+        return getSessionMessages(sessionId, worktreePath, offset, limit);
       }),
   });
 };
@@ -619,15 +754,19 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   const router = createRouter();
 
+  // Reconcile task registry on startup
+  await reconcileTasks();
+
   // Determine static files directory
   const distDir = path.join(PROJECT_ROOT, "out", "renderer");
 
-  // Check if built files exist
+  // Check if built files exist (optional in dev mode where Vite serves the frontend)
+  let hasStaticFiles = false;
   try {
     await fs.access(path.join(distDir, "index.html"));
+    hasStaticFiles = true;
   } catch {
-    console.error("Error: Built frontend not found. Please run 'npm run build' first.");
-    process.exit(1);
+    console.log("Note: Built frontend not found. Assuming dev mode (Vite serves frontend).");
   }
 
   function checkToken(req: http.IncomingMessage, url: URL): boolean {
@@ -745,12 +884,423 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
         return;
       }
 
+      // SSE endpoint for creating worktrees with streaming progress
+      if (pathname === "/api/create-worktree" && req.method === "POST") {
+        if (!checkToken(req, url)) {
+          res.writeHead(401, { "Content-Type": "text/plain" });
+          res.end("Unauthorized");
+          return;
+        }
+
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        let parsed: {
+          repoPath: string;
+          worktreeName: string;
+          startingPoint?: string;
+          poolPrefix?: string;
+          pullLatest?: boolean;
+        };
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Invalid JSON");
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        const sendEvent = (data: object) => {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        try {
+          const appData = await loadAppData();
+          const repoConfig = getRepoConfig(appData, parsed.repoPath);
+
+          // Step 1: Resolve starting point if provided
+          let resolvedBranch: string | undefined;
+          if (parsed.startingPoint) {
+            sendEvent({ type: "step", text: `Resolving starting point: ${parsed.startingPoint}` });
+            try {
+              const { simpleGit } = await import("simple-git");
+              const git = simpleGit(parsed.repoPath);
+              const sp = parsed.startingPoint.trim();
+              let branchName: string;
+
+              const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+              const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
+              const prNumberMatch = sp.match(/^#?(\d+)$/);
+              const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
+
+              if (prNumber) {
+                const { stdout } = await execAsync(
+                  `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
+                  { cwd: parsed.repoPath }
+                );
+                branchName = stdout.trim();
+                if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
+              } else {
+                branchName = sp;
+              }
+
+              // Fetch from remote, fall back to local branch
+              try {
+                await git.fetch("origin", branchName);
+              } catch {
+                const branches = await git.branch();
+                if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
+                  throw new Error(`Branch "${branchName}" not found locally or on remote`);
+                }
+                sendEvent({ type: "step", text: `Branch not on remote, using local branch` });
+              }
+              resolvedBranch = branchName;
+              sendEvent({ type: "step", text: `Resolved to branch: ${branchName}` });
+            } catch (err: any) {
+              sendEvent({ type: "error", text: `Failed to resolve starting point: ${err.message}` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+          }
+
+          // Step 2: Determine worktree name
+          const worktreeName = parsed.poolPrefix
+            ? `${parsed.poolPrefix}-${parsed.worktreeName}`
+            : parsed.worktreeName;
+
+          // Step 3: Create the worktree
+          sendEvent({ type: "step", text: `Creating worktree: ${worktreeName}` });
+          let result: { path: string; branch: string };
+          try {
+            result = await gitPool.createWorktree(parsed.repoPath, worktreeName, repoConfig);
+            sendEvent({ type: "step", text: `Worktree created at ${result.path}` });
+          } catch (err: any) {
+            sendEvent({ type: "error", text: `Failed to create worktree: ${err.message}` });
+            sendEvent({ type: "done", success: false });
+            res.end();
+            return;
+          }
+
+          // Step 4: Claim for the resolved branch if we have one
+          const pullLatest = parsed.pullLatest !== false; // default true
+          if (resolvedBranch) {
+            sendEvent({ type: "step", text: `Checking out branch: ${resolvedBranch}${pullLatest ? ' (pulling latest)' : ''}` });
+            try {
+              const worktrees = await gitPool.getWorktrees(parsed.repoPath);
+              const wt = worktrees.find((w) => w.path === result.path);
+              if (wt) {
+                await gitPool.claimWorktree(parsed.repoPath, wt, resolvedBranch, repoConfig, pullLatest);
+              }
+              sendEvent({ type: "step", text: "Branch checked out" });
+            } catch (err: any) {
+              sendEvent({ type: "error", text: `Failed to checkout branch: ${err.message}` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+          }
+
+          // Step 5: Run init command if configured
+          if (repoConfig.initCommand) {
+            sendEvent({ type: "step", text: `Running init command: ${repoConfig.initCommand}` });
+            const child = spawn(repoConfig.initCommand, {
+              shell: userShell,
+              cwd: result.path,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+
+            await new Promise<void>((resolve) => {
+              child.stdout.on("data", (chunk: Buffer) => {
+                sendEvent({ type: "stdout", text: chunk.toString() });
+              });
+              child.stderr.on("data", (chunk: Buffer) => {
+                sendEvent({ type: "stderr", text: chunk.toString() });
+              });
+              child.on("close", (code) => {
+                if (code !== 0) {
+                  sendEvent({ type: "step", text: `Init command exited with code ${code} (continuing anyway)` });
+                } else {
+                  sendEvent({ type: "step", text: "Init command completed" });
+                }
+                resolve();
+              });
+              child.on("error", (error) => {
+                sendEvent({ type: "stderr", text: error.message });
+                resolve();
+              });
+              req.on("close", () => {
+                if (!child.killed) child.kill();
+              });
+            });
+          }
+
+          sendEvent({ type: "done", success: true, worktreePath: result.path, branch: resolvedBranch || result.branch });
+        } catch (err: any) {
+          sendEvent({ type: "error", text: `Unexpected error: ${err.message}` });
+          sendEvent({ type: "done", success: false });
+        }
+
+        res.end();
+        return;
+      }
+
+      // SSE endpoint for launching tasks with streaming progress
+      if (pathname === "/api/launch-task" && req.method === "POST") {
+        if (!checkToken(req, url)) {
+          res.writeHead(401, { "Content-Type": "text/plain" });
+          res.end("Unauthorized");
+          return;
+        }
+
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        let parsed: {
+          repoPath: string;
+          poolType: "recyclable" | "ephemeral";
+          poolPrefix: string;
+          prompt: string;
+          startingPoint?: string;
+          maintenanceCommand?: string;
+          taskCommand?: string;
+        };
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Invalid JSON");
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        const sendEvent = (data: object) => {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        const runCommand = (command: string, cwd: string): Promise<number> => {
+          return new Promise((resolve) => {
+            const child = spawn(command, {
+              shell: true,
+              cwd,
+              stdio: ["ignore", "pipe", "pipe"],
+            });
+
+            child.stdout.on("data", (chunk: Buffer) => {
+              sendEvent({ type: "stdout", text: chunk.toString() });
+            });
+
+            child.stderr.on("data", (chunk: Buffer) => {
+              sendEvent({ type: "stderr", text: chunk.toString() });
+            });
+
+            child.on("error", (error) => {
+              sendEvent({ type: "stderr", text: error.message });
+              resolve(1);
+            });
+
+            child.on("close", (code) => {
+              resolve(code ?? 1);
+            });
+
+            req.on("close", () => {
+              if (!child.killed) child.kill();
+            });
+          });
+        };
+
+        try {
+          const appData = await loadAppData();
+          const repoConfig = getRepoConfig(appData, parsed.repoPath);
+
+          // Step 1: Resolve starting point
+          let resolvedBranch: string | undefined;
+          if (parsed.startingPoint) {
+            sendEvent({ type: "step", text: `Resolving starting point: ${parsed.startingPoint}` });
+            try {
+              const { simpleGit } = await import("simple-git");
+              const git = simpleGit(parsed.repoPath);
+              const sp = parsed.startingPoint.trim();
+              let branchName: string;
+
+              const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+              const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
+              const prNumberMatch = sp.match(/^#?(\d+)$/);
+              const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
+
+              if (prNumber) {
+                const { stdout } = await execAsync(
+                  `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
+                  { cwd: parsed.repoPath }
+                );
+                branchName = stdout.trim();
+                if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
+              } else {
+                branchName = sp;
+              }
+
+              // Fetch from remote, fall back to local branch
+              try {
+                await git.fetch("origin", branchName);
+              } catch {
+                const branches = await git.branch();
+                if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
+                  throw new Error(`Branch "${branchName}" not found locally or on remote`);
+                }
+                sendEvent({ type: "step", text: `Branch not on remote, using local branch` });
+              }
+              resolvedBranch = branchName;
+              sendEvent({ type: "step", text: `Resolved to branch: ${branchName}` });
+            } catch (err: any) {
+              sendEvent({ type: "error", text: `Failed to resolve starting point: ${err.message}` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+          }
+
+          let targetWorktreePath: string;
+
+          if (parsed.poolType === "recyclable") {
+            // Step 2: Find available worktree
+            sendEvent({ type: "step", text: `Finding available worktree in pool "${parsed.poolPrefix}"...` });
+            const worktrees = await gitPool.getWorktrees(parsed.repoPath);
+            const available = worktrees.find(
+              (w) =>
+                w.path !== parsed.repoPath &&
+                !w.bare &&
+                (w.branch?.replace(/^refs\/heads\//, "") || "").startsWith("tmp-") &&
+                w.worktreeName.startsWith(parsed.poolPrefix)
+            );
+            if (!available || !available.path) {
+              sendEvent({ type: "error", text: `No available worktrees in pool with prefix "${parsed.poolPrefix}".` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+            sendEvent({ type: "step", text: `Using worktree: ${available.worktreeName}` });
+
+            // Step 3: Claim worktree
+            const branchName =
+              resolvedBranch ??
+              `task/${parsed.prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}-${Date.now().toString(36)}`;
+            sendEvent({ type: "step", text: `Claiming worktree → branch: ${branchName}` });
+            try {
+              await gitPool.claimWorktree(parsed.repoPath, available, branchName, repoConfig);
+              sendEvent({ type: "step", text: "Worktree claimed successfully" });
+            } catch (err: any) {
+              sendEvent({ type: "error", text: `Failed to claim worktree: ${err.message}` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+
+            // Step 4: Run maintenance command
+            if (parsed.maintenanceCommand) {
+              sendEvent({ type: "step", text: `Running maintenance command: ${parsed.maintenanceCommand}` });
+              const code = await runCommand(parsed.maintenanceCommand, available.path);
+              if (code !== 0) {
+                sendEvent({ type: "step", text: `Maintenance command exited with code ${code} (continuing anyway)` });
+              } else {
+                sendEvent({ type: "step", text: "Maintenance command completed" });
+              }
+            }
+
+            targetWorktreePath = available.path;
+          } else {
+            // Ephemeral: create new worktree
+            const name = `${parsed.poolPrefix}-${Date.now().toString(36)}`;
+            sendEvent({ type: "step", text: `Creating worktree: ${name}` });
+            try {
+              const result = await gitPool.createWorktree(parsed.repoPath, name, repoConfig);
+              targetWorktreePath = result.path;
+              sendEvent({ type: "step", text: `Worktree created at ${result.path}` });
+            } catch (err: any) {
+              sendEvent({ type: "error", text: `Failed to create worktree: ${err.message}` });
+              sendEvent({ type: "done", success: false });
+              res.end();
+              return;
+            }
+
+            // Check out starting branch if provided
+            if (resolvedBranch) {
+              sendEvent({ type: "step", text: `Checking out branch: ${resolvedBranch}` });
+              try {
+                const worktrees = await gitPool.getWorktrees(parsed.repoPath);
+                const wt = worktrees.find((w) => w.path === targetWorktreePath);
+                if (wt) {
+                  await gitPool.claimWorktree(parsed.repoPath, wt, resolvedBranch, repoConfig);
+                }
+                sendEvent({ type: "step", text: "Branch checked out" });
+              } catch (err: any) {
+                sendEvent({ type: "error", text: `Failed to checkout branch: ${err.message}` });
+                sendEvent({ type: "done", success: false });
+                res.end();
+                return;
+              }
+            }
+
+            // Run init command
+            if (repoConfig.initCommand) {
+              sendEvent({ type: "step", text: `Running init command: ${repoConfig.initCommand}` });
+              const code = await runCommand(repoConfig.initCommand, targetWorktreePath);
+              if (code !== 0) {
+                sendEvent({ type: "step", text: `Init command exited with code ${code} (continuing anyway)` });
+              } else {
+                sendEvent({ type: "step", text: "Init command completed" });
+              }
+            }
+          }
+
+          // Register task in the registry
+          const taskRecord = await registerTask({
+            pid: 0, // PID unknown until terminal spawns the command
+            repoPath: parsed.repoPath,
+            worktreePath: targetWorktreePath,
+            poolPrefix: parsed.poolPrefix,
+            poolName: parsed.poolPrefix,
+            branch: resolvedBranch ?? "",
+            prompt: parsed.prompt,
+            taskCommand: parsed.taskCommand || "",
+            launchedBy: "web",
+          });
+
+          sendEvent({ type: "done", success: true, worktreePath: targetWorktreePath, taskId: taskRecord.id });
+        } catch (err: any) {
+          sendEvent({ type: "error", text: `Unexpected error: ${err.message}` });
+          sendEvent({ type: "done", success: false });
+        }
+
+        res.end();
+        return;
+      }
+
       // Static files (HTML, JS, CSS, images) served without token.
       // The token in the URL is read by the JS client for API auth.
-      let filePath = pathname === "/" ? path.join(distDir, "index.html") : path.join(distDir, pathname);
-      const result = await serveStaticFile(filePath);
-      res.writeHead(result.status, { "Content-Type": result.contentType });
-      res.end(result.body);
+      if (hasStaticFiles) {
+        let filePath = pathname === "/" ? path.join(distDir, "index.html") : path.join(distDir, pathname);
+        const result = await serveStaticFile(filePath);
+        res.writeHead(result.status, { "Content-Type": result.contentType });
+        res.end(result.body);
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found (frontend not built, use Vite dev server)");
+      }
     } catch (error) {
       console.error("Server error:", error);
       res.writeHead(500, { "Content-Type": "text/plain" });
@@ -760,15 +1310,11 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   // WebSocket server for terminal sessions
   const wss = new WebSocketServer({ noServer: true });
+  // WebSocket server for subscriptions (push-based updates)
+  const subscribeWss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url || "/", `http://${host}:${port}`);
-
-    // Only handle terminal WebSocket connections
-    if (url.pathname !== "/ws/terminal") {
-      socket.destroy();
-      return;
-    }
 
     // Auth check
     const queryToken = url.searchParams.get("token");
@@ -777,9 +1323,17 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       return;
     }
 
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req);
-    });
+    if (url.pathname === "/ws/terminal") {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
+      });
+    } else if (url.pathname === "/ws/subscribe") {
+      subscribeWss.handleUpgrade(req, socket, head, (ws) => {
+        subscribeWss.emit("connection", ws, req);
+      });
+    } else {
+      socket.destroy();
+    }
   });
 
   wss.on("connection", (ws: WebSocket) => {
@@ -809,7 +1363,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
       switch (type) {
         case "create": {
-          const { worktreePath, cols, rows, env, initialCommand } = msg;
+          const { worktreePath, cols, rows, env, initialCommand, taskId } = msg;
           // Find which repo this worktree belongs to so we can get its terminalLogDir
           let terminalLogDir: string | null = null;
           const appData = await loadAppData();
@@ -821,6 +1375,20 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
             }
           }
           const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, env, initialCommand, terminalLogDir);
+
+          // If this terminal is associated with a task, update the task PID and track exit
+          if (taskId && !existed) {
+            const pid = terminalManager.getSessionPid(terminalId);
+            if (pid) {
+              updateTaskPid(taskId, pid).catch(() => {});
+            }
+
+            // Listen for exit to mark task completed
+            const taskExitListener = () => {
+              markTaskCompleted(taskId, 0).catch(() => {});
+            };
+            terminalManager.addExitListener(terminalId, taskExitListener);
+          }
 
           // Detach from previous terminal if switching
           if (attachedTerminalId && attachedTerminalId !== terminalId) {
@@ -868,8 +1436,134 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     });
   });
 
-  // Cleanup on server shutdown
-  const cleanupAndExit = () => {
+  // --- Subscription system: push worktree updates when git state changes ---
+  const repoWatcher = new RepoWatcher();
+
+  // Track which repos each subscriber is watching
+  const subscriberRepos = new Map<WebSocket, Set<string>>();
+
+  // Start watching all known repos
+  const appDataForWatch = await loadAppData();
+  for (const repo of appDataForWatch.repositories) {
+    repoWatcher.watchRepo(repo.path).catch(() => {});
+  }
+
+  // When git state changes, broadcast updated worktree list to subscribers
+  repoWatcher.on("changed", async (repoPath: string) => {
+    try {
+      const worktrees = await gitPool.getWorktrees(repoPath);
+      const message = JSON.stringify({
+        type: "worktrees",
+        repoPath,
+        data: worktrees,
+      });
+
+      for (const [ws, repos] of subscriberRepos) {
+        if (repos.has(repoPath) && ws.readyState === WebSocket.OPEN) {
+          ws.send(message);
+        }
+      }
+    } catch {
+      // Failed to get worktrees — skip this update
+    }
+  });
+
+  subscribeWss.on("connection", (ws: WebSocket) => {
+    subscriberRepos.set(ws, new Set());
+
+    ws.on("message", async (rawMsg) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(rawMsg.toString());
+      } catch {
+        return;
+      }
+
+      if (msg.type === "subscribe" && msg.procedure === "worktrees" && msg.repoPath) {
+        const repos = subscriberRepos.get(ws);
+        if (repos) {
+          repos.add(msg.repoPath);
+
+          // Start watching this repo if not already
+          await repoWatcher.watchRepo(msg.repoPath).catch(() => {});
+
+          // Send initial data immediately
+          try {
+            const worktrees = await gitPool.getWorktrees(msg.repoPath);
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: "worktrees",
+                repoPath: msg.repoPath,
+                data: worktrees,
+              }));
+            }
+          } catch {
+            // ignore
+          }
+        }
+      } else if (msg.type === "unsubscribe" && msg.procedure === "worktrees" && msg.repoPath) {
+        const repos = subscriberRepos.get(ws);
+        if (repos) {
+          repos.delete(msg.repoPath);
+        }
+      }
+    });
+
+    ws.on("close", () => {
+      subscriberRepos.delete(ws);
+    });
+  });
+
+  // Cleanup on server shutdown — save terminal logs before exiting
+  const cleanupAndExit = async () => {
+    repoWatcher.close();
+
+    // Save terminal output as read-only logs
+    try {
+      const { getTaskLogDir } = await import("../cli/task-registry.js");
+      const logDir = getTaskLogDir();
+      const saved = await terminalManager.saveAllSessionLogs(logDir);
+
+      if (saved.length > 0) {
+        // Figure out repo paths from app data
+        const appData = await loadAppData();
+        for (const entry of saved) {
+          let repoPath = "";
+          let branch = "";
+          for (const [rp, cfg] of Object.entries(appData.repositoryConfigs)) {
+            const worktreeDir = (cfg as any).worktreeDirectory || path.dirname(rp);
+            if (entry.worktreePath === rp || entry.worktreePath.startsWith(worktreeDir + path.sep)) {
+              repoPath = rp;
+              break;
+            }
+          }
+          // Try to get branch name
+          try {
+            const { simpleGit } = await import("simple-git");
+            const git = simpleGit(entry.worktreePath);
+            const status = await git.status();
+            branch = status.current || "";
+          } catch {}
+
+          const task = await registerTask({
+            pid: 0,
+            repoPath,
+            worktreePath: entry.worktreePath,
+            poolPrefix: "",
+            poolName: "",
+            branch,
+            prompt: "Terminal session (saved on shutdown)",
+            taskCommand: "",
+            logFile: entry.logFile,
+            launchedBy: "web",
+          });
+          await markTaskCompleted(task.id, 0);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save terminal logs on shutdown:", err);
+    }
+
     terminalManager.cleanup();
     process.exit(0);
   };

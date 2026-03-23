@@ -8,3 +8,5 @@
 - [x] remove achive button from base repo worktree view
 - [x] make left nav resizable
 - [x] make left nav collapsed state still have a narrow fixed width left sidebar
+- [ ] everywhere which outputs colored text needs a darker background in light mode or we need to make the text colors darker in the light theme
+- [ ] trap usual window management commands like CMD+W, `CMD+[` or `CMD+]` and make them close terminals or cycle through the terminals respectively

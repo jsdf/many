@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { client } from "../main";
+
+function useDarkMode(): boolean {
+  const query = window.matchMedia("(prefers-color-scheme: dark)");
+  return useSyncExternalStore(
+    (cb) => { query.addEventListener("change", cb); return () => query.removeEventListener("change", cb); },
+    () => query.matches,
+  );
+}
 
 /** Split a multi-file unified diff into individual file patches */
 function splitPatch(patch: string): string[] {
@@ -30,9 +38,10 @@ function getFilename(patch: string): string {
 
 type DiffStyle = "unified" | "split";
 
-const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle }> = ({ patch, diffStyle }) => {
-  const [collapsed, setCollapsed] = useState(false);
+const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultCollapsed?: boolean }> = ({ patch, diffStyle, defaultCollapsed = false }) => {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const filename = useMemo(() => getFilename(patch), [patch]);
+  const isDark = useDarkMode();
 
   return (
     <div className="border border-base-300 rounded overflow-hidden">
@@ -47,7 +56,7 @@ const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle }> = ({ patc
           <PatchDiff
             patch={patch}
             options={{
-              theme: "github-dark",
+              theme: isDark ? "github-dark" : "github-light",
               diffStyle,
             }}
           />
@@ -126,7 +135,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
     <div className="bg-base-200 border border-base-300 rounded-lg p-4 overflow-hidden w-full max-w-full">
       <div className="text-sm overflow-hidden flex flex-col gap-2">
         {filePatches.map((filePatch, i) => (
-          <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} />
+          <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} defaultCollapsed={filePatches.length > 10} />
         ))}
       </div>
     </div>
@@ -172,14 +181,14 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
         {!collapsed && (
           <div className="flex gap-2">
             <button
-              className="btn btn-neutral btn-sm"
+              className="btn btn-soft btn-neutral btn-sm"
               onClick={toggleDiffStyle}
               title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
             >
               {diffStyle === "unified" ? "Split" : "Unified"}
             </button>
             <button
-              className="btn btn-neutral btn-sm"
+              className="btn btn-soft btn-neutral btn-sm"
               onClick={() => setRefreshKey((k) => k + 1)}
             >
               Refresh

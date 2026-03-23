@@ -263,32 +263,60 @@ export async function commitChanges(
 
 /**
  * Claim a worktree for a branch (checkout existing or create new).
+ * When pullLatest is true (default), fetches from origin and resets to the remote version.
  * Returns the branch name that was checked out.
  */
 export async function claimWorktree(
   repoPath: string,
   worktreePath: string,
   branchName: string,
-  mainBranch: string | null
+  mainBranch: string | null,
+  pullLatest: boolean = true
 ): Promise<string> {
   await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   const repoGit = simpleGit(repoPath);
 
-  const exists = await branchExists(repoPath, branchName);
+  // Fetch from remote if pulling latest
+  if (pullLatest) {
+    try {
+      await repoGit.fetch("origin", branchName);
+    } catch {
+      // Ignore fetch errors (might be offline or branch doesn't exist on remote)
+    }
+  }
 
-  if (exists) {
-    await git.checkout(branchName);
+  const branches = await repoGit.branch();
+  const localExists = branches.all.includes(branchName) && !branchName.startsWith("remotes/");
+  const remoteRef = `remotes/origin/${branchName}`;
+  const remoteExists = branches.all.includes(remoteRef);
+
+  if (localExists) {
+    await git.raw(["checkout", "--no-recurse-submodules", branchName]);
+    // Update from remote if pulling latest and remote exists
+    if (pullLatest && remoteExists) {
+      try {
+        await git.raw(["reset", "--hard", `origin/${branchName}`]);
+      } catch {
+        // Ignore — remote may be stale or diverged
+      }
+    }
+  } else if (remoteExists) {
+    // Create local branch tracking the remote
+    await git.raw(["checkout", "--no-recurse-submodules", "-b", branchName, `origin/${branchName}`]);
   } else {
+    // Brand new branch — base on default branch
     const defaultBranch = await getDefaultBranch(repoPath, mainBranch);
 
-    try {
-      await repoGit.fetch("origin", defaultBranch);
-    } catch {
-      // Ignore fetch errors (might be offline)
+    if (pullLatest) {
+      try {
+        await repoGit.fetch("origin", defaultBranch);
+      } catch {
+        // Ignore fetch errors (might be offline)
+      }
     }
 
-    await git.checkout(["-b", branchName, defaultBranch]);
+    await git.raw(["checkout", "--no-recurse-submodules", "-b", branchName, defaultBranch]);
   }
 
   return branchName;

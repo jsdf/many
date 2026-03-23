@@ -9,7 +9,6 @@ interface SidebarProps {
   pools?: PoolConfig[]
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
-  onAddRepo: () => void
   onCreateWorktree: () => void
   onConfigRepo: () => void
   onSwitchWorktree?: () => void
@@ -33,7 +32,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   pools,
   onRepoSelect,
   onWorktreeSelect,
-  onAddRepo,
   onCreateWorktree,
   onConfigRepo,
   onSwitchWorktree,
@@ -116,14 +114,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="text-lg font-semibold">Worktrees</h2>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={onGlobalSettings} className="btn btn-neutral btn-sm" title="Global settings">
+          <button onClick={onGlobalSettings} className="btn btn-soft btn-neutral btn-sm" title="Global settings">
             &#9881;
           </button>
-          <button data-testid="add-repo-button" onClick={onAddRepo} className="btn btn-neutral btn-sm">
-            Add Repo
-          </button>
           {onCollapse && (
-            <button onClick={onCollapse} className="btn btn-neutral btn-sm" title="Hide sidebar">
+            <button onClick={onCollapse} className="btn btn-soft btn-neutral btn-sm" title="Hide sidebar">
               &#x2039;
             </button>
           )}
@@ -148,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             data-testid="repo-config-button"
             onClick={onConfigRepo}
-            className="btn btn-neutral btn-sm"
+            className="btn btn-soft btn-neutral btn-sm"
             title="Configure repository settings"
           >
             ⚙️
@@ -228,7 +223,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           data-testid="create-worktree-button"
           onClick={onCreateWorktree}
           disabled={!currentRepo}
-          className="btn btn-success w-full"
+          className="btn btn-soft btn-success w-full"
         >
           Create Worktree
         </button>
@@ -237,7 +232,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             data-testid="switch-worktree-button"
             onClick={onSwitchWorktree}
             disabled={!currentRepo}
-            className="btn btn-neutral w-full"
+            className="btn btn-soft btn-neutral w-full"
             title="Claim an available worktree for a branch"
           >
             Switch Branch

@@ -15,6 +15,8 @@ export interface PoolConfig {
   type: 'recyclable' | 'ephemeral';
   maintenanceCommand?: string;
   taskCommand?: string;
+  backgroundTaskCommand?: string;
+  claudeCommand?: string;
 }
 
 export interface RepositoryConfig {
@@ -23,6 +25,7 @@ export interface RepositoryConfig {
   worktreeDirectory: string | null;
   terminalLogDir?: string | null;
   pools?: PoolConfig[];
+  defaultTaskPool?: string | null;
 }
 
 export interface GlobalSettings {
@@ -51,7 +54,7 @@ const defaultAppData: AppData = {
 };
 
 // Get platform-specific data directory
-function getDataPath(): string {
+export function getDataPath(): string {
   const platform = process.platform;
   const homeDir = os.homedir();
 

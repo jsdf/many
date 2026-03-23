@@ -52,6 +52,8 @@ export interface PoolConfig {
   type: 'recyclable' | 'ephemeral';
   maintenanceCommand?: string;
   taskCommand?: string;
+  backgroundTaskCommand?: string;
+  claudeCommand?: string;
 }
 
 export interface RepositoryConfig {
@@ -60,6 +62,7 @@ export interface RepositoryConfig {
   worktreeDirectory: string | null;
   terminalLogDir?: string | null;
   pools?: PoolConfig[];
+  defaultTaskPool?: string | null;
 }
 
 export interface MergeOptions {

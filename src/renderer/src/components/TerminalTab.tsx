@@ -10,6 +10,63 @@ interface TerminalTabProps {
   isVisible: boolean;
   env?: Record<string, string>;
   initialCommand?: string;
+  taskId?: string;
+}
+
+const darkTheme = {
+  background: "#1e1e1e",
+  foreground: "#d4d4d4",
+  selectionBackground: "#264f78",
+  selectionForeground: "#ffffff",
+  cursor: "#ffffff",
+  cursorAccent: "#000000",
+  black: "#000000",
+  red: "#cd3131",
+  green: "#0dbc79",
+  yellow: "#e5e510",
+  blue: "#2472c8",
+  magenta: "#bc3fbc",
+  cyan: "#11a8cd",
+  white: "#e5e5e5",
+  brightBlack: "#666666",
+  brightRed: "#f14c4c",
+  brightGreen: "#23d18b",
+  brightYellow: "#f5f543",
+  brightBlue: "#3b8eea",
+  brightMagenta: "#d670d6",
+  brightCyan: "#29b8db",
+  brightWhite: "#e5e5e5",
+};
+
+const lightTheme = {
+  background: "#ffffff",
+  foreground: "#383a42",
+  selectionBackground: "#b4d5fe",
+  selectionForeground: "#000000",
+  cursor: "#526eff",
+  cursorAccent: "#ffffff",
+  black: "#383a42",
+  red: "#e45649",
+  green: "#50a14f",
+  yellow: "#c18401",
+  blue: "#4078f2",
+  magenta: "#a626a4",
+  cyan: "#0184bc",
+  white: "#a0a1a7",
+  brightBlack: "#4f525e",
+  brightRed: "#e06c75",
+  brightGreen: "#98c379",
+  brightYellow: "#e5c07b",
+  brightBlue: "#61afef",
+  brightMagenta: "#c678dd",
+  brightCyan: "#56b6c2",
+  brightWhite: "#ffffff",
+};
+
+function getTerminalTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? darkTheme
+    : lightTheme;
 }
 
 const token = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -25,6 +82,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   isVisible,
   env,
   initialCommand,
+  taskId,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -37,28 +95,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     if (!containerRef.current) return;
 
     const xterm = new Terminal({
-      theme: {
-        background: "#1e1e1e",
-        foreground: "#d4d4d4",
-        cursor: "#ffffff",
-        cursorAccent: "#000000",
-        black: "#000000",
-        red: "#cd3131",
-        green: "#0dbc79",
-        yellow: "#e5e510",
-        blue: "#2472c8",
-        magenta: "#bc3fbc",
-        cyan: "#11a8cd",
-        white: "#e5e5e5",
-        brightBlack: "#666666",
-        brightRed: "#f14c4c",
-        brightGreen: "#23d18b",
-        brightYellow: "#f5f543",
-        brightBlue: "#3b8eea",
-        brightMagenta: "#d670d6",
-        brightCyan: "#29b8db",
-        brightWhite: "#e5e5e5",
-      },
+      theme: getTerminalTheme(),
       fontFamily:
         '"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", monospace',
       fontSize: 13,
@@ -94,6 +131,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
           rows: xterm.rows,
           ...(env ? { env } : {}),
           ...(initialCommand ? { initialCommand } : {}),
+          ...(taskId ? { taskId } : {}),
         })
       );
     };
@@ -133,8 +171,16 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     });
     resizeObserver.observe(containerRef.current);
 
+    // Follow OS color scheme changes
+    const colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const onColorSchemeChange = () => {
+      xterm.options.theme = getTerminalTheme();
+    };
+    colorSchemeQuery.addEventListener("change", onColorSchemeChange);
+
     return () => {
       mountedRef.current = false;
+      colorSchemeQuery.removeEventListener("change", onColorSchemeChange);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       resizeDisposable.dispose();

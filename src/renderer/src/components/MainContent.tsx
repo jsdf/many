@@ -17,7 +17,7 @@ interface MainContentProps {
 }
 
 export interface MainContentHandle {
-  launchTaskTerminal: (env: Record<string, string>, initialCommand: string) => void;
+  launchTaskTerminal: (env: Record<string, string>, initialCommand: string, taskId?: string) => void;
 }
 
 const MIN_PANE_WIDTH = 200;
@@ -36,12 +36,39 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
 
+  // Fetch GitHub PR/branch link with periodic revalidation
+  const fetchGhLink = useCallback(() => {
+    if (!selectedWorktree?.branch || !currentRepo || isTmpBranch(selectedWorktree.branch)) return;
+    client.getGitHubLink.query({
+      repoPath: currentRepo,
+      branch: selectedWorktree.branch,
+    }).then((result) => {
+      setGhLink(result);
+    }).catch(() => {
+      // gh CLI not available or not a GitHub repo
+    });
+  }, [selectedWorktree?.branch, currentRepo]);
+
+  // Reset and fetch on worktree change (path included so re-selecting triggers it)
+  useEffect(() => {
+    setGhLink(null);
+    fetchGhLink();
+  }, [selectedWorktree?.path, fetchGhLink]);
+
+  // Revalidate every 30 seconds
+  useEffect(() => {
+    if (!selectedWorktree?.branch || !currentRepo || isTmpBranch(selectedWorktree.branch)) return;
+    const interval = setInterval(fetchGhLink, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchGhLink, selectedWorktree?.branch, currentRepo]);
+
   useImperativeHandle(ref, () => ({
-    launchTaskTerminal: (env: Record<string, string>, initialCommand: string) => {
-      terminalStackRef.current?.createTerminalWithCommand(env, initialCommand);
+    launchTaskTerminal: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
+      terminalStackRef.current?.createTerminalWithCommand(env, initialCommand, taskId);
     },
   }), []);
 
@@ -107,27 +134,26 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         </div>
 
         <button
-          className="btn btn-neutral btn-sm"
+          className="btn btn-soft btn-neutral btn-sm"
           onClick={() => selectedWorktree.path && client.openInFileManager.mutate({ folderPath: selectedWorktree.path })}
         >
           📁 Folder
         </button>
         <button
-          className="btn btn-neutral btn-sm"
+          className="btn btn-soft btn-neutral btn-sm"
           onClick={() => selectedWorktree.path && client.openInEditor.mutate({ folderPath: selectedWorktree.path })}
         >
           📝 Editor
         </button>
         <button
-          className="btn btn-neutral btn-sm"
+          className="btn btn-soft btn-neutral btn-sm"
           onClick={() => selectedWorktree.path && client.openInTerminal.mutate({ folderPath: selectedWorktree.path })}
         >
           💻 Terminal
         </button>
-
         {isTmpBranch(selectedWorktree.branch) && onClaimWorktree && (
           <button
-            className="btn btn-primary btn-sm"
+            className="btn btn-soft btn-primary btn-sm"
             onClick={() => onClaimWorktree(selectedWorktree)}
           >
             ⚡ Claim
@@ -136,7 +162,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
         {showRelease && onReleaseWorktree && !isTmpBranch(selectedWorktree.branch) && (
           <button
-            className="btn btn-neutral btn-sm"
+            className="btn btn-soft btn-neutral btn-sm"
             onClick={() => onReleaseWorktree(selectedWorktree)}
             title="Release this worktree back to the pool"
           >
@@ -144,15 +170,31 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           </button>
         )}
 
-        {showArchive && (
-          <button
-            className="btn btn-warning btn-sm"
-            onClick={handleArchive}
-            disabled={isArchiving}
-          >
-            📦 {isArchiving ? "Archiving..." : "Archive"}
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {showArchive && (
+            <button
+              className="btn btn-warning btn-sm"
+              onClick={handleArchive}
+              disabled={isArchiving}
+            >
+              📦 {isArchiving ? "Archiving..." : "Archive"}
+            </button>
+          )}
+
+          {!isTmpBranch(selectedWorktree.branch) && (
+            <a
+              className={`btn btn-sm ${ghLink?.type === "pr" ? "btn-primary" : "btn-neutral"}`}
+              href={ghLink?.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={ghLink ? undefined : { pointerEvents: "none", opacity: 0.5 }}
+            >
+              {ghLink?.type === "pr"
+                ? `🔀 PR #${ghLink.url.match(/\/(\d+)$/)?.[1] ?? ""}`
+                : "GitHub"}
+            </a>
+          )}
+        </div>
       </div>
 
       <div
@@ -168,6 +210,16 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             key={`worktree-details-${selectedWorktree.path}`}
             worktree={selectedWorktree}
             repoPath={currentRepo!}
+            onRetryTask={(env, command) => {
+              terminalStackRef.current?.createTerminalWithCommand(env, command);
+            }}
+            onViewSessionHistory={(sessionId) => {
+              terminalStackRef.current?.openSessionHistory(sessionId);
+            }}
+            onResumeSession={(sessionId) => {
+              const cmd = worktreePool?.claudeCommand || "claude";
+              terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+            }}
           />
         </div>
 
@@ -182,6 +234,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               key={`terminal-stack-${selectedWorktree.path}`}
               ref={terminalStackRef}
               worktreePath={selectedWorktree.path}
+              repoPath={currentRepo || undefined}
             />
           )}
         </div>

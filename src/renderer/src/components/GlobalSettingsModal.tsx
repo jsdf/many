@@ -3,9 +3,10 @@ import { client } from "../main";
 
 interface GlobalSettingsModalProps {
   onClose: () => void;
+  onAddRepo: () => void;
 }
 
-const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose }) => {
+const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAddRepo }) => {
   const [defaultEditor, setDefaultEditor] = useState("");
   const [defaultTerminal, setDefaultTerminal] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -117,6 +118,17 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose }) =>
               </>
             )}
             {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
+
+                <div className="mb-0 pt-2 border-t border-base-300">
+                  <label className="block mb-2 text-sm font-medium">Repositories:</label>
+                  <button
+                    type="button"
+                    className="btn btn-soft btn-neutral btn-sm"
+                    onClick={() => { onClose(); onAddRepo(); }}
+                  >
+                    + Add Repo
+                  </button>
+                </div>
           </div>
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button

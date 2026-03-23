@@ -29,6 +29,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   const [worktreeDirectory, setWorktreeDirectory] = useState("");
   const [terminalLogDir, setTerminalLogDir] = useState("");
   const [pools, setPools] = useState<PoolConfig[]>([]);
+  const [defaultTaskPool, setDefaultTaskPool] = useState<string>("");
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -59,6 +60,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           setWorktreeDirectory(config.worktreeDirectory || "");
           setTerminalLogDir(config.terminalLogDir || "");
           setPools(config.pools || []);
+          setDefaultTaskPool(config.defaultTaskPool || "");
 
           const repoBranches = await client.getBranches.query({
             repoPath: currentRepo
@@ -108,6 +110,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           worktreeDirectory: worktreeDirectory.trim() || null,
           terminalLogDir: terminalLogDir.trim() || null,
           pools: validPools.length > 0 ? validPools : undefined,
+          defaultTaskPool: defaultTaskPool || null,
         });
       } catch (error) {
         setError(
@@ -253,7 +256,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     />
                     <button
                       type="button"
-                      className="btn btn-neutral"
+                      className="btn btn-soft btn-neutral"
                       onClick={handleBrowseWorktreeDir}
                       disabled={isLoading}
                     >
@@ -280,7 +283,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     />
                     <button
                       type="button"
-                      className="btn btn-neutral"
+                      className="btn btn-soft btn-neutral"
                       onClick={async () => {
                         try {
                           const folderPath = await client.selectFolder.mutate();
@@ -302,7 +305,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     <label className="text-sm font-medium">Worktree Pools:</label>
                     <button
                       type="button"
-                      className="btn btn-neutral btn-xs"
+                      className="btn btn-soft btn-neutral btn-xs"
                       onClick={() => setPools(prev => [...prev, emptyPool()])}
                       disabled={isLoading}
                     >
@@ -345,7 +348,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                             </select>
                             <button
                               type="button"
-                              className="btn btn-neutral btn-xs"
+                              className="btn btn-soft btn-neutral btn-xs"
                               onClick={() => removePool(i)}
                               disabled={isLoading}
                               title="Remove pool"
@@ -371,6 +374,22 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                             disabled={isLoading}
                             className="input input-bordered input-sm w-full mt-1"
                           />
+                          <input
+                            type="text"
+                            value={pool.backgroundTaskCommand || ""}
+                            onChange={(e) => updatePool(i, { backgroundTaskCommand: e.target.value || undefined })}
+                            placeholder="Background task command (optional, used by CLI instead of task command)"
+                            disabled={isLoading}
+                            className="input input-bordered input-sm w-full mt-1"
+                          />
+                          <input
+                            type="text"
+                            value={pool.claudeCommand || ""}
+                            onChange={(e) => updatePool(i, { claudeCommand: e.target.value || undefined })}
+                            placeholder="Claude command (optional, e.g. claude-wrapper, used for resume)"
+                            disabled={isLoading}
+                            className="input input-bordered input-sm w-full mt-1"
+                          />
                         </div>
                       ))}
                     </div>
@@ -379,6 +398,28 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     Group worktrees by name prefix. Recyclable pools have claim/release; ephemeral pools are one-time use.
                   </p>
                 </div>
+
+                {pools.filter(p => p.taskCommand).length > 0 && (
+                  <div className="mb-5">
+                    <label className="block mb-2 text-sm font-medium">Default task pool:</label>
+                    <select
+                      className="select select-bordered w-full"
+                      value={defaultTaskPool}
+                      onChange={(e) => setDefaultTaskPool(e.target.value)}
+                      disabled={isLoading}
+                    >
+                      <option value="">First available</option>
+                      {pools.filter(p => p.name.trim() && p.prefix.trim() && p.taskCommand).map((pool) => (
+                        <option key={pool.prefix} value={pool.prefix}>
+                          {pool.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-base-content/50 mt-1.5">
+                      Pool pre-selected when opening the New Task modal.
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <div className="mb-5">
@@ -398,7 +439,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   <button
                     type="button"
                     data-testid="browse-folder-button"
-                    className="btn btn-neutral"
+                    className="btn btn-soft btn-neutral"
                     onClick={handleBrowse}
                     disabled={isLoading}
                   >

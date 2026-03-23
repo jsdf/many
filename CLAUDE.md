@@ -5,54 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Many Worktree Manager is a web application (with CLI) for managing Git worktree pools. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
-
-Features/TODO
-
-- [x] add/manage repos
-- [x] lists worktrees in the left sidebar
-  - [ ] show repo base/main worktree first and show a tag which says 'base'
-- [x] clicking a worktree in the sidebar shows it in the main pane
-- [x] create worktree (along with a corresponding git branch)
-- [x] create a worktree from an existing git branch
-- [x] archive worktree (deletes the file tree, though it still exists as a branch in git)
-  - [x] checks if branch is fully merged into main branch before archiving
-  - [x] prompts user for confirmation if branch is not merged
-- [x] claim/release worktrees (worktree pool workflow)
-- [x] multiple named pools per repo (prefix-based grouping, recyclable/ephemeral types, maintenance commands)
-- [x] switch worktree to a different branch
-- [x] rebase worktree branch onto main
-- [x] merge worktree branch into main
-- [x] release base worktree
-- [x] git status display in worktree details
-- [x] global settings (default editor, default terminal)
-- [ ] features of the main pane
-  - [x] a menu of tools to open the worktree in
-    - [x] open folder
-    - [x] open in terminal
-    - [x] open in editor (VS Code)
-    - [ ] npm scripts
-  - [ ] an integrated review tool of the git changes on the branch
-- [x] per repo settings
-  - [x] command to init a new worktree (e.g. `npm install`)
-  - [x] worktree directory location
-  - [x] main branch configuration
-  - [ ] commands to show as buttons to run in worktree (think vscode tasks.json, could also automatically support package.json scripts)
-- [ ] watch git repo for changes and live update
-  - [ ] worktrees list/checked out branch name
-  - [ ] git changes on worktree
-- [ ] bugs
-  - [ ] very long branch names overflow their container in the left nav. truncate them with ellipses and show a tooltip
-- chores
-  - [x] too many components in MainContent.tsx (split into separate component files)
-  - [ ] split styles.css based on components which use classes
-  - [ ] split modal code from components which render modals
-  - [x] split backend into reasonable modules
-  - [x] clean up repetitive code in App.tsx archiveWorktree() function
-- large improvements
-  - [ ] convert to using tailwind and shadcn/ui
-
-don't forget to update this list if you finish implementing a feature
-
+ 
 ## Development Commands
 
 ### Running the Application
@@ -65,6 +18,7 @@ don't forget to update this list if you finish implementing a feature
 - `npm run test` - Run tests with Vitest
 
 be sure to run `start` and `dev` using `timeout` because they are long running processes and you will time out waiting for them to finish if you run them normally
+
 
 ### Setup
 
@@ -80,6 +34,12 @@ npm run build:cli && npm link
 
 This builds the CLI and symlinks the `many` binary so it's available globally. Re-run after making changes to update.
 
+To install the Electron app to the Applications folder:
+
+```sh
+npm run electron:install
+```
+
 ### Build System
 
 The project uses two build pipelines:
@@ -88,6 +48,14 @@ The project uses two build pipelines:
 - **TypeScript** (`tsc -p tsconfig.cli.json`) builds the server and CLI → `dist-cli/`
 
 The web server (`dist-cli/web/server.js`) serves the built renderer static files and provides a tRPC API.
+
+## Dev Processes
+### testing changes
+
+manually web ui test changes in the browser
+
+### after completing a task
+dont forget to commit and  `npm run electron:install`
 
 ## Architecture Overview
 
@@ -153,26 +121,3 @@ App data is stored in a platform-specific location:
 
 - React functional components with hooks
 - tRPC client for server communication
-
-### File Structure Conventions
-
-**Renderer Process (React + TypeScript)**:
-
-- `src/renderer/src/App.tsx` - Main application component and state management
-- `src/renderer/src/main.tsx` - Entry point, tRPC client setup
-- `src/renderer/src/types.ts` - TypeScript type definitions
-- `src/renderer/index.html` - Main HTML structure
-- `src/renderer/src/styles.css` - Dark theme styling, responsive design
-- `src/renderer/src/components/` - React components:
-  - `Sidebar.tsx` - Repository selector, worktree list
-  - `MainContent.tsx` - Split pane layout: left (WorktreeDetails) + right (TerminalStack), with draggable divider
-  - `WorktreeDetails.tsx` - Worktree detail view with actions
-  - `TerminalStack.tsx` - Vertically stacked terminals with resizable dividers
-  - `WelcomeScreen.tsx` - Welcome/empty state view
-  - `CreateWorktreeModal.tsx` - Worktree creation dialog
-  - `AddRepoModal.tsx` - Repository addition and configuration
-  - `MergeWorktreeModal.tsx` - Branch merging interface
-  - `RebaseWorktreeModal.tsx` - Branch rebasing interface
-  - `SwitchWorktreeModal.tsx` - Branch switching interface
-  - `ReleaseWorktreeModal.tsx` - Worktree release with dirty state handling
-  - `GlobalSettingsModal.tsx` - Global settings (editor, terminal)
