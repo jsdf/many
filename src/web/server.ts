@@ -19,17 +19,17 @@ import {
   reconcileTasks,
   listTasks as listTaskRecords,
   killTask as killTaskById,
-  TaskRecord,
 } from "../cli/task-registry.js";
-import {
-  checkBranchMerged,
-  removeWorktree,
-  getErrorMessage,
-  parseWorktreeList,
-} from "../shared/git-core.js";
 import { TerminalManager } from "./terminal-manager.js";
 import { getClaudeSessions, getSessionMessages } from "./claude-sessions.js";
 import { RepoWatcher } from "./git-watcher.js";
+import {
+  resolveStartingPoint,
+  archiveWorktree as serviceArchiveWorktree,
+  createAndSetupWorktree,
+  launchTask,
+} from "../services/worktree-service.js";
+import type { RunCommand } from "../services/types.js";
 
 const _execAsync = promisify(exec);
 const userShell = process.env.SHELL || "/bin/bash";
@@ -133,6 +133,38 @@ async function openVSCode(dirPath: string): Promise<boolean> {
   return true;
 }
 
+// Build a RunCommand that pipes stdout/stderr to SSE and kills the child when the request closes.
+function makeSseRunCommand(
+  sendEvent: (data: object) => void,
+  req: http.IncomingMessage
+): RunCommand {
+  return (command, cwd) =>
+    new Promise((resolve) => {
+      const child = spawn(command, {
+        shell: userShell,
+        cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        sendEvent({ type: "stdout", text: chunk.toString() });
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        sendEvent({ type: "stderr", text: chunk.toString() });
+      });
+      child.on("error", (error) => {
+        sendEvent({ type: "stderr", text: error.message });
+        resolve(1);
+      });
+      child.on("close", (code) => {
+        resolve(code ?? 1);
+      });
+      req.on("close", () => {
+        if (!child.killed) child.kill();
+      });
+    });
+}
+
 // Create the router
 const createRouter = () => {
   return t.router({
@@ -176,45 +208,16 @@ const createRouter = () => {
     archiveWorktree: t.procedure
       .input((input: unknown) => input as { repoPath: string; worktreePath: string; force?: boolean })
       .mutation(async ({ input }) => {
-        if (!input.force) {
-          // Check if branch is merged before archiving
-          const worktrees = await parseWorktreeList(input.repoPath);
-          const currentWorktree = worktrees.find((w) => w.path === input.worktreePath);
-
-          if (currentWorktree && currentWorktree.branch) {
-            const appData = await loadAppData();
-            const repoConfig = getRepoConfig(appData, input.repoPath);
-
-            if (repoConfig.mainBranch) {
-              try {
-                const result = await checkBranchMerged(
-                  input.repoPath,
-                  currentWorktree.branch,
-                  repoConfig.mainBranch
-                );
-
-                if (!result.isFullyMerged) {
-                  throw new Error(
-                    `UNMERGED_BRANCH:Branch '${currentWorktree.branch}' is not fully merged into '${repoConfig.mainBranch}'.`
-                  );
-                }
-              } catch (mergeCheckError: unknown) {
-                const errorMsg = getErrorMessage(mergeCheckError);
-                if (errorMsg.includes("UNMERGED_BRANCH:")) {
-                  throw mergeCheckError;
-                }
-                throw new Error(
-                  `MERGE_CHECK_FAILED:Could not determine if branch '${currentWorktree.branch}' is merged into '${repoConfig.mainBranch}'.`
-                );
-              }
-            }
-          }
-        }
+        const appData = await loadAppData();
+        const repoConfig = getRepoConfig(appData, input.repoPath);
 
         // Kill any terminal sessions for this worktree
         terminalManager.cleanupWorktree(input.worktreePath);
 
-        await removeWorktree(input.repoPath, input.worktreePath);
+        await serviceArchiveWorktree(input.repoPath, input.worktreePath, {
+          force: input.force,
+          mainBranch: repoConfig.mainBranch,
+        });
         return true;
       }),
 
@@ -614,50 +617,7 @@ const createRouter = () => {
     resolveStartingPoint: t.procedure
       .input((input: unknown) => input as { repoPath: string; startingPoint: string })
       .mutation(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        const sp = input.startingPoint.trim();
-
-        let branchName: string;
-
-        // Try to parse as GitHub PR URL: https://github.com/owner/repo/pull/123
-        const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-        // Try to parse as Graphite PR URL: https://app.graphite.dev/github/pr/owner/repo/123
-        const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
-        // Try to parse as plain PR number
-        const prNumberMatch = sp.match(/^#?(\d+)$/);
-
-        const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
-
-        if (prNumber) {
-          // Resolve PR number to branch name using gh CLI
-          try {
-            const { stdout } = await execAsync(
-              `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
-              { cwd: input.repoPath }
-            );
-            branchName = stdout.trim();
-            if (!branchName) {
-              throw new Error(`Could not resolve PR #${prNumber} to a branch name`);
-            }
-          } catch (err: any) {
-            throw new Error(`Failed to resolve PR #${prNumber}: ${err.message}`);
-          }
-        } else {
-          // Treat as a branch name directly
-          branchName = sp;
-        }
-
-        // Fetch the branch from origin, fall back to local
-        try {
-          await git.fetch("origin", branchName);
-        } catch {
-          const branches = await git.branch();
-          if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
-            throw new Error(`Branch "${branchName}" not found locally or on remote`);
-          }
-        }
-
+        const branchName = await resolveStartingPoint(input.repoPath, input.startingPoint);
         return { branchName };
       }),
 
@@ -925,128 +885,28 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
           res.write(`data: ${JSON.stringify(data)}\n\n`);
         };
 
+        const runCommand = makeSseRunCommand(sendEvent, req);
+
         try {
           const appData = await loadAppData();
           const repoConfig = getRepoConfig(appData, parsed.repoPath);
 
-          // Step 1: Resolve starting point if provided
-          let resolvedBranch: string | undefined;
-          if (parsed.startingPoint) {
-            sendEvent({ type: "step", text: `Resolving starting point: ${parsed.startingPoint}` });
-            try {
-              const { simpleGit } = await import("simple-git");
-              const git = simpleGit(parsed.repoPath);
-              const sp = parsed.startingPoint.trim();
-              let branchName: string;
+          const result = await createAndSetupWorktree(
+            parsed.repoPath,
+            {
+              worktreeName: parsed.worktreeName,
+              startingPoint: parsed.startingPoint,
+              poolPrefix: parsed.poolPrefix,
+              pullLatest: parsed.pullLatest,
+              initCommand: repoConfig.initCommand,
+              mainBranch: repoConfig.mainBranch,
+              worktreeDirectory: repoConfig.worktreeDirectory,
+            },
+            sendEvent,
+            runCommand
+          );
 
-              const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-              const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
-              const prNumberMatch = sp.match(/^#?(\d+)$/);
-              const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
-
-              if (prNumber) {
-                const { stdout } = await execAsync(
-                  `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
-                  { cwd: parsed.repoPath }
-                );
-                branchName = stdout.trim();
-                if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
-              } else {
-                branchName = sp;
-              }
-
-              // Fetch from remote, fall back to local branch
-              try {
-                await git.fetch("origin", branchName);
-              } catch {
-                const branches = await git.branch();
-                if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
-                  throw new Error(`Branch "${branchName}" not found locally or on remote`);
-                }
-                sendEvent({ type: "step", text: `Branch not on remote, using local branch` });
-              }
-              resolvedBranch = branchName;
-              sendEvent({ type: "step", text: `Resolved to branch: ${branchName}` });
-            } catch (err: any) {
-              sendEvent({ type: "error", text: `Failed to resolve starting point: ${err.message}` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-          }
-
-          // Step 2: Determine worktree name
-          const worktreeName = parsed.poolPrefix
-            ? `${parsed.poolPrefix}-${parsed.worktreeName}`
-            : parsed.worktreeName;
-
-          // Step 3: Create the worktree
-          sendEvent({ type: "step", text: `Creating worktree: ${worktreeName}` });
-          let result: { path: string; branch: string };
-          try {
-            result = await gitPool.createWorktree(parsed.repoPath, worktreeName, repoConfig);
-            sendEvent({ type: "step", text: `Worktree created at ${result.path}` });
-          } catch (err: any) {
-            sendEvent({ type: "error", text: `Failed to create worktree: ${err.message}` });
-            sendEvent({ type: "done", success: false });
-            res.end();
-            return;
-          }
-
-          // Step 4: Claim for the resolved branch if we have one
-          const pullLatest = parsed.pullLatest !== false; // default true
-          if (resolvedBranch) {
-            sendEvent({ type: "step", text: `Checking out branch: ${resolvedBranch}${pullLatest ? ' (pulling latest)' : ''}` });
-            try {
-              const worktrees = await gitPool.getWorktrees(parsed.repoPath);
-              const wt = worktrees.find((w) => w.path === result.path);
-              if (wt) {
-                await gitPool.claimWorktree(parsed.repoPath, wt, resolvedBranch, repoConfig, pullLatest);
-              }
-              sendEvent({ type: "step", text: "Branch checked out" });
-            } catch (err: any) {
-              sendEvent({ type: "error", text: `Failed to checkout branch: ${err.message}` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-          }
-
-          // Step 5: Run init command if configured
-          if (repoConfig.initCommand) {
-            sendEvent({ type: "step", text: `Running init command: ${repoConfig.initCommand}` });
-            const child = spawn(repoConfig.initCommand, {
-              shell: userShell,
-              cwd: result.path,
-              stdio: ["ignore", "pipe", "pipe"],
-            });
-
-            await new Promise<void>((resolve) => {
-              child.stdout.on("data", (chunk: Buffer) => {
-                sendEvent({ type: "stdout", text: chunk.toString() });
-              });
-              child.stderr.on("data", (chunk: Buffer) => {
-                sendEvent({ type: "stderr", text: chunk.toString() });
-              });
-              child.on("close", (code) => {
-                if (code !== 0) {
-                  sendEvent({ type: "step", text: `Init command exited with code ${code} (continuing anyway)` });
-                } else {
-                  sendEvent({ type: "step", text: "Init command completed" });
-                }
-                resolve();
-              });
-              child.on("error", (error) => {
-                sendEvent({ type: "stderr", text: error.message });
-                resolve();
-              });
-              req.on("close", () => {
-                if (!child.killed) child.kill();
-              });
-            });
-          }
-
-          sendEvent({ type: "done", success: true, worktreePath: result.path, branch: resolvedBranch || result.branch });
+          sendEvent({ type: "done", success: true, worktreePath: result.worktreePath, branch: result.branch });
         } catch (err: any) {
           sendEvent({ type: "error", text: `Unexpected error: ${err.message}` });
           sendEvent({ type: "done", success: false });
@@ -1096,194 +956,31 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
           res.write(`data: ${JSON.stringify(data)}\n\n`);
         };
 
-        const runCommand = (command: string, cwd: string): Promise<number> => {
-          return new Promise((resolve) => {
-            const child = spawn(command, {
-              shell: true,
-              cwd,
-              stdio: ["ignore", "pipe", "pipe"],
-            });
-
-            child.stdout.on("data", (chunk: Buffer) => {
-              sendEvent({ type: "stdout", text: chunk.toString() });
-            });
-
-            child.stderr.on("data", (chunk: Buffer) => {
-              sendEvent({ type: "stderr", text: chunk.toString() });
-            });
-
-            child.on("error", (error) => {
-              sendEvent({ type: "stderr", text: error.message });
-              resolve(1);
-            });
-
-            child.on("close", (code) => {
-              resolve(code ?? 1);
-            });
-
-            req.on("close", () => {
-              if (!child.killed) child.kill();
-            });
-          });
-        };
+        const runCommand = makeSseRunCommand(sendEvent, req);
 
         try {
           const appData = await loadAppData();
           const repoConfig = getRepoConfig(appData, parsed.repoPath);
 
-          // Step 1: Resolve starting point
-          let resolvedBranch: string | undefined;
-          if (parsed.startingPoint) {
-            sendEvent({ type: "step", text: `Resolving starting point: ${parsed.startingPoint}` });
-            try {
-              const { simpleGit } = await import("simple-git");
-              const git = simpleGit(parsed.repoPath);
-              const sp = parsed.startingPoint.trim();
-              let branchName: string;
+          const result = await launchTask(
+            parsed.repoPath,
+            {
+              poolType: parsed.poolType,
+              poolPrefix: parsed.poolPrefix,
+              prompt: parsed.prompt,
+              startingPoint: parsed.startingPoint,
+              maintenanceCommand: parsed.maintenanceCommand,
+              initCommand: repoConfig.initCommand,
+              mainBranch: repoConfig.mainBranch,
+              worktreeDirectory: repoConfig.worktreeDirectory,
+              taskCommand: parsed.taskCommand,
+              launchedBy: "web",
+            },
+            sendEvent,
+            runCommand
+          );
 
-              const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-              const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
-              const prNumberMatch = sp.match(/^#?(\d+)$/);
-              const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
-
-              if (prNumber) {
-                const { stdout } = await execAsync(
-                  `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
-                  { cwd: parsed.repoPath }
-                );
-                branchName = stdout.trim();
-                if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
-              } else {
-                branchName = sp;
-              }
-
-              // Fetch from remote, fall back to local branch
-              try {
-                await git.fetch("origin", branchName);
-              } catch {
-                const branches = await git.branch();
-                if (!branches.all.includes(branchName) && !branches.all.includes(`remotes/origin/${branchName}`)) {
-                  throw new Error(`Branch "${branchName}" not found locally or on remote`);
-                }
-                sendEvent({ type: "step", text: `Branch not on remote, using local branch` });
-              }
-              resolvedBranch = branchName;
-              sendEvent({ type: "step", text: `Resolved to branch: ${branchName}` });
-            } catch (err: any) {
-              sendEvent({ type: "error", text: `Failed to resolve starting point: ${err.message}` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-          }
-
-          let targetWorktreePath: string;
-
-          if (parsed.poolType === "recyclable") {
-            // Step 2: Find available worktree
-            sendEvent({ type: "step", text: `Finding available worktree in pool "${parsed.poolPrefix}"...` });
-            const worktrees = await gitPool.getWorktrees(parsed.repoPath);
-            const available = worktrees.find(
-              (w) =>
-                w.path !== parsed.repoPath &&
-                !w.bare &&
-                (w.branch?.replace(/^refs\/heads\//, "") || "").startsWith("tmp-") &&
-                w.worktreeName.startsWith(parsed.poolPrefix)
-            );
-            if (!available || !available.path) {
-              sendEvent({ type: "error", text: `No available worktrees in pool with prefix "${parsed.poolPrefix}".` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-            sendEvent({ type: "step", text: `Using worktree: ${available.worktreeName}` });
-
-            // Step 3: Claim worktree
-            const branchName =
-              resolvedBranch ??
-              `task/${parsed.prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}-${Date.now().toString(36)}`;
-            sendEvent({ type: "step", text: `Claiming worktree → branch: ${branchName}` });
-            try {
-              await gitPool.claimWorktree(parsed.repoPath, available, branchName, repoConfig);
-              sendEvent({ type: "step", text: "Worktree claimed successfully" });
-            } catch (err: any) {
-              sendEvent({ type: "error", text: `Failed to claim worktree: ${err.message}` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-
-            // Step 4: Run maintenance command
-            if (parsed.maintenanceCommand) {
-              sendEvent({ type: "step", text: `Running maintenance command: ${parsed.maintenanceCommand}` });
-              const code = await runCommand(parsed.maintenanceCommand, available.path);
-              if (code !== 0) {
-                sendEvent({ type: "step", text: `Maintenance command exited with code ${code} (continuing anyway)` });
-              } else {
-                sendEvent({ type: "step", text: "Maintenance command completed" });
-              }
-            }
-
-            targetWorktreePath = available.path;
-          } else {
-            // Ephemeral: create new worktree
-            const name = `${parsed.poolPrefix}-${Date.now().toString(36)}`;
-            sendEvent({ type: "step", text: `Creating worktree: ${name}` });
-            try {
-              const result = await gitPool.createWorktree(parsed.repoPath, name, repoConfig);
-              targetWorktreePath = result.path;
-              sendEvent({ type: "step", text: `Worktree created at ${result.path}` });
-            } catch (err: any) {
-              sendEvent({ type: "error", text: `Failed to create worktree: ${err.message}` });
-              sendEvent({ type: "done", success: false });
-              res.end();
-              return;
-            }
-
-            // Check out starting branch if provided
-            if (resolvedBranch) {
-              sendEvent({ type: "step", text: `Checking out branch: ${resolvedBranch}` });
-              try {
-                const worktrees = await gitPool.getWorktrees(parsed.repoPath);
-                const wt = worktrees.find((w) => w.path === targetWorktreePath);
-                if (wt) {
-                  await gitPool.claimWorktree(parsed.repoPath, wt, resolvedBranch, repoConfig);
-                }
-                sendEvent({ type: "step", text: "Branch checked out" });
-              } catch (err: any) {
-                sendEvent({ type: "error", text: `Failed to checkout branch: ${err.message}` });
-                sendEvent({ type: "done", success: false });
-                res.end();
-                return;
-              }
-            }
-
-            // Run init command
-            if (repoConfig.initCommand) {
-              sendEvent({ type: "step", text: `Running init command: ${repoConfig.initCommand}` });
-              const code = await runCommand(repoConfig.initCommand, targetWorktreePath);
-              if (code !== 0) {
-                sendEvent({ type: "step", text: `Init command exited with code ${code} (continuing anyway)` });
-              } else {
-                sendEvent({ type: "step", text: "Init command completed" });
-              }
-            }
-          }
-
-          // Register task in the registry
-          const taskRecord = await registerTask({
-            pid: 0, // PID unknown until terminal spawns the command
-            repoPath: parsed.repoPath,
-            worktreePath: targetWorktreePath,
-            poolPrefix: parsed.poolPrefix,
-            poolName: parsed.poolPrefix,
-            branch: resolvedBranch ?? "",
-            prompt: parsed.prompt,
-            taskCommand: parsed.taskCommand || "",
-            launchedBy: "web",
-          });
-
-          sendEvent({ type: "done", success: true, worktreePath: targetWorktreePath, taskId: taskRecord.id });
+          sendEvent({ type: "done", success: true, worktreePath: result.worktreePath, taskId: result.taskRecord.id });
         } catch (err: any) {
           sendEvent({ type: "error", text: `Unexpected error: ${err.message}` });
           sendEvent({ type: "done", success: false });

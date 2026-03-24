@@ -18,12 +18,16 @@ import {
   runInitCommand,
   getLocalBranchName,
   isTmpBranch,
-  checkBranchMerged,
-  archiveWorktree,
   getDefaultBranch,
   WorktreeInfo,
   GitStatus,
 } from "./git-pool.js";
+import {
+  resolveStartingPoint,
+  archiveWorktree,
+  createAndSetupWorktree,
+  launchTask as servicelaunchTask,
+} from "../services/worktree-service.js";
 import { simpleGit } from "simple-git";
 import path from "path";
 import { spawn } from "node:child_process";
@@ -34,7 +38,6 @@ import { createRequire } from "node:module";
 const execAsync = promisify(exec);
 import { selectFromList, confirm, textInput } from "./ink-prompts.js";
 import {
-  registerTask,
   markTaskCompleted,
   updateTaskPid,
   reconcileTasks,
@@ -48,6 +51,19 @@ import {
 } from "./task-registry.js";
 import { createReadStream, existsSync } from "node:fs";
 import { promises as fsPromises } from "node:fs";
+import type { RunCommand } from "../services/types.js";
+
+// CLI runCommand: inherits stdio so output goes directly to the terminal
+const cliRunCommand: RunCommand = (command, cwd) =>
+  new Promise((resolve) => {
+    const loginShell = process.env.SHELL || "/bin/zsh";
+    const child = spawn(loginShell, ["-l", "-c", command], {
+      cwd,
+      stdio: "inherit",
+    });
+    child.on("error", () => resolve(1));
+    child.on("close", (code) => resolve(code ?? 1));
+  });
 
 // Parsed flags for non-interactive use
 interface ParsedFlags {
@@ -677,23 +693,25 @@ async function cmdCreate(worktreeName: string, flags: ParsedFlags): Promise<void
 
   console.log(`Creating worktree '${worktreeName}'...`);
 
-  const result = await createWorktree(repoPath, worktreeName, config);
+  const result = await createAndSetupWorktree(
+    repoPath,
+    {
+      worktreeName,
+      initCommand: config.initCommand,
+      mainBranch: config.mainBranch,
+      worktreeDirectory: config.worktreeDirectory,
+    },
+    (event) => {
+      if (event.type === "step") console.log(event.text);
+      else if (event.type === "stdout") process.stdout.write(event.text);
+      else if (event.type === "stderr") process.stderr.write(event.text);
+    },
+    cliRunCommand
+  );
 
-  console.log(green(`\nWorktree created at: ${result.path}`));
+  console.log(green(`\nWorktree created at: ${result.worktreePath}`));
   console.log(`Branch: ${result.branch}`);
-
-  // Run init command if configured
-  if (config.initCommand) {
-    console.log(`\nRunning init command...`);
-    try {
-      await runInitCommand(result.path, config.initCommand);
-      console.log(green("Init command completed successfully."));
-    } catch (error) {
-      console.log(yellow(`Init command failed: ${error}`));
-    }
-  }
-
-  console.log(`\nTo start working:\n  cd ${result.path}`);
+  console.log(`\nTo start working:\n  cd ${result.worktreePath}`);
 }
 
 // Release command - release a worktree back to the pool
@@ -966,41 +984,34 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
   // Check merge status unless --force
   if (!flags.force) {
     try {
-      const { isFullyMerged, mainBranch } = await checkBranchMerged(
-        repoPath,
-        targetWorktree.branch || branchName,
-        config
-      );
-
-      if (!isFullyMerged) {
+      await archiveWorktree(repoPath, targetWorktree.path, {
+        force: false,
+        mainBranch: config.mainBranch,
+      });
+      // archiveWorktree succeeded without merge issues — already done
+      console.log(green(`\nWorktree '${targetWorktree.worktreeName}' archived.`));
+      console.log(`The branch '${branchName}' still exists in git.`);
+      return;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith("UNMERGED_BRANCH:")) {
+        const detail = msg.replace("UNMERGED_BRANCH:", "");
         if (flags.noInteractive) {
-          exitNonInteractive(
-            `Branch '${branchName}' is not fully merged into '${mainBranch}'.`,
-            ["--force    Archive anyway, skipping merge check"],
-          );
+          exitNonInteractive(detail, ["--force    Archive anyway, skipping merge check"]);
         }
-
-        console.log(yellow(`\nWarning: Branch '${branchName}' is not fully merged into '${mainBranch}'.`));
+        console.log(yellow(`\nWarning: ${detail}`));
         const confirmed = await confirm("Archive anyway?");
-        if (!confirmed) {
-          console.log("Aborted.");
-          return;
+        if (!confirmed) { console.log("Aborted."); return; }
+      } else if (msg.startsWith("MERGE_CHECK_FAILED:")) {
+        const detail = msg.replace("MERGE_CHECK_FAILED:", "");
+        if (flags.noInteractive) {
+          exitNonInteractive(detail, ["--force    Archive anyway, skipping merge check"]);
         }
-      }
-    } catch (error) {
-      // If merge check fails (e.g. no remote), warn but allow proceeding
-      if (flags.noInteractive) {
-        exitNonInteractive(
-          `Could not determine merge status for '${branchName}': ${error instanceof Error ? error.message : error}`,
-          ["--force    Archive anyway, skipping merge check"],
-        );
-      }
-
-      console.log(yellow(`\nWarning: Could not determine if branch '${branchName}' is merged.`));
-      const confirmed = await confirm("Archive anyway?");
-      if (!confirmed) {
-        console.log("Aborted.");
-        return;
+        console.log(yellow(`\nWarning: ${detail}`));
+        const confirmed = await confirm("Archive anyway?");
+        if (!confirmed) { console.log("Aborted."); return; }
+      } else {
+        throw err;
       }
     }
   }
@@ -1015,7 +1026,7 @@ async function cmdArchive(identifier: string | undefined, flags: ParsedFlags): P
   }
 
   console.log("\nArchiving worktree...");
-  await archiveWorktree(repoPath, targetWorktree.path);
+  await archiveWorktree(repoPath, targetWorktree.path, { force: true });
 
   console.log(green(`\nWorktree '${targetWorktree.worktreeName}' archived.`));
   console.log(`The branch '${branchName}' still exists in git.`);
@@ -1083,126 +1094,35 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
 
   const startingPoint = flags.startingPoint;
 
-  // Resolve starting point
-  let resolvedBranch: string | undefined;
-  if (startingPoint) {
-    console.log(cyan(`→ Resolving starting point: ${startingPoint}`));
-    const git = simpleGit(repoPath);
-    const sp = startingPoint.trim();
-
-    const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-    const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
-    const prNumberMatch = sp.match(/^#?(\d+)$/);
-    const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
-
-    if (prNumber) {
-      const { stdout } = await execAsync(
-        `gh pr view ${prNumber} --json headRefName --jq .headRefName`,
-        { cwd: repoPath },
-      );
-      const branchName = stdout.trim();
-      if (!branchName) throw new Error(`Could not resolve PR #${prNumber}`);
-      resolvedBranch = branchName;
-    } else {
-      resolvedBranch = sp;
-    }
-
-    await git.fetch("origin", resolvedBranch);
-    console.log(green(`  Resolved to branch: ${resolvedBranch}`));
-  }
-
-  let targetWorktreePath: string;
-  let taskBranch: string;
-
-  if (pool.type === "recyclable") {
-    // Find available worktree
-    console.log(cyan(`→ Finding available worktree in pool "${pool.prefix}"...`));
-    const worktrees = await getWorktrees(repoPath);
-    const available = worktrees.find(
-      (w) =>
-        w.path !== repoPath &&
-        !w.bare &&
-        (w.branch?.replace(/^refs\/heads\//, "") || "").startsWith("tmp-") &&
-        w.worktreeName.startsWith(pool.prefix),
-    );
-    if (!available || !available.path) {
-      console.error(red(`No available worktrees in pool with prefix "${pool.prefix}".`));
-      process.exit(1);
-    }
-    console.log(green(`  Using worktree: ${available.worktreeName}`));
-
-    // Claim worktree
-    taskBranch =
-      resolvedBranch ??
-      `task/${prompt.slice(0, 40).replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}-${Date.now().toString(36)}`;
-    console.log(cyan(`→ Claiming worktree → branch: ${taskBranch}`));
-    await claimWorktree(repoPath, available, taskBranch, config);
-    console.log(green("  Worktree claimed"));
-
-    // Run maintenance command
-    if (pool.maintenanceCommand) {
-      console.log(cyan(`→ Running maintenance command: ${pool.maintenanceCommand}`));
-      const code = await runShellCommand(pool.maintenanceCommand, available.path);
-      if (code !== 0) {
-        console.log(yellow(`  Maintenance command exited with code ${code} (continuing anyway)`));
-      } else {
-        console.log(green("  Maintenance command completed"));
-      }
-    }
-
-    targetWorktreePath = available.path;
-  } else {
-    // Ephemeral: create new worktree
-    const name = `${pool.prefix}-${Date.now().toString(36)}`;
-    console.log(cyan(`→ Creating worktree: ${name}`));
-    const result = await createWorktree(repoPath, name, config);
-    targetWorktreePath = result.path;
-    console.log(green(`  Worktree created at ${result.path}`));
-
-    // Check out starting branch if provided
-    if (resolvedBranch) {
-      console.log(cyan(`→ Checking out branch: ${resolvedBranch}`));
-      const worktrees = await getWorktrees(repoPath);
-      const wt = worktrees.find((w) => w.path === targetWorktreePath);
-      if (wt) {
-        await claimWorktree(repoPath, wt, resolvedBranch, config);
-      }
-      console.log(green("  Branch checked out"));
-    }
-
-    taskBranch = resolvedBranch ?? `tmp-${path.basename(targetWorktreePath)}`;
-
-    // Run init command
-    if (config.initCommand) {
-      console.log(cyan(`→ Running init command: ${config.initCommand}`));
-      const code = await runShellCommand(config.initCommand, targetWorktreePath);
-      if (code !== 0) {
-        console.log(yellow(`  Init command exited with code ${code} (continuing anyway)`));
-      } else {
-        console.log(green("  Init command completed"));
-      }
-    }
-  }
-
   // Set up log file
   const logDir = config.terminalLogDir || getTaskLogDir();
   await fsPromises.mkdir(logDir, { recursive: true });
   const taskId = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const logFile = path.join(logDir, `${taskId}.log`);
 
-  // Register task before launching
-  const taskRecord = await registerTask({
-    pid: 0, // will update after spawn
+  const { worktreePath: targetWorktreePath, branch: taskBranch, taskRecord } = await servicelaunchTask(
     repoPath,
-    worktreePath: targetWorktreePath,
-    poolPrefix: pool.prefix,
-    poolName: pool.name,
-    branch: taskBranch,
-    prompt,
-    taskCommand: effectiveTaskCommand,
-    logFile,
-    launchedBy: "cli",
-  });
+    {
+      poolType: pool.type,
+      poolPrefix: pool.prefix,
+      prompt,
+      startingPoint: startingPoint ?? undefined,
+      maintenanceCommand: pool.maintenanceCommand,
+      initCommand: config.initCommand,
+      mainBranch: config.mainBranch,
+      worktreeDirectory: config.worktreeDirectory,
+      taskCommand: effectiveTaskCommand,
+      launchedBy: "cli",
+      logFile,
+    },
+    (event) => {
+      if (event.type === "step") console.log(cyan(`→ ${event.text}`));
+      else if (event.type === "stdout") process.stdout.write(event.text);
+      else if (event.type === "stderr") process.stderr.write(event.text);
+      else if (event.type === "error") console.error(red(`  ${event.text}`));
+    },
+    cliRunCommand
+  );
 
   // Launch task command via `script` to capture output while preserving TTY
   console.log(cyan(`→ Launching task command: ${effectiveTaskCommand}`));
@@ -1411,18 +1331,6 @@ function formatAge(date: Date): string {
 }
 
 // Run a shell command with inherited stdio, return exit code
-function runShellCommand(command: string, cwd: string): Promise<number> {
-  return new Promise((resolve) => {
-    const child = spawn(command, {
-      shell: true,
-      cwd,
-      stdio: "inherit",
-    });
-    child.on("error", () => resolve(1));
-    child.on("close", (code) => resolve(code ?? 1));
-  });
-}
-
 // Help command
 function showHelp(): void {
   console.log(`
