@@ -8,6 +8,24 @@ import { promises as fs } from "fs";
 import * as gitPool from "../cli/git-pool.js";
 import type { WorktreeInfo } from "../cli/git-pool.js";
 import type { RepositoryConfig, PoolConfig } from "../cli/config.js";
+
+// Re-export pool primitives so server only needs one import
+export {
+  getWorktrees,
+  getAvailableWorktrees,
+  getClaimedWorktrees,
+  findWorktree,
+  getWorktreeStatus,
+  getDefaultBranch as getDefaultBranchForConfig,
+  createWorktree,
+  stashChanges,
+  cleanChanges,
+  amendChanges,
+  commitChanges,
+  isTmpBranch,
+  getLocalBranchName,
+  type WorktreeInfo,
+} from "../cli/git-pool.js";
 import {
   checkBranchMerged,
   removeWorktree,
@@ -379,4 +397,198 @@ export async function launchTask(
   });
 
   return { worktreePath: targetWorktreePath, branch: taskBranch, taskRecord };
+}
+
+// --- claimWorktreeByPath / releaseWorktreeByPath ---
+// Path-based variants used by the server (client sends worktreePath, not WorktreeInfo).
+
+export async function claimWorktreeByPath(
+  repoPath: string,
+  worktreePath: string,
+  branchName: string,
+  mainBranch: string | null,
+  pullLatest = true
+): Promise<void> {
+  const realPath = await fs.realpath(worktreePath).catch(() => worktreePath);
+  const worktrees = await gitPool.getWorktrees(repoPath);
+  const worktree = worktrees.find((w) => w.path === realPath);
+  if (!worktree) throw new Error(`Worktree not found: ${worktreePath}`);
+  await gitPool.claimWorktree(repoPath, worktree, branchName, { mainBranch, initCommand: null, worktreeDirectory: null }, pullLatest);
+}
+
+export async function releaseWorktreeByPath(
+  repoPath: string,
+  worktreePath: string,
+  mainBranch: string | null,
+  force = false
+): Promise<string> {
+  const realPath = await fs.realpath(worktreePath).catch(() => worktreePath);
+  const worktrees = await gitPool.getWorktrees(repoPath);
+  const worktree = worktrees.find((w) => w.path === realPath);
+  if (!worktree) throw new Error(`Worktree not found: ${worktreePath}`);
+  return gitPool.releaseWorktree(repoPath, worktree, { mainBranch, initCommand: null, worktreeDirectory: null }, force);
+}
+
+// --- getBranches ---
+
+export async function getBranches(repoPath: string): Promise<string[]> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(repoPath);
+  const branches = await git.branch(["--all"]);
+  return branches.all
+    .filter((b) => !b.startsWith("remotes/"))
+    .map((b) => b.replace("*", "").trim())
+    .filter((b) => b.length > 0);
+}
+
+// --- getGitUsername ---
+
+export async function getGitUsername(repoPath: string): Promise<string> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(repoPath);
+  const config = await git.listConfig();
+  return (config.all["user.name"] as string) || "user";
+}
+
+// --- checkBranchMergedByName ---
+// Public-facing version that resolves the default branch and returns structured result.
+
+export async function checkBranchMergedByName(
+  repoPath: string,
+  branchName: string,
+  mainBranch: string | null
+): Promise<{ isFullyMerged: boolean; mainBranch: string; branchName: string }> {
+  const { simpleGit } = await import("simple-git");
+  const resolvedMain = await gitPool.getDefaultBranch(repoPath, { mainBranch, initCommand: null, worktreeDirectory: null });
+  const git = simpleGit(repoPath);
+  const mergeBase = (await git.raw(["merge-base", branchName, resolvedMain])).trim();
+  const branchCommit = (await git.raw(["rev-parse", branchName])).trim();
+  return { isFullyMerged: mergeBase === branchCommit, mainBranch: resolvedMain, branchName };
+}
+
+// --- mergeWorktree ---
+
+export interface MergeOptions {
+  squash?: boolean;
+  noFF?: boolean;
+  message?: string;
+}
+
+export async function mergeWorktree(
+  repoPath: string,
+  fromBranch: string,
+  toBranch: string,
+  options: MergeOptions = {}
+): Promise<void> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(repoPath);
+  await git.checkout(toBranch);
+  const mergeArgs = ["merge"];
+  if (options.squash) mergeArgs.push("--squash");
+  if (options.noFF) mergeArgs.push("--no-ff");
+  if (options.message) mergeArgs.push("-m", options.message);
+  mergeArgs.push(fromBranch);
+  await git.raw(mergeArgs);
+  if (options.squash) {
+    await git.commit(options.message || `Merge ${fromBranch} (squashed)`);
+  }
+}
+
+// --- rebaseWorktree ---
+
+export async function rebaseWorktree(
+  worktreePath: string,
+  fromBranch: string,
+  ontoBranch: string
+): Promise<void> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(worktreePath);
+  await git.checkout(fromBranch);
+  await git.raw(["rebase", ontoBranch]);
+}
+
+// --- getCommitLog ---
+
+export async function getCommitLog(worktreePath: string, baseBranch: string): Promise<string> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(worktreePath);
+  const output = await git.raw(["log", `${baseBranch}^..HEAD`, "--pretty=format:%s"]);
+  return output.trim();
+}
+
+// --- getBranchDiff ---
+
+export async function getBranchDiff(
+  worktreePath: string,
+  repoPath: string,
+  mainBranch: string | null
+): Promise<{ diff: string; mainBranch: string }> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(worktreePath);
+  const resolvedMain = await gitPool.getDefaultBranch(repoPath, { mainBranch, initCommand: null, worktreeDirectory: null });
+
+  let mergeBase: string;
+  try {
+    mergeBase = (await git.raw(["merge-base", resolvedMain, "HEAD"])).trim();
+  } catch {
+    return { diff: "", mainBranch: resolvedMain };
+  }
+
+  const committedDiff = await git.raw(["diff", `${mergeBase}...HEAD`]);
+  const uncommittedDiff = await git.raw(["diff", "HEAD"]);
+  const diff = [committedDiff, uncommittedDiff].filter(Boolean).join("\n");
+  return { diff, mainBranch: resolvedMain };
+}
+
+// --- getGitHubLink ---
+
+export type GitHubLinkResult =
+  | { type: "pr"; url: string }
+  | { type: "branch"; url: string }
+  | null;
+
+export async function getGitHubLink(repoPath: string, branch: string): Promise<GitHubLinkResult> {
+  const normalizedBranch = branch.replace(/^refs\/heads\//, "");
+
+  const getGitHubRepoUrl = async (): Promise<string | null> => {
+    try {
+      const { simpleGit } = await import("simple-git");
+      const git = simpleGit(repoPath);
+      const remoteUrl = (await git.remote(["get-url", "origin"])) as string;
+      const trimmed = remoteUrl.trim();
+      const sshMatch = trimmed.match(/git@github\.com:(.+?)(?:\.git)?$/);
+      if (sshMatch) return `https://github.com/${sshMatch[1]}`;
+      const httpsMatch = trimmed.match(/(https:\/\/github\.com\/[^/]+\/[^/]+?)(?:\.git)?$/);
+      if (httpsMatch) return httpsMatch[1];
+    } catch {}
+    return null;
+  };
+
+  try {
+    const { stdout, stderr } = await execAsync(
+      `gh pr view ${JSON.stringify(normalizedBranch)} --json url --jq .url`,
+      { cwd: repoPath }
+    );
+    const url = stdout.trim();
+    if (url) return { type: "pr", url };
+    if (stderr.trim()) console.log(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("no pull requests found")) {
+      console.log(`[getGitHubLink] gh pr view failed for branch=${normalizedBranch} cwd=${repoPath}: ${msg}`);
+    }
+  }
+
+  try {
+    const { stdout } = await execAsync(
+      `gh browse -n --branch ${JSON.stringify(normalizedBranch)}`,
+      { cwd: repoPath }
+    );
+    const url = stdout.trim();
+    if (url) return { type: "branch", url };
+  } catch {}
+
+  const repoUrl = await getGitHubRepoUrl();
+  if (repoUrl) return { type: "branch", url: `${repoUrl}/tree/${normalizedBranch}` };
+  return null;
 }

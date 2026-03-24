@@ -28,6 +28,25 @@ import {
   archiveWorktree as serviceArchiveWorktree,
   createAndSetupWorktree,
   launchTask,
+  claimWorktreeByPath,
+  releaseWorktreeByPath,
+  getBranches,
+  getGitUsername,
+  checkBranchMergedByName,
+  mergeWorktree,
+  rebaseWorktree,
+  getCommitLog,
+  getBranchDiff,
+  getGitHubLink,
+  getWorktrees,
+  getWorktreeStatus,
+  getDefaultBranchForConfig,
+  createWorktree,
+  stashChanges,
+  cleanChanges,
+  amendChanges,
+  commitChanges,
+  isTmpBranch,
 } from "../services/worktree-service.js";
 import type { RunCommand } from "../services/types.js";
 
@@ -171,37 +190,22 @@ const createRouter = () => {
     // Git operations
     getWorktrees: t.procedure
       .input((input: unknown) => input as { repoPath: string })
-      .query(async ({ input }) => {
-        return await gitPool.getWorktrees(input.repoPath);
-      }),
+      .query(async ({ input }) => getWorktrees(input.repoPath)),
 
     getBranches: t.procedure
       .input((input: unknown) => input as { repoPath: string })
-      .query(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        const branches = await git.branch(["--all"]);
-        return branches.all
-          .filter((branch) => !branch.startsWith("remotes/"))
-          .map((branch) => branch.replace("*", "").trim())
-          .filter((branch) => branch.length > 0);
-      }),
+      .query(async ({ input }) => getBranches(input.repoPath)),
 
     getGitUsername: t.procedure
       .input((input: unknown) => input as { repoPath: string })
-      .query(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        const config = await git.listConfig();
-        return config.all["user.name"] || "user";
-      }),
+      .query(async ({ input }) => getGitUsername(input.repoPath)),
 
     createWorktree: t.procedure
       .input((input: unknown) => input as { repoPath: string; branchName: string; baseBranch: string })
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const result = await gitPool.createWorktree(input.repoPath, input.branchName, repoConfig);
+        const result = await createWorktree(input.repoPath, input.branchName, repoConfig);
         return { ...result, initCommand: repoConfig.initCommand };
       }),
 
@@ -226,61 +230,30 @@ const createRouter = () => {
       .query(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const mainBranch = await gitPool.getDefaultBranch(input.repoPath, repoConfig);
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        const mergeBase = await git.raw(["merge-base", input.branchName, mainBranch]);
-        const branchCommit = await git.raw(["rev-parse", input.branchName]);
-        return {
-          isFullyMerged: mergeBase.trim() === branchCommit.trim(),
-          mainBranch,
-          branchName: input.branchName,
-        };
+        return checkBranchMergedByName(input.repoPath, input.branchName, repoConfig.mainBranch);
       }),
 
     mergeWorktree: t.procedure
       .input((input: unknown) => input as { repoPath: string; fromBranch: string; toBranch: string; options: any })
       .mutation(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.repoPath);
-        await git.checkout(input.toBranch);
-        const mergeArgs = ["merge"];
-        if (input.options?.squash) mergeArgs.push("--squash");
-        if (input.options?.noFF) mergeArgs.push("--no-ff");
-        if (input.options?.message) mergeArgs.push("-m", input.options.message);
-        mergeArgs.push(input.fromBranch);
-        await git.raw(mergeArgs);
-        if (input.options?.squash) {
-          const commitMessage = input.options?.message || `Merge ${input.fromBranch} (squashed)`;
-          await git.commit(commitMessage);
-        }
+        await mergeWorktree(input.repoPath, input.fromBranch, input.toBranch, input.options);
         return true;
       }),
 
     rebaseWorktree: t.procedure
       .input((input: unknown) => input as { worktreePath: string; fromBranch: string; ontoBranch: string })
       .mutation(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.worktreePath);
-        await git.checkout(input.fromBranch);
-        await git.raw(["rebase", input.ontoBranch]);
+        await rebaseWorktree(input.worktreePath, input.fromBranch, input.ontoBranch);
         return true;
       }),
 
     getWorktreeStatus: t.procedure
       .input((input: unknown) => input as { worktreePath: string })
-      .query(async ({ input }) => {
-        return await gitPool.getWorktreeStatus(input.worktreePath);
-      }),
+      .query(async ({ input }) => getWorktreeStatus(input.worktreePath)),
 
     getCommitLog: t.procedure
       .input((input: unknown) => input as { worktreePath: string; baseBranch: string })
-      .query(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.worktreePath);
-        const logOutput = await git.raw(["log", `${input.baseBranch}^..HEAD`, "--pretty=format:%s"]);
-        return logOutput.trim();
-      }),
+      .query(async ({ input }) => getCommitLog(input.worktreePath, input.baseBranch)),
 
     // Repository management
     getSavedRepos: t.procedure.query(async () => {
@@ -414,75 +387,19 @@ const createRouter = () => {
     // GitHub integration
     getGitHubLink: t.procedure
       .input((input: unknown) => input as { repoPath: string; branch: string })
-      .query(async ({ input }) => {
-        const branch = input.branch.replace(/^refs\/heads\//, "");
-
-        // Helper: get GitHub repo URL from git remote
-        const getGitHubRepoUrl = async (): Promise<string | null> => {
-          try {
-            const { simpleGit } = await import("simple-git");
-            const git = simpleGit(input.repoPath);
-            const remoteUrl = (await git.remote(["get-url", "origin"])) as string;
-            const trimmed = remoteUrl.trim();
-            // Convert git@github.com:owner/repo.git or https://github.com/owner/repo.git to https://github.com/owner/repo
-            const sshMatch = trimmed.match(/git@github\.com:(.+?)(?:\.git)?$/);
-            if (sshMatch) return `https://github.com/${sshMatch[1]}`;
-            const httpsMatch = trimmed.match(/(https:\/\/github\.com\/[^/]+\/[^/]+?)(?:\.git)?$/);
-            if (httpsMatch) return httpsMatch[1];
-          } catch {
-            // not a git repo or no remote
-          }
-          return null;
-        };
-
-        // Try to get PR URL for this branch
-        try {
-          const { stdout, stderr } = await execAsync(
-            `gh pr view ${JSON.stringify(branch)} --json url --jq .url`,
-            { cwd: input.repoPath }
-          );
-          const url = stdout.trim();
-          if (url) return { type: "pr" as const, url };
-          if (stderr.trim()) console.log(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          // "no pull requests found" is expected for branches without PRs — don't log it
-          if (!msg.includes("no pull requests found")) {
-            console.log(`[getGitHubLink] gh pr view failed for branch=${branch} cwd=${input.repoPath}: ${msg}`);
-          }
-        }
-        // Fall back to branch URL on GitHub
-        try {
-          const { stdout } = await execAsync(
-            `gh browse -n --branch ${JSON.stringify(branch)}`,
-            { cwd: input.repoPath }
-          );
-          const url = stdout.trim();
-          if (url) return { type: "branch" as const, url };
-        } catch {
-          // gh not available, fall through to git remote fallback
-        }
-        // Final fallback: construct URL from git remote
-        const repoUrl = await getGitHubRepoUrl();
-        if (repoUrl) {
-          return { type: "branch" as const, url: `${repoUrl}/tree/${branch}` };
-        }
-        return null;
-      }),
+      .query(async ({ input }) => getGitHubLink(input.repoPath, input.branch)),
 
     // Pool management operations
     isTmpBranch: t.procedure
       .input((input: unknown) => input as { branchName: string | null })
-      .query(({ input }) => {
-        return input.branchName?.replace(/^refs\/heads\//, "").startsWith("tmp-") || false;
-      }),
+      .query(({ input }) => isTmpBranch(input.branchName)),
 
     getDefaultBranch: t.procedure
       .input((input: unknown) => input as { repoPath: string })
       .query(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        return await gitPool.getDefaultBranch(input.repoPath, repoConfig);
+        return getDefaultBranchForConfig(input.repoPath, repoConfig);
       }),
 
     claimWorktree: t.procedure
@@ -490,12 +407,7 @@ const createRouter = () => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const worktrees = await gitPool.getWorktrees(input.repoPath);
-        const worktree = worktrees.find(w => w.path === input.worktreePath);
-        if (!worktree) {
-          throw new Error(`Worktree not found: ${input.worktreePath}`);
-        }
-        await gitPool.claimWorktree(input.repoPath, worktree, input.branchName, repoConfig);
+        await claimWorktreeByPath(input.repoPath, input.worktreePath, input.branchName, repoConfig.mainBranch);
         return { success: true };
       }),
 
@@ -504,43 +416,36 @@ const createRouter = () => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const worktrees = await gitPool.getWorktrees(input.repoPath);
-        const worktree = worktrees.find(w => w.path === input.worktreePath);
-        if (!worktree) {
-          throw new Error(`Worktree not found: ${input.worktreePath}`);
-        }
-        // Kill any terminal sessions for this worktree
         terminalManager.cleanupWorktree(input.worktreePath);
-
-        const newBranch = await gitPool.releaseWorktree(input.repoPath, worktree, repoConfig, input.force ?? false);
+        const newBranch = await releaseWorktreeByPath(input.repoPath, input.worktreePath, repoConfig.mainBranch, input.force ?? false);
         return { success: true, branch: newBranch };
       }),
 
     stashWorktreeChanges: t.procedure
       .input((input: unknown) => input as { worktreePath: string; message?: string })
       .mutation(async ({ input }) => {
-        await gitPool.stashChanges(input.worktreePath, input.message);
+        await stashChanges(input.worktreePath, input.message);
         return true;
       }),
 
     cleanWorktreeChanges: t.procedure
       .input((input: unknown) => input as { worktreePath: string })
       .mutation(async ({ input }) => {
-        await gitPool.cleanChanges(input.worktreePath);
+        await cleanChanges(input.worktreePath);
         return true;
       }),
 
     amendWorktreeChanges: t.procedure
       .input((input: unknown) => input as { worktreePath: string })
       .mutation(async ({ input }) => {
-        await gitPool.amendChanges(input.worktreePath);
+        await amendChanges(input.worktreePath);
         return true;
       }),
 
     commitWorktreeChanges: t.procedure
       .input((input: unknown) => input as { worktreePath: string; message: string })
       .mutation(async ({ input }) => {
-        await gitPool.commitChanges(input.worktreePath, input.message);
+        await commitChanges(input.worktreePath, input.message);
         return true;
       }),
 
@@ -563,31 +468,9 @@ const createRouter = () => {
     getBranchDiff: t.procedure
       .input((input: unknown) => input as { worktreePath: string; repoPath: string })
       .query(async ({ input }) => {
-        const { simpleGit } = await import("simple-git");
-        const git = simpleGit(input.worktreePath);
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const mainBranch = await gitPool.getDefaultBranch(input.repoPath, repoConfig);
-
-        // Find the merge-base between HEAD and the main branch
-        let mergeBase: string;
-        try {
-          mergeBase = (await git.raw(["merge-base", mainBranch, "HEAD"])).trim();
-        } catch {
-          // If merge-base fails (e.g. no common ancestor), return empty
-          return { diff: "", mainBranch };
-        }
-
-        // Get committed changes: merge-base..HEAD
-        const committedDiff = await git.raw(["diff", `${mergeBase}...HEAD`]);
-
-        // Get uncommitted changes (staged + unstaged) against HEAD
-        const uncommittedDiff = await git.raw(["diff", "HEAD"]);
-
-        // Combine both diffs
-        const combinedDiff = [committedDiff, uncommittedDiff].filter(Boolean).join("\n");
-
-        return { diff: combinedDiff, mainBranch };
+        return getBranchDiff(input.worktreePath, input.repoPath, repoConfig.mainBranch);
       }),
 
     createPoolWorktree: t.procedure
@@ -595,7 +478,7 @@ const createRouter = () => {
       .mutation(async ({ input }) => {
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, input.repoPath);
-        const result = await gitPool.createWorktree(input.repoPath, input.worktreeName, repoConfig);
+        const result = await createWorktree(input.repoPath, input.worktreeName, repoConfig);
         return { ...result, initCommand: repoConfig.initCommand };
       }),
 
