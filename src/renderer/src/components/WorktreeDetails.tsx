@@ -36,6 +36,7 @@ interface WorktreeDetailsProps {
   onRetryTask?: (env: Record<string, string>, command: string) => void;
   onResumeSession?: (sessionId: string) => void;
   onViewSessionHistory?: (sessionId: string) => void;
+  onViewTaskLog?: (taskId: string, isSavedLog: boolean) => void;
 }
 
 const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
@@ -44,6 +45,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   onRetryTask,
   onResumeSession,
   onViewSessionHistory,
+  onViewTaskLog,
 }) => {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -153,6 +155,14 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   onClick={handleKillTask}
                 >
                   Kill
+                </button>
+              )}
+              {task.logFile && onViewTaskLog && (
+                <button
+                  className="btn btn-soft btn-neutral btn-sm"
+                  onClick={() => onViewTaskLog(task.id, task.status !== "running")}
+                >
+                  View Log
                 </button>
               )}
               {task.status !== "running" && onRetryTask && task.taskCommand && (

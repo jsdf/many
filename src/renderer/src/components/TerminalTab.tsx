@@ -122,6 +122,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     wsRef.current = ws;
 
     ws.onopen = () => {
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       ws.send(
         JSON.stringify({
           type: "create",
@@ -129,6 +130,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
           worktreePath,
           cols: xterm.cols,
           rows: xterm.rows,
+          isDark,
           ...(env ? { env } : {}),
           ...(initialCommand ? { initialCommand } : {}),
           ...(taskId ? { taskId } : {}),

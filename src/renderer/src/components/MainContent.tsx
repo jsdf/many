@@ -213,6 +213,9 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             onRetryTask={(env, command) => {
               terminalStackRef.current?.createTerminalWithCommand(env, command);
             }}
+            onViewTaskLog={(taskId, isSavedLog) => {
+              terminalStackRef.current?.openTaskLog(taskId, isSavedLog);
+            }}
             onViewSessionHistory={(sessionId) => {
               terminalStackRef.current?.openSessionHistory(sessionId);
             }}

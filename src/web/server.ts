@@ -443,7 +443,10 @@ const createRouter = () => {
           if (stderr.trim()) console.log(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.log(`[getGitHubLink] gh pr view failed for branch=${branch} cwd=${input.repoPath}: ${msg}`);
+          // "no pull requests found" is expected for branches without PRs — don't log it
+          if (!msg.includes("no pull requests found")) {
+            console.log(`[getGitHubLink] gh pr view failed for branch=${branch} cwd=${input.repoPath}: ${msg}`);
+          }
         }
         // Fall back to branch URL on GitHub
         try {
@@ -1363,7 +1366,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
       switch (type) {
         case "create": {
-          const { worktreePath, cols, rows, env, initialCommand, taskId } = msg;
+          const { worktreePath, cols, rows, env, initialCommand, taskId, isDark } = msg;
           // Find which repo this worktree belongs to so we can get its terminalLogDir
           let terminalLogDir: string | null = null;
           const appData = await loadAppData();
@@ -1374,7 +1377,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
               break;
             }
           }
-          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, env, initialCommand, terminalLogDir);
+          // Signal dark/light mode to CLI tools via COLORFGBG
+          const colorEnv: Record<string, string> = {};
+          if (isDark) {
+            colorEnv.COLORFGBG = "15;0"; // white on black
+          } else {
+            colorEnv.COLORFGBG = "0;15"; // black on white
+          }
+          const mergedEnv = { ...colorEnv, ...env };
+          const existed = terminalManager.createSession(terminalId, worktreePath, cols || 80, rows || 24, mergedEnv, initialCommand, terminalLogDir);
 
           // If this terminal is associated with a task, update the task PID and track exit
           if (taskId && !existed) {

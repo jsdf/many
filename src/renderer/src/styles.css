@@ -4,12 +4,9 @@
 }
 
 /* xterm terminal overrides */
-.terminal-wrapper .xterm-viewport {
-  background: transparent !important;
-}
-
+.terminal-wrapper .xterm-viewport,
 .terminal-wrapper .xterm-screen {
-  background: transparent !important;
+  /* let xterm theme control its own background */
 }
 
 /* info-item uses display:contents for CSS grid spanning */

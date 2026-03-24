@@ -12,6 +12,7 @@ interface TerminalStackProps {
 export interface TerminalStackHandle {
   createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => void;
   openSessionHistory: (sessionId: string) => void;
+  openTaskLog: (taskId: string, isSavedLog?: boolean) => void;
 }
 
 interface TerminalInfo {
@@ -67,12 +68,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     const checkForOrphanTasks = async () => {
       try {
         const tasks = await client.listTasks.query({ repoPath });
-        // Show running tasks (CLI-launched) and recently saved terminal logs
+        // Show running tasks (CLI-launched) — saved logs are opened on demand via "View Log" button
         const runningTasksForWorktree = tasks.filter(
-          (t: any) => t.worktreePath === worktreePath && t.logFile && (
-            t.status === "running" ||
-            (t.prompt === "Terminal session (saved on shutdown)" && !t.taskCommand)
-          )
+          (t: any) => t.worktreePath === worktreePath && t.logFile && t.status === "running"
         );
 
         if (cancelled || runningTasksForWorktree.length === 0) return;
@@ -117,6 +115,16 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     addTerminal();
   }, [addTerminal]);
 
+  const openTaskLog = useCallback((taskId: string, isSavedLog?: boolean) => {
+    setTerminals((prev) => {
+      if (prev.some((t) => t.taskId === taskId)) return prev;
+      const id = `task-log-${taskId}`;
+      const next = [...prev, { id, taskId, isTaskLog: true, isSavedLog: !!isSavedLog }];
+      setSizes(next.map(() => 1 / next.length));
+      return next;
+    });
+  }, []);
+
   const openSessionHistory = useCallback((sessionId: string) => {
     // Don't open duplicate tabs for the same session
     setTerminals((prev) => {
@@ -134,7 +142,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       addTerminal(env, initialCommand, taskId);
     },
     openSessionHistory,
-  }), [addTerminal, openSessionHistory]);
+    openTaskLog,
+  }), [addTerminal, openSessionHistory, openTaskLog]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
