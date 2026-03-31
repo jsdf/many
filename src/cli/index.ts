@@ -1100,6 +1100,17 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
   const taskId = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const logFile = path.join(logDir, `${taskId}.log`);
 
+  // Resolve --worktree flag to an existing worktree path
+  let existingWorktreePath: string | undefined;
+  if (flags.worktree) {
+    const wt = await findWorktree(repoPath, flags.worktree);
+    if (!wt) {
+      console.error(red(`Worktree '${flags.worktree}' not found.`));
+      process.exit(1);
+    }
+    existingWorktreePath = wt.path;
+  }
+
   const { worktreePath: targetWorktreePath, branch: taskBranch, taskRecord } = await servicelaunchTask(
     repoPath,
     {
@@ -1107,6 +1118,7 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
       poolPrefix: pool.prefix,
       prompt,
       startingPoint: startingPoint ?? undefined,
+      existingWorktreePath,
       maintenanceCommand: pool.maintenanceCommand,
       initCommand: config.initCommand,
       mainBranch: config.mainBranch,
@@ -1131,12 +1143,19 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
   console.log(dim(`  Log: ${logFile}`));
   console.log(dim(`  Prompt: ${prompt}\n`));
 
-  // Use login shell to pick up user aliases/profile
+  // Use login shell with -li to pick up user aliases/profile.
+  // `script` creates a PTY so interactive shell features work.
+  // When stdin is not a TTY (e.g. Claude Code provides a socket),
+  // use /dev/null for stdin to avoid `tcgetattr` errors from `script`.
   const shellCmd = effectiveTaskCommand;
   const loginShell = process.env.SHELL || "/bin/zsh";
+  const hasTTY = process.stdin.isTTY;
+
+  const fsSync = await import("fs");
+  const stdinFd = hasTTY ? "inherit" as const : fsSync.openSync("/dev/null", "r");
   const taskProc = spawn("script", ["-q", logFile, loginShell, "-li", "-c", shellCmd], {
     cwd: targetWorktreePath,
-    stdio: "inherit",
+    stdio: [stdinFd, "inherit", "inherit"],
     env: {
       ...process.env,
       MANY_TASK_PROMPT: prompt,
@@ -1154,7 +1173,10 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
       console.error(red(`Failed to run task command: ${err.message}`));
       resolve(1);
     });
-    taskProc.on("close", (c) => resolve(c ?? 1));
+    taskProc.on("close", (c) => {
+      if (typeof stdinFd === "number") fsSync.closeSync(stdinFd);
+      resolve(c ?? 1);
+    });
   });
 
   await markTaskCompleted(taskRecord.id, exitCode);
@@ -1362,7 +1384,7 @@ ${bold("FLAGS:")}
   ${bold("--repo")} <path>           Specify which repository to operate on
   ${bold("--no-interactive")}        Exit with error if a prompt would be shown,
                           with a message explaining which flags to provide
-  ${bold("--worktree")} <name>       Select which worktree to use (switch/release)
+  ${bold("--worktree")} <name>       Select which worktree to use (switch/release/task)
   ${bold("--clean")}                 Discard uncommitted changes (switch/release)
   ${bold("--force")}                  Skip merge checks and confirmation (archive)
   ${bold("--fail-if-dirty")}         Exit with error if uncommitted changes exist
@@ -1384,6 +1406,7 @@ ${bold("EXAMPLES:")}
 
   many task "add login button"  # Launch task with prompt
   many task "fix bug" --from 123  # Start from PR #123
+  many task "continue work" --worktree worker-1  # Launch in existing worktree
   many tasks                     # List all tracked tasks
   many tasks log task-abc123     # View task output
   many tasks log task-abc123 -f  # Follow task output (tail -f)

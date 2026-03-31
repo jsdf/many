@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Worktree, GitStatus, ChangeHandlingOption, formatBranchName } from '../types'
-import { client } from '../main'
+import { getRpcClient } from '../rpc-client'
 
 interface ReleaseWorktreeModalProps {
   currentRepo: string | null
@@ -34,7 +34,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
 
     setIsLoading(true)
     try {
-      const gitStatus = await client.getWorktreeStatus.query({ worktreePath: worktree.path })
+      const gitStatus = await getRpcClient().query("worktree.status", { worktreePath: worktree.path })
       setStatus(gitStatus)
     } catch (err) {
       console.error('Failed to load worktree status:', err)
@@ -55,7 +55,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
       if (!force && status && (status.hasChanges || status.hasStaged)) {
         switch (changeHandling) {
           case 'stash':
-            await client.stashWorktreeChanges.mutate({
+            await getRpcClient().query("worktree.stash", {
               worktreePath: worktree.path,
               message: `Release stash from ${branchName}`
             })
@@ -67,20 +67,20 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
               setIsReleasing(false)
               return
             }
-            await client.commitWorktreeChanges.mutate({
+            await getRpcClient().query("worktree.commit", {
               worktreePath: worktree.path,
               message: commitMessage.trim()
             })
             break
 
           case 'amend':
-            await client.amendWorktreeChanges.mutate({
+            await getRpcClient().query("worktree.amend", {
               worktreePath: worktree.path
             })
             break
 
           case 'clean':
-            await client.cleanWorktreeChanges.mutate({
+            await getRpcClient().query("worktree.clean", {
               worktreePath: worktree.path
             })
             break
@@ -91,7 +91,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
         }
       }
 
-      await client.releaseWorktree.mutate({
+      await getRpcClient().query("worktree.release", {
         repoPath: currentRepo,
         worktreePath: worktree.path,
         force

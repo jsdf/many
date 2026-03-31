@@ -102,6 +102,122 @@ export async function parseWorktreeList(
   return parsed;
 }
 
+/**
+ * Read the worktree list directly from the filesystem, no git process needed.
+ * Reads .git/HEAD for the main worktree and .git/worktrees/<name>/{HEAD,gitdir}
+ * for linked worktrees. Suitable for lightweight polling/subscription updates.
+ */
+export async function readWorktreeListFromFS(
+  repoPath: string
+): Promise<ParsedWorktree[]> {
+  const gitDir = path.join(repoPath, ".git");
+  const result: ParsedWorktree[] = [];
+
+  // Main worktree
+  const mainHead = await readHeadFile(path.join(gitDir, "HEAD"));
+  if (mainHead) {
+    result.push({
+      path: repoPath,
+      branch: mainHead.branch ?? undefined,
+      commit: mainHead.commit ??
+        (mainHead.branch
+          ? await resolveRef(gitDir, mainHead.branch)
+          : undefined),
+    });
+  }
+
+  // Linked worktrees
+  const worktreesDir = path.join(gitDir, "worktrees");
+  let entries: string[];
+  try {
+    entries = await fs.readdir(worktreesDir);
+  } catch {
+    return result; // No linked worktrees
+  }
+
+  for (const entry of entries) {
+    const wtDir = path.join(worktreesDir, entry);
+    const head = await readHeadFile(path.join(wtDir, "HEAD"));
+    if (!head) continue;
+
+    // gitdir file contains the path to the worktree's .git file
+    const wtPath = await readWorktreePath(path.join(wtDir, "gitdir"));
+    if (!wtPath) continue;
+
+    result.push({
+      path: wtPath,
+      branch: head.branch ?? undefined,
+      commit: head.commit ??
+        (head.branch ? await resolveRef(gitDir, head.branch) : undefined),
+    });
+  }
+
+  return result;
+}
+
+/** Read a HEAD file and parse it into a branch ref or detached commit */
+async function readHeadFile(
+  headPath: string
+): Promise<{ branch: string | null; commit: string | null } | null> {
+  try {
+    const content = (await fs.readFile(headPath, "utf-8")).trim();
+    if (content.startsWith("ref: ")) {
+      return { branch: content.substring(5), commit: null };
+    }
+    // Detached HEAD — content is a commit SHA
+    if (/^[0-9a-f]{40}$/.test(content)) {
+      return { branch: null, commit: content };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a ref (e.g. refs/heads/main) to a commit SHA via the filesystem */
+async function resolveRef(
+  gitDir: string,
+  ref: string
+): Promise<string | undefined> {
+  // Try loose ref first
+  try {
+    const content = (await fs.readFile(path.join(gitDir, ref), "utf-8")).trim();
+    if (/^[0-9a-f]{40}$/.test(content)) return content;
+  } catch {
+    // Fall through to packed-refs
+  }
+
+  // Try packed-refs
+  try {
+    const packed = await fs.readFile(
+      path.join(gitDir, "packed-refs"),
+      "utf-8"
+    );
+    for (const line of packed.split("\n")) {
+      if (line.startsWith("#") || line.startsWith("^")) continue;
+      const [sha, packedRef] = line.split(" ", 2);
+      if (packedRef === ref && /^[0-9a-f]{40}$/.test(sha)) return sha;
+    }
+  } catch {
+    // No packed-refs file
+  }
+
+  return undefined;
+}
+
+/** Read a worktree's gitdir file to get its working directory path */
+async function readWorktreePath(
+  gitdirPath: string
+): Promise<string | null> {
+  try {
+    // gitdir contains path to the worktree's .git file, e.g. /path/to/worktree/.git
+    const content = (await fs.readFile(gitdirPath, "utf-8")).trim();
+    return path.dirname(content);
+  } catch {
+    return null;
+  }
+}
+
 /** Get the default/main branch for a repo */
 export async function getDefaultBranch(
   repoPath: string,

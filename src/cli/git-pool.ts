@@ -3,6 +3,7 @@ import { simpleGit } from "simple-git";
 import path from "path";
 import { spawn } from "child_process";
 import { RepositoryConfig } from "./config.js";
+import logger from "../shared/logger.js";
 
 // Re-export shared types and utilities for consumers
 export {
@@ -236,7 +237,7 @@ export async function runInitCommand(
   initCommand: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log(`Running init command: ${initCommand}`);
+    logger.info(`Running init command: ${initCommand}`);
 
     const child = spawn(initCommand, {
       shell: true,

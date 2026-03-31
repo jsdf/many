@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { RepositoryConfig, PoolConfig } from "../types";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 
 interface AddRepoModalProps {
   mode: "add" | "config";
@@ -54,7 +54,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
       if (isConfigMode && currentRepo) {
         setIsLoadingBranches(true);
         try {
-          const config = await client.getRepoConfig.query({ repoPath: currentRepo });
+          const config = await getRpcClient().query("repo.getConfig", { repoPath: currentRepo });
           setMainBranch(config.mainBranch || "");
           setInitCommand(config.initCommand || "");
           setWorktreeDirectory(config.worktreeDirectory || "");
@@ -62,7 +62,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           setPools(config.pools || []);
           setDefaultTaskPool(config.defaultTaskPool || "");
 
-          const repoBranches = await client.getBranches.query({
+          const repoBranches = await getRpcClient().query("branch.list", {
             repoPath: currentRepo
           });
           setBranches(repoBranches);
@@ -143,27 +143,13 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   };
 
   const handleBrowse = async () => {
-    try {
-      const folderPath = await client.selectFolder.mutate();
-      if (folderPath) {
-        setRepoPath(folderPath);
-      }
-    } catch (error) {
-      console.error("Failed to select folder:", error);
-      setError("Failed to open folder picker");
-    }
+    // selectFolder is not supported in the new RPC client
+    setError("Folder picker is not available — please type the path manually");
   };
 
   const handleBrowseWorktreeDir = async () => {
-    try {
-      const folderPath = await client.selectFolder.mutate();
-      if (folderPath) {
-        setWorktreeDirectory(folderPath);
-      }
-    } catch (error) {
-      console.error("Failed to select folder:", error);
-      setError("Failed to open folder picker");
-    }
+    // selectFolder is not supported in the new RPC client
+    setError("Folder picker is not available — please type the path manually");
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -284,11 +270,9 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     <button
                       type="button"
                       className="btn btn-soft btn-neutral"
-                      onClick={async () => {
-                        try {
-                          const folderPath = await client.selectFolder.mutate();
-                          if (folderPath) setTerminalLogDir(folderPath);
-                        } catch {}
+                      onClick={() => {
+                        // selectFolder is not supported in the new RPC client
+                        setError("Folder picker is not available — please type the path manually");
                       }}
                       disabled={isLoading}
                     >

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { formatBranchName } from "../types";
-import { client } from '../main';
+import { getRpcClient } from '../rpc-client';
 
 interface RebaseWorktreeModalProps {
   currentRepo: string | null;
@@ -43,8 +43,8 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
       setIsLoadingBranches(true);
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          client.getBranches.query({ repoPath: currentRepo }),
-          client.getRepoConfig.query({ repoPath: currentRepo }),
+          getRpcClient().query("branch.list", { repoPath: currentRepo }),
+          getRpcClient().query("repo.getConfig", { repoPath: currentRepo }),
         ]);
 
         const availableBranches = repoBranches

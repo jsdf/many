@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Worktree, GitStatus } from "../types";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 import BranchChanges from "./BranchChanges";
 
 interface TaskRecord {
@@ -49,16 +49,16 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
 }) => {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
-  const [statusCollapsed, setStatusCollapsed] = useState(false);
+  const [statusCollapsed, setStatusCollapsed] = useState(true);
   const [task, setTask] = useState<TaskRecord | null>(null);
   const [claudeSessions, setClaudeSessions] = useState<ClaudeSession[]>([]);
-  const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
+  const [sessionsCollapsed, setSessionsCollapsed] = useState(true);
 
   const loadGitStatus = async () => {
     if (!worktree.path) return;
     setStatusLoading(true);
     try {
-      const status = await client.getWorktreeStatus.query({
+      const status = await getRpcClient().query("worktree.status", {
         worktreePath: worktree.path,
       });
       setGitStatus(status);
@@ -72,7 +72,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const loadTask = useCallback(async () => {
     if (!worktree.path) return;
     try {
-      const tasks = await client.listTasks.query({ repoPath });
+      const tasks = await getRpcClient().query("task.list", { repoPath });
       const match = tasks.find((t: TaskRecord) => t.worktreePath === worktree.path);
       setTask(match || null);
     } catch {
@@ -83,7 +83,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const loadClaudeSessions = useCallback(async () => {
     if (!worktree.path) return;
     try {
-      const sessions = await client.getClaudeSessions.query({ worktreePath: worktree.path });
+      const sessions = await getRpcClient().query("claude.sessions", { worktreePath: worktree.path }) as any[];
       setClaudeSessions(sessions);
     } catch {
       setClaudeSessions([]);
@@ -113,7 +113,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const handleKillTask = async () => {
     if (!task) return;
     try {
-      await client.killTaskById.mutate({ taskId: task.id });
+      await getRpcClient().query("task.kill", { taskId: task.id });
       await loadTask();
     } catch (err) {
       console.error("Failed to kill task:", err);
@@ -299,7 +299,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
             </button>
           )}
         </div>
-        {!statusCollapsed && <div className="bg-base-300 border border-base-content/10 rounded-lg p-4">
+        {!statusCollapsed && <div className="bg-neutral border border-base-content/10 rounded-lg p-4 text-neutral-content">
           {statusLoading && !gitStatus ? (
             <p className="text-base-content/60 italic m-0">Loading...</p>
           ) : gitStatus && gitStatus.hasChanges ? (

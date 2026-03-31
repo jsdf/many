@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Worktree, PoolConfig, isTmpBranch, GitStatus, formatBranchName } from '../types'
-import { client } from '../main'
+import { getRpcClient } from '../rpc-client'
 
 interface SwitchWorktreeModalProps {
   currentRepo: string | null
@@ -50,7 +50,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   const loadBranches = async () => {
     if (!currentRepo) return
     try {
-      const branches = await client.getBranches.query({ repoPath: currentRepo })
+      const branches = await getRpcClient().query("branch.list", { repoPath: currentRepo })
       setExistingBranches(branches)
     } catch (err) {
       console.error('Failed to load branches:', err)
@@ -60,7 +60,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
   const checkWorktreeStatus = async () => {
     if (!selectedWorktree) return
     try {
-      const status = await client.getWorktreeStatus.query({ worktreePath: selectedWorktree })
+      const status = await getRpcClient().query("worktree.status", { worktreePath: selectedWorktree })
       setWorktreeStatus(status)
     } catch (err) {
       console.error('Failed to get worktree status:', err)
@@ -88,7 +88,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
       if (!confirmed) return
 
       try {
-        await client.cleanWorktreeChanges.mutate({ worktreePath: selectedWorktree })
+        await getRpcClient().query("worktree.clean", { worktreePath: selectedWorktree })
       } catch (err) {
         setError(`Failed to clean worktree: ${err}`)
         return

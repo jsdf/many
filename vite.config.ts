@@ -104,7 +104,7 @@ export default defineConfig({
   build: {
     outDir: resolve('out/renderer'),
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         index: resolve('src/renderer/index.html')
       }

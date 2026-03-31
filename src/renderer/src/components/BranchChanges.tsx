@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 
 function useDarkMode(): boolean {
   const query = window.matchMedia("(prefers-color-scheme: dark)");
@@ -88,8 +88,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
     let cancelled = false;
     setLoading(true);
     setError(null);
-    client.getBranchDiff
-      .query({ worktreePath, repoPath })
+    getRpcClient().query("worktree.branchDiff", { worktreePath, repoPath })
       .then((result) => {
         if (!cancelled) setDiff(result.diff);
       })

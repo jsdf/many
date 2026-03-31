@@ -21,7 +21,11 @@
     "src/cli/**/*",
     "src/web/**/*",
     "src/shared/**/*",
-    "src/electron/**/*"
+    "src/electron/**/*",
+    "src/claude-session/shared/**/*",
+    "src/claude-session/server/**/*",
+    "src/services/**/*",
+    "src/workflows/**/*"
   ],
   "exclude": [
     "node_modules"

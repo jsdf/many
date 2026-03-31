@@ -10,8 +10,8 @@ import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
 import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
-import { client } from "./main";
-import { useWorktreeSubscription } from "./useSubscription";
+import { getRpcClient } from "./rpc-client";
+import { useWorktreeSubscription } from "./rpc-hooks";
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
+  const [worktreeActivity, setWorktreeActivity] = useState<Record<string, { terminals: number; claudeSessions: number }>>({});
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
 
@@ -89,9 +90,23 @@ const App: React.FC = () => {
     }
   }, [subscribedWorktrees]);
 
+  // Poll worktree activity (terminals + claude sessions) every 3 seconds
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const activity = await getRpcClient().query("worktree.activity", {});
+        if (!cancelled) setWorktreeActivity(activity);
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   const loadSavedRepos = async () => {
     try {
-      const repos = await client.getSavedRepos.query();
+      const repos = await getRpcClient().query("repo.list", {});
       setRepositories(repos);
     } catch (error) {
       console.error("Failed to load saved repos:", error);
@@ -100,7 +115,7 @@ const App: React.FC = () => {
 
   const restoreSelectedRepo = async () => {
     try {
-      const selectedRepo = await client.getSelectedRepo.query();
+      const selectedRepo = await getRpcClient().query("repo.getSelected", {});
       if (selectedRepo) {
         setCurrentRepo(selectedRepo);
         await selectRepo(selectedRepo);
@@ -117,17 +132,17 @@ const App: React.FC = () => {
       setWorktrees([]);
       setSelectedWorktree(null);
       setRepoConfig(null);
-      await client.setSelectedRepo.mutate({ repoPath: null });
+      await getRpcClient().query("repo.setSelected", { repoPath: null });
       return;
     }
 
     setCurrentRepo(repoPath);
 
     try {
-      await client.setSelectedRepo.mutate({ repoPath });
+      await getRpcClient().query("repo.setSelected", { repoPath });
       const [repoWorktrees, config] = await Promise.all([
-        client.getWorktrees.query({ repoPath }),
-        client.getRepoConfig.query({ repoPath }),
+        getRpcClient().query("worktree.list", { repoPath }),
+        getRpcClient().query("repo.getConfig", { repoPath }),
       ]);
       setRepoConfig(config);
       setWorktrees(repoWorktrees);
@@ -137,7 +152,7 @@ const App: React.FC = () => {
         let worktreeToSelect: Worktree | null = null;
 
         // First, try to get the most recently used worktree
-        const recentWorktreePath = await client.getRecentWorktree.query({
+        const recentWorktreePath = await getRpcClient().query("repo.recentWorktree", {
           repoPath
         });
         if (recentWorktreePath) {
@@ -168,7 +183,7 @@ const App: React.FC = () => {
 
   const addRepository = async (repoPath: string) => {
     try {
-      await client.saveRepo.mutate({ repoPath });
+      await getRpcClient().query("repo.add", { repoPath });
       await loadSavedRepos();
       setShowAddRepoModal(false);
       setCurrentRepo(repoPath);
@@ -185,7 +200,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const result = await client.createWorktree.mutate({
+      const result = await getRpcClient().query("worktree.create", {
         repoPath: currentRepo,
         branchName,
         baseBranch
@@ -193,7 +208,7 @@ const App: React.FC = () => {
       console.log("Created worktree:", result);
 
       // Refresh the worktree list
-      const updatedWorktrees = await client.getWorktrees.query({
+      const updatedWorktrees = await getRpcClient().query("worktree.list", {
         repoPath: currentRepo
       });
       setWorktrees(updatedWorktrees);
@@ -207,7 +222,7 @@ const App: React.FC = () => {
       }
 
       // Don't close modal here - modal manages its own lifecycle for init streaming
-      return result;
+      return { ...result, initCommand: repoConfig?.initCommand ?? null };
     } catch (error) {
       console.error("Failed to create worktree:", error);
       throw error;
@@ -220,14 +235,14 @@ const App: React.FC = () => {
     }
 
     try {
-      const result = await client.createPoolWorktree.mutate({
+      const result = await getRpcClient().query("worktree.createPool", {
         repoPath: currentRepo,
         worktreeName
       });
       console.log("Created pool worktree:", result);
 
       // Refresh the worktree list
-      const updatedWorktrees = await client.getWorktrees.query({
+      const updatedWorktrees = await getRpcClient().query("worktree.list", {
         repoPath: currentRepo
       });
       setWorktrees(updatedWorktrees);
@@ -253,7 +268,7 @@ const App: React.FC = () => {
     }
 
     try {
-      await client.saveRepoConfig.mutate({ repoPath: currentRepo, config });
+      await getRpcClient().query("repo.saveConfig", { repoPath: currentRepo, config });
       setRepoConfig(config);
       setShowRepoConfigModal(false);
     } catch (error) {
@@ -269,7 +284,7 @@ const App: React.FC = () => {
     if (worktree && currentRepo) {
       try {
         if (worktree.path) {
-          await client.setRecentWorktree.mutate({
+          await getRpcClient().query("repo.setRecentWorktree", {
             repoPath: currentRepo,
             worktreePath: worktree.path
           });
@@ -286,7 +301,7 @@ const App: React.FC = () => {
     }
 
     if (worktree.path) {
-      await client.archiveWorktree.mutate({
+      await getRpcClient().query("worktree.archive", {
         repoPath: currentRepo,
         worktreePath: worktree.path,
         force: true
@@ -295,7 +310,7 @@ const App: React.FC = () => {
 
     // Refresh the worktree list
     if (currentRepo) {
-      const updatedWorktrees = await client.getWorktrees.query({
+      const updatedWorktrees = await getRpcClient().query("worktree.list", {
         repoPath: currentRepo
       });
       setWorktrees(updatedWorktrees);
@@ -323,7 +338,7 @@ const App: React.FC = () => {
     }
 
     try {
-      await client.mergeWorktree.mutate({
+      await getRpcClient().query("worktree.merge", {
         repoPath: currentRepo,
         fromBranch: worktreeToMerge.branch!,
         toBranch,
@@ -331,7 +346,7 @@ const App: React.FC = () => {
       });
 
       // Refresh the worktree list
-      const updatedWorktrees = await client.getWorktrees.query({
+      const updatedWorktrees = await getRpcClient().query("worktree.list", {
         repoPath: currentRepo
       });
       setWorktrees(updatedWorktrees);
@@ -351,7 +366,7 @@ const App: React.FC = () => {
 
     try {
       if (worktreeToRebase.path) {
-        await client.rebaseWorktree.mutate({
+        await getRpcClient().query("worktree.rebase", {
           worktreePath: worktreeToRebase.path,
           fromBranch: worktreeToRebase.branch!,
           ontoBranch
@@ -373,7 +388,7 @@ const App: React.FC = () => {
     }
 
     try {
-      await client.claimWorktree.mutate({
+      await getRpcClient().query("worktree.claim", {
         repoPath: currentRepo,
         worktreePath,
         branchName
@@ -383,7 +398,7 @@ const App: React.FC = () => {
       const pool = claimPoolTarget;
       if (pool?.maintenanceCommand) {
         try {
-          await client.runMaintenanceCommand.mutate({
+          await getRpcClient().query("worktree.runMaintenance", {
             worktreePath,
             command: pool.maintenanceCommand,
           });
@@ -394,7 +409,7 @@ const App: React.FC = () => {
       }
 
       // Refresh the worktree list
-      const updatedWorktrees = await client.getWorktrees.query({
+      const updatedWorktrees = await getRpcClient().query("worktree.list", {
         repoPath: currentRepo
       });
       setWorktrees(updatedWorktrees);
@@ -441,7 +456,7 @@ const App: React.FC = () => {
     if (!currentRepo) return;
 
     // Refresh worktree list and select the target
-    const updatedWorktrees = await client.getWorktrees.query({
+    const updatedWorktrees = await getRpcClient().query("worktree.list", {
       repoPath: currentRepo,
     });
     setWorktrees(updatedWorktrees);
@@ -469,7 +484,7 @@ const App: React.FC = () => {
     if (!currentRepo) return;
 
     // Refresh the worktree list
-    const updatedWorktrees = await client.getWorktrees.query({
+    const updatedWorktrees = await getRpcClient().query("worktree.list", {
       repoPath: currentRepo
     });
     setWorktrees(updatedWorktrees);
@@ -509,6 +524,7 @@ const App: React.FC = () => {
               worktrees={worktrees}
               selectedWorktree={selectedWorktree}
               pools={repoConfig?.pools}
+              worktreeActivity={worktreeActivity}
               onRepoSelect={selectRepo}
               onWorktreeSelect={handleWorktreeSelect}
               onCreateWorktree={() => setShowCreateModal(true)}
@@ -551,7 +567,7 @@ const App: React.FC = () => {
           onCreate={createWorktree}
           onCreated={async (worktreePath: string) => {
             if (!currentRepo) return
-            const updatedWorktrees = await client.getWorktrees.query({ repoPath: currentRepo })
+            const updatedWorktrees = await getRpcClient().query("worktree.list", { repoPath: currentRepo })
             setWorktrees(updatedWorktrees)
             const newWt = updatedWorktrees.find(wt => wt.path === worktreePath)
             if (newWt) await handleWorktreeSelect(newWt)

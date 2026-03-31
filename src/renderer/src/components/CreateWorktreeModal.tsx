@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { PoolConfig } from '../types'
-import { client } from '../main'
+import { getRpcClient } from '../rpc-client'
+import type { StreamEvent } from '../../../shared/protocol'
 
 type TabId = 'free' | 'newBranch' | 'existingBranch'
 
@@ -19,8 +20,6 @@ interface CreateWorktreeModalProps {
   onCreate: (branchName: string, baseBranch: string) => Promise<CreateResult>
   onCreated: (worktreePath: string) => void
 }
-
-const token = new URLSearchParams(window.location.search).get('token') ?? ''
 
 const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, pools, onClose, onCreate, onCreated }) => {
   const [activeTab, setActiveTab] = useState<TabId>('free')
@@ -62,8 +61,8 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
       setIsLoadingBranches(true)
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          client.getBranches.query({ repoPath: currentRepo }),
-          client.getRepoConfig.query({ repoPath: currentRepo })
+          getRpcClient().query("branch.list", { repoPath: currentRepo }),
+          getRpcClient().query("repo.getConfig", { repoPath: currentRepo })
         ])
         setBranches(repoBranches)
 
@@ -99,126 +98,73 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
     }
   }, [log])
 
-  const runInitStream = async (worktreePath: string, initCommand: string) => {
+  const runInitStream = (worktreePath: string, initCommand: string) => {
     setLog([])
     setDone(false)
     setLog(prev => [...prev, { type: 'step', text: `Running init command: ${initCommand}` }])
 
-    try {
-      const response = await fetch(`${window.location.origin}/api/run-init`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-token': token,
-        },
-        body: JSON.stringify({ worktreePath, initCommand }),
-      })
-
-      if (!response.ok || !response.body) {
-        throw new Error(`Init request failed: ${response.status}`)
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done: streamDone, value } = await reader.read()
-        if (streamDone) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const event = JSON.parse(line.slice(6))
-              if (event.type === 'stdout' || event.type === 'stderr') {
-                setLog(prev => [...prev, { type: event.type, text: event.text }])
-              } else if (event.type === 'done') {
-                setDone(true)
-                if (event.code === 0) {
-                  setLog(prev => [...prev, { type: 'step', text: 'Init command completed' }])
-                } else {
-                  setLog(prev => [...prev, { type: 'error', text: `Init command failed with exit code ${event.code}` }])
-                }
-              } else if (event.type === 'error') {
-                setLog(prev => [...prev, { type: 'error', text: event.message }])
-                setDone(true)
-              }
-            } catch {
-              // Skip malformed event
-            }
+    const unsubscribe = getRpcClient().subscribe(
+      "stream.runInit",
+      (event: StreamEvent) => {
+        if (event.type === 'stdout' || event.type === 'stderr') {
+          setLog(prev => [...prev, { type: event.type, text: event.text }])
+        } else if (event.type === 'done') {
+          setDone(true)
+          if (event.code === 0) {
+            setLog(prev => [...prev, { type: 'step', text: 'Init command completed' }])
+          } else {
+            setLog(prev => [...prev, { type: 'error', text: `Init command failed with exit code ${event.code}` }])
           }
+          unsubscribe()
+        } else if (event.type === 'error') {
+          setLog(prev => [...prev, { type: 'error', text: event.text }])
+          setDone(true)
+          unsubscribe()
         }
-      }
-    } catch (err) {
-      setLog(prev => [...prev, { type: 'error', text: err instanceof Error ? err.message : 'Unknown error' }])
-      setDone(true)
-    }
+      },
+      { worktreePath, initCommand }
+    )
+
+    return unsubscribe
   }
 
-  const handleStreamingCreate = async (body: object) => {
+  const handleStreamingCreate = (body: {
+    repoPath: string | null
+    worktreeName: string
+    startingPoint?: string
+    poolPrefix?: string
+    pullLatest?: boolean
+  }) => {
     setIsCreating(true)
     setError(null)
     setLog([])
     setDone(false)
 
-    try {
-      const response = await fetch(`${window.location.origin}/api/create-worktree`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-token': token,
-        },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok || !response.body) {
-        throw new Error(`Request failed: ${response.status}`)
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done: streamDone, value } = await reader.read()
-        if (streamDone) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const event = JSON.parse(line.slice(6))
-              if (event.type === 'step' || event.type === 'stdout' || event.type === 'stderr') {
-                setLog(prev => [...prev, { type: event.type, text: event.text }])
-              } else if (event.type === 'error') {
-                setLog(prev => [...prev, { type: 'error', text: event.text }])
-                setError(event.text)
-              } else if (event.type === 'done') {
-                setDone(true)
-                if (event.success && event.worktreePath) {
-                  onCreated(event.worktreePath)
-                }
-              }
-            } catch {
-              // Skip malformed event
-            }
+    const unsubscribe = getRpcClient().subscribe(
+      "stream.createWorktree",
+      (event: StreamEvent) => {
+        if (event.type === 'step' || event.type === 'stdout' || event.type === 'stderr') {
+          setLog(prev => [...prev, { type: event.type, text: event.text }])
+        } else if (event.type === 'error') {
+          setLog(prev => [...prev, { type: 'error', text: event.text }])
+          setError(event.text)
+        } else if (event.type === 'done') {
+          setDone(true)
+          setIsCreating(false)
+          if (event.success && event.worktreePath) {
+            onCreated(event.worktreePath)
           }
+          unsubscribe()
         }
+      },
+      {
+        repoPath: body.repoPath ?? '',
+        worktreeName: body.worktreeName,
+        startingPoint: body.startingPoint,
+        poolPrefix: body.poolPrefix,
+        pullLatest: body.pullLatest,
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to create worktree')
-    } finally {
-      setIsCreating(false)
-    }
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -230,7 +176,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
         setError('Please enter a worktree name')
         return
       }
-      await handleStreamingCreate({
+      handleStreamingCreate({
         repoPath: currentRepo,
         worktreeName: worktreeName.trim(),
         startingPoint: startingPoint.trim() || undefined,
@@ -251,7 +197,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
         const result = await onCreate(branchName.trim(), baseBranch)
         onCreated(result.path)
         if (result.initCommand) {
-          await runInitStream(result.path, result.initCommand)
+          runInitStream(result.path, result.initCommand)
         } else {
           onClose()
         }
@@ -270,7 +216,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
         const result = await onCreate(selectedExistingBranch, selectedExistingBranch)
         onCreated(result.path)
         if (result.initCommand) {
-          await runInitStream(result.path, result.initCommand)
+          runInitStream(result.path, result.initCommand)
         } else {
           onClose()
         }

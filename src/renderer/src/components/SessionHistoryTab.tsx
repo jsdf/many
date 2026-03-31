@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 import { ChatMessage, coalesceMessages, type SessionMessage, type DisplayItem } from "./ChatMessage";
 
 interface SessionHistoryTabProps {
@@ -19,12 +19,12 @@ const SessionHistoryTab: React.FC<SessionHistoryTabProps> = ({ sessionId, worktr
   const loadMessages = useCallback(async (offset = 0) => {
     setLoading(true);
     try {
-      const result = await client.getSessionMessages.query({
+      const result = await getRpcClient().query("claude.sessionMessages", {
         sessionId,
         worktreePath,
         offset,
         limit: PAGE_SIZE,
-      });
+      }) as any;
       if (offset === 0) {
         setMessages(result.messages);
       } else {

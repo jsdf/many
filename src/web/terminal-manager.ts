@@ -3,6 +3,7 @@ import * as pty from "@lydell/node-pty";
 import os from "os";
 import { promises as fs } from "fs";
 import path from "path";
+import logger from "../shared/logger.js";
 
 interface OutputBlock {
   data: string;
@@ -93,7 +94,7 @@ export class TerminalManager {
           session.logFileHandle = handle;
         })
         .catch((err) => {
-          console.error(`Failed to open terminal log file ${logFilePath}:`, err);
+          logger.error(`Failed to open terminal log file ${logFilePath}:`, err);
         });
     }
 
@@ -179,6 +180,15 @@ export class TerminalManager {
     return ids;
   }
 
+  /** Get count of active terminal sessions per worktree path */
+  getSessionCountsByWorktree(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const session of this.sessions.values()) {
+      counts[session.worktreePath] = (counts[session.worktreePath] || 0) + 1;
+    }
+    return counts;
+  }
+
   addDataListener(terminalId: string, listener: (data: string) => void): void {
     const session = this.sessions.get(terminalId);
     if (session) {
@@ -250,7 +260,7 @@ export class TerminalManager {
         await fs.writeFile(logFile, output);
         results.push({ terminalId: id, worktreePath: session.worktreePath, logFile });
       } catch (err) {
-        console.error(`Failed to save terminal log for ${id}:`, err);
+        logger.error(`Failed to save terminal log for ${id}:`, err);
       }
     }
 

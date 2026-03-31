@@ -1,12 +1,18 @@
 import React, { useMemo } from 'react'
 import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
 
+interface WorktreeActivity {
+  terminals: number
+  claudeSessions: number
+}
+
 interface SidebarProps {
   repositories: Repository[]
   currentRepo: string | null
   worktrees: Worktree[]
   selectedWorktree: Worktree | null
   pools?: PoolConfig[]
+  worktreeActivity?: Record<string, WorktreeActivity>
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
@@ -30,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   worktrees,
   selectedWorktree,
   pools,
+  worktreeActivity,
   onRepoSelect,
   onWorktreeSelect,
   onCreateWorktree,
@@ -76,32 +83,52 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [worktrees, currentRepo, pools]);
 
-  const renderWorktreeItem = (worktree: Worktree, isBase = false, isAvailable = false) => (
-    <div
-      key={worktree.path}
-      data-testid={`worktree-item-${worktree.branch || 'main'}`}
-      className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-        selectedWorktree?.path === worktree.path
-          ? 'border-l-primary bg-primary/15'
-          : 'border-l-transparent hover:bg-base-content/5'
-      } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''}`}
-      onClick={() => onWorktreeSelect(worktree)}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
-          title={isAvailable ? 'Available' : 'Claimed'}
-        />
-        <div className="text-sm font-semibold leading-tight" title={formatBranchName(worktree.branch)}>
-          {formatBranchName(worktree.branch)}
-          {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
+  const renderWorktreeItem = (worktree: Worktree, isBase = false, isAvailable = false) => {
+    const activity = worktreeActivity?.[worktree.path];
+    const termCount = activity?.terminals ?? 0;
+    const claudeCount = activity?.claudeSessions ?? 0;
+
+    return (
+      <div
+        key={worktree.path}
+        data-testid={`worktree-item-${worktree.branch || 'main'}`}
+        className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
+          selectedWorktree?.path === worktree.path
+            ? 'border-l-primary bg-primary/15'
+            : 'border-l-transparent hover:bg-base-content/5'
+        } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''}`}
+        onClick={() => onWorktreeSelect(worktree)}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
+            title={isAvailable ? 'Available' : 'Claimed'}
+          />
+          <div className="text-sm font-semibold leading-tight flex-1 min-w-0" title={formatBranchName(worktree.branch)}>
+            {formatBranchName(worktree.branch)}
+            {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
+          </div>
+          {(termCount > 0 || claudeCount > 0) && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {termCount > 0 && (
+                <span className="text-[10px] text-base-content/60 flex items-center gap-0.5" title={`${termCount} terminal${termCount > 1 ? 's' : ''}`}>
+                  &gt;_ {termCount}
+                </span>
+              )}
+              {claudeCount > 0 && (
+                <span className="text-[10px] text-accent flex items-center gap-0.5" title={`${claudeCount} Claude session${claudeCount > 1 ? 's' : ''}`}>
+                  &#9679; {claudeCount}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
+          {worktree.worktreeName}
         </div>
       </div>
-      <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
-        {worktree.worktreeName}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const hasAnyPoolGroups = poolGroups.length > 0;
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;

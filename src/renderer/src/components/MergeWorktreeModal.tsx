@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { MergeOptions, GitStatus } from '../types'
-import { client } from '../main'
+import { getRpcClient } from '../rpc-client'
 
 interface MergeWorktreeModalProps {
   currentRepo: string | null
@@ -48,8 +48,8 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
       setIsLoadingBranches(true)
       try {
         const [repoBranches, repoConfig] = await Promise.all([
-          client.getBranches.query({ repoPath: currentRepo }),
-          client.getRepoConfig.query({ repoPath: currentRepo })
+          getRpcClient().query("branch.list", { repoPath: currentRepo }),
+          getRpcClient().query("repo.getConfig", { repoPath: currentRepo })
         ])
 
         const availableBranches = repoBranches.filter(branch => branch !== fromBranch)
@@ -73,7 +73,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
 
         if (selectedBranch) {
           try {
-            const commitLog = await client.getCommitLog.query({ worktreePath, baseBranch: selectedBranch })
+            const commitLog = await getRpcClient().query("worktree.commitLog", { worktreePath, baseBranch: selectedBranch })
             if (commitLog) {
               setMessage(commitLog)
             } else {
@@ -102,7 +102,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
       if (!worktreePath) return
 
       try {
-        const status = await client.getWorktreeStatus.query({ worktreePath })
+        const status = await getRpcClient().query("worktree.status", { worktreePath })
         setGitStatus(status)
       } catch (error) {
         console.error('Failed to load git status:', error)

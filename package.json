@@ -34,14 +34,19 @@
     "dev": "vite",
     "start": "npm run build && npm run build:cli && node dist-cli/cli/index.js web",
     "cli": "npm run build:cli && node dist-cli/cli/index.js",
+    "check": "tsgo -p tsconfig.cli.json",
+    "lint": "oxlint src/",
     "test": "vitest run",
     "electron:rebuild": "electron-rebuild -f -w @lydell/node-pty",
     "electron:dev": "npm run build && npm run build:cli && npm run electron:rebuild && electron .",
     "electron:build": "npm run build && npm run build:cli && electron-builder --mac",
     "electron:install": "npm run electron:build && ./scripts/install-mac.sh",
-    "prepublishOnly": "npm run build && npm run build:cli"
+    "prepublishOnly": "npm run build && npm run build:cli",
+    "claude-session:dev": "vite --config vite.claude-session.config.ts",
+    "claude-session:build": "vite build --config vite.claude-session.config.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.81",
     "@base-ui-components/react": "^1.0.0-rc.0",
     "@lydell/node-pty": "^1.2.0-beta.3",
     "@pierre/diffs": "^1.0.11",
@@ -85,17 +90,20 @@
     ]
   },
   "devDependencies": {
+    "@anthropic-ai/tsgo": "npm:@rslint/tsgo@^0.3.2",
     "@electron/rebuild": "^4.0.3",
     "@types/node": "^25.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260324.1",
+    "@vitejs/plugin-react": "^6.0.1",
     "electron": "^41.0.3",
     "electron-builder": "^26.8.1",
+    "oxlint": "^1.57.0",
     "react-dom": "^19.2.4",
     "typescript": "^5.8.3",
-    "vite": "^7.1.1",
+    "vite": "^8.0.2",
     "vitest": "^4.0.18"
   }
 }

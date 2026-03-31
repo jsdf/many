@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { PoolConfig } from "../types";
+import { getRpcClient } from "../rpc-client";
+import type { StreamEvent } from "../../../shared/protocol";
 
 interface NewTaskModalProps {
   pools: PoolConfig[];
@@ -10,8 +12,6 @@ interface NewTaskModalProps {
 }
 
 type LogEntry = { type: "step" | "stdout" | "stderr" | "error"; text: string };
-
-const token = new URLSearchParams(window.location.search).get("token") ?? "";
 
 const NewTaskModal: React.FC<NewTaskModalProps> = ({
   pools,
@@ -41,7 +41,7 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
     }
   }, [log]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPool || !prompt.trim()) return;
 
@@ -50,71 +50,37 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
     setLog([]);
     setDone(false);
 
-    try {
-      const response = await fetch(`${window.location.origin}/api/launch-task`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-token": token,
-        },
-        body: JSON.stringify({
-          repoPath: currentRepo,
-          poolType: selectedPool.type,
-          poolPrefix: selectedPool.prefix,
-          prompt: prompt.trim(),
-          startingPoint: startingPoint.trim() || undefined,
-          maintenanceCommand: selectedPool.maintenanceCommand,
-          taskCommand: selectedPool.taskCommand,
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`Request failed: ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event = JSON.parse(line.slice(6));
-              if (event.type === "step") {
-                setLog((prev) => [...prev, { type: "step", text: event.text }]);
-              } else if (event.type === "stdout") {
-                setLog((prev) => [...prev, { type: "stdout", text: event.text }]);
-              } else if (event.type === "stderr") {
-                setLog((prev) => [...prev, { type: "stderr", text: event.text }]);
-              } else if (event.type === "error") {
-                setLog((prev) => [...prev, { type: "error", text: event.text }]);
-                setError(event.text);
-              } else if (event.type === "done") {
-                setDone(true);
-                if (event.success && event.worktreePath) {
-                  onComplete(event.worktreePath, selectedPool, prompt.trim(), event.taskId);
-                }
-              }
-            } catch {
-              // Skip malformed event
-            }
+    const unsubscribe = getRpcClient().subscribe(
+      "stream.launchTask",
+      (event: StreamEvent) => {
+        if (event.type === "step") {
+          setLog((prev) => [...prev, { type: "step", text: event.text }]);
+        } else if (event.type === "stdout") {
+          setLog((prev) => [...prev, { type: "stdout", text: event.text }]);
+        } else if (event.type === "stderr") {
+          setLog((prev) => [...prev, { type: "stderr", text: event.text }]);
+        } else if (event.type === "error") {
+          setLog((prev) => [...prev, { type: "error", text: event.text }]);
+          setError(event.text);
+        } else if (event.type === "done") {
+          setDone(true);
+          setIsLaunching(false);
+          if (event.success && event.worktreePath) {
+            onComplete(event.worktreePath, selectedPool, prompt.trim(), event.taskId);
           }
+          unsubscribe();
         }
+      },
+      {
+        repoPath: currentRepo,
+        poolType: selectedPool.type,
+        poolPrefix: selectedPool.prefix,
+        prompt: prompt.trim(),
+        startingPoint: startingPoint.trim() || undefined,
+        maintenanceCommand: selectedPool.maintenanceCommand,
+        taskCommand: selectedPool.taskCommand,
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to launch task");
-    } finally {
-      setIsLaunching(false);
-    }
+    );
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {

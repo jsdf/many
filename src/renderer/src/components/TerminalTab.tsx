@@ -3,6 +3,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
+import { getRpcClient } from "../rpc-client";
+import type { TerminalEvent } from "../../../shared/protocol";
 
 interface TerminalTabProps {
   terminalId: string;
@@ -69,13 +71,6 @@ function getTerminalTheme() {
     : lightTheme;
 }
 
-const token = new URLSearchParams(window.location.search).get("token") ?? "";
-
-function getWsUrl(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(token)}`;
-}
-
 const TerminalTab: React.FC<TerminalTabProps> = ({
   terminalId,
   worktreePath,
@@ -87,7 +82,6 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -108,7 +102,11 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
     xterm.loadAddon(new WebLinksAddon((_event, uri) => {
-      window.open(uri);
+      const a = document.createElement("a");
+      a.href = uri;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
     }));
 
     xterm.open(containerRef.current);
@@ -117,54 +115,45 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // Connect WebSocket
-    const ws = new WebSocket(getWsUrl());
-    wsRef.current = ws;
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-    ws.onopen = () => {
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      ws.send(
-        JSON.stringify({
-          type: "create",
-          terminalId,
-          worktreePath,
-          cols: xterm.cols,
-          rows: xterm.rows,
-          isDark,
-          ...(env ? { env } : {}),
-          ...(initialCommand ? { initialCommand } : {}),
-          ...(taskId ? { taskId } : {}),
-        })
+    // Create terminal session on server, then subscribe to output.
+    // Must await create before subscribing — the server registers
+    // data listeners on the session object, which must exist first.
+    const unsubRef = { current: null as (() => void) | null };
+    getRpcClient().query("terminal.create", {
+      terminalId,
+      worktreePath,
+      cols: xterm.cols,
+      rows: xterm.rows,
+      isDark,
+      ...(env ? { env } : {}),
+      ...(initialCommand ? { initialCommand } : {}),
+      ...(taskId ? { taskId } : {}),
+    }).then(() => {
+      if (!mountedRef.current) return;
+      unsubRef.current = getRpcClient().subscribe(
+        "terminal.events",
+        (event: TerminalEvent) => {
+          if (event.type === "data" || event.type === "buffered") {
+            xterm.write(event.data);
+          } else if (event.type === "exit") {
+            xterm.write("\r\n[Terminal session ended]\r\n");
+          }
+        },
+        { terminalId }
       );
-    };
-
-    ws.onmessage = (event) => {
-      let msg: any;
-      try {
-        msg = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-
-      if (msg.type === "data" || msg.type === "buffered") {
-        xterm.write(msg.data);
-      } else if (msg.type === "exit") {
-        xterm.write("\r\n[Terminal session ended]\r\n");
-      }
-    };
+    });
+    const unsubscribe = () => unsubRef.current?.();
 
     // Send user input to server
     const dataDisposable = xterm.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "data", terminalId, data }));
-      }
+      getRpcClient().query("terminal.input", { terminalId, data });
     });
 
     // Send resize events
     const resizeDisposable = xterm.onResize(({ cols, rows }) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "resize", terminalId, cols, rows }));
-      }
+      getRpcClient().query("terminal.resize", { terminalId, cols, rows });
     });
 
     // Handle container resize
@@ -186,14 +175,10 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
       resizeObserver.disconnect();
       dataDisposable.dispose();
       resizeDisposable.dispose();
-      // Close WebSocket but don't kill the PTY
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
+      unsubscribe();
       xterm.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
-      wsRef.current = null;
     };
   }, [terminalId, worktreePath]);
 

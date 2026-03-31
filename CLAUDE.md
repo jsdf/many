@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Many Worktree Manager is a web application (with CLI) for managing Git worktree pools. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
  
+## Design Goals
+
+- **Don't delete data without confirmation.** Destructive operations (cleaning worktree changes, discarding uncommitted work, archiving unmerged branches) should require explicit user confirmation or be clearly flagged. Automated flows should prefer skipping dirty worktrees over silently cleaning them.
+
 ## Development Commands
 
 ### Running the Application
@@ -54,6 +58,10 @@ The web server (`dist-cli/web/server.js`) serves the built renderer static files
 
 manually web ui test changes in the browser
 
+### when changing services
+
+don't forget to run and update tests, write new ones if new behaviors are specified
+
 ### after completing a task
 dont forget to commit and  `npm run electron:install`
 
@@ -86,6 +94,16 @@ dont forget to commit and  `npm run electron:install`
 
 - `src/shared/git-core.ts` - Core git operations used by both server and CLI
 - `src/shared/git-core.test.ts` - Tests for git-core
+
+### Debug Logging
+
+Server-side debug logs are written to a log file via `src/shared/logger.ts`. Log location:
+
+- macOS: `~/Library/Logs/many/many-<timestamp>.log`
+- Windows: `%APPDATA%/many/logs/many-<timestamp>.log`
+- Linux: `~/.local/state/many/logs/many-<timestamp>.log`
+
+The log file path is printed at server startup. Keeps last 10 files, 10MB max each. Use `logger.debug/info/warn/error` — `warn` and `error` also print to console.
 
 ### Data Persistence
 
@@ -121,3 +139,44 @@ App data is stored in a platform-specific location:
 
 - React functional components with hooks
 - tRPC client for server communication
+
+
+
+## Multi-agent coordination
+
+When multiple Claude Code agents work on this repo in parallel, use the `agent-status/` directory to coordinate and avoid conflicts.
+
+### Protocol
+
+1. **On start**: create `agent-status/<task-slug>.md` named after your task (e.g. `add-slack-ingester.md`, `fix-mail-timeout.md`) with:
+   ```
+   # <short task description>
+   Status: in-progress
+   Started: <timestamp>
+
+   ## What I'm doing
+   <brief description>
+
+   ## Files I'm actively editing
+   - path/to/file.ts
+   - path/to/other.ts
+
+   ## Files I'm done with
+   (none yet)
+   ```
+
+2. **During work**: keep the file updated as you move between files. When you finish editing a file, move it from "actively editing" to "done with".
+
+3. **On completion**: delete your status file.
+
+4. **Before editing a file**: check if any other agent's status file lists it under "actively editing". If so, avoid editing that file — work on something else or wait. Files listed under "done with" are safe to edit.
+
+5. **Periodically**: read other agents' status files to understand why files are changing around you. This avoids confusion when git shows unexpected diffs.
+
+### Rules
+
+- Never edit a file another agent is actively editing — this causes merge conflicts
+- Files under "done with" are fair game
+- If you need a file another agent owns, leave a note in your status file requesting it and check back later
+- Keep status files minimal — just enough for other agents to know what's off-limits
+- The `agent-status/` directory should be gitignored

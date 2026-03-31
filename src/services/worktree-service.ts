@@ -5,6 +5,7 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { promises as fs } from "fs";
+import logger from "../shared/logger.js";
 import * as gitPool from "../cli/git-pool.js";
 import type { WorktreeInfo } from "../cli/git-pool.js";
 import type { RepositoryConfig, PoolConfig } from "../cli/config.js";
@@ -30,6 +31,9 @@ import {
   checkBranchMerged,
   removeWorktree,
   parseWorktreeList,
+  readWorktreeListFromFS,
+  isTmpBranch as isTmpBranchCore,
+  extractWorktreeName,
   getErrorMessage,
 } from "../shared/git-core.js";
 import { registerTask, type TaskRecord } from "../cli/task-registry.js";
@@ -41,6 +45,24 @@ const userShell = process.env.SHELL || "/bin/bash";
 function execAsync(command: string, options?: Record<string, unknown>) {
   const loginCommand = `${userShell} -l -c ${JSON.stringify(command)}`;
   return _exec(loginCommand, { ...options });
+}
+
+/**
+ * Lightweight worktree list read directly from the filesystem (no git process).
+ * Returns the same WorktreeInfo shape as getWorktrees() but much cheaper.
+ */
+export async function getWorktreesFromFS(
+  repoPath: string
+): Promise<WorktreeInfo[]> {
+  const parsed = await readWorktreeListFromFS(repoPath);
+  return parsed.map((w) => ({
+    path: w.path,
+    commit: w.commit || "",
+    branch: w.branch || null,
+    bare: w.bare || false,
+    isAvailable: isTmpBranchCore(w.branch),
+    worktreeName: extractWorktreeName(w.path, repoPath),
+  }));
 }
 
 // --- resolveStartingPoint ---
@@ -60,10 +82,37 @@ export async function resolveStartingPoint(
 
   let branchName: string;
 
-  const ghUrlMatch = sp.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-  const graphiteUrlMatch = sp.match(/graphite\.dev\/github\/pr\/[^/]+\/[^/]+\/(\d+)/);
+  let prNumber: string | undefined;
   const prNumberMatch = sp.match(/^#?(\d+)$/);
-  const prNumber = ghUrlMatch?.[1] || graphiteUrlMatch?.[1] || prNumberMatch?.[1];
+  if (prNumberMatch) {
+    prNumber = prNumberMatch[1];
+  } else {
+    try {
+      const url = new URL(sp);
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (
+        url.hostname === "github.com" &&
+        segments.length >= 4 &&
+        segments[2] === "pull"
+      ) {
+        // github.com/<owner>/<repo>/pull/<number>
+        const num = segments[3];
+        if (/^\d+$/.test(num)) prNumber = num;
+      } else if (
+        /^(?:app\.)?graphite\.(?:dev|com)$/.test(url.hostname) &&
+        segments[0] === "github" &&
+        segments.length >= 4 &&
+        segments[3] === "pull" &&
+        segments.length >= 5
+      ) {
+        // app.graphite.com/github/<owner>/<repo>/pull/<number>
+        const num = segments[4];
+        if (/^\d+$/.test(num)) prNumber = num;
+      }
+    } catch {
+      // Not a URL — treat as branch name below
+    }
+  }
 
   if (prNumber) {
     const { stdout } = await execAsync(
@@ -240,6 +289,7 @@ export interface LaunchTaskOptions {
   poolPrefix: string;
   prompt: string;
   startingPoint?: string;
+  existingWorktreePath?: string;
   maintenanceCommand?: string;
   initCommand?: string | null;
   mainBranch: string | null;
@@ -289,22 +339,53 @@ export async function launchTask(
   let targetWorktreePath: string;
   let taskBranch: string;
 
-  if (options.poolType === "recyclable") {
+  if (options.existingWorktreePath) {
+    // Use an existing worktree directly — skip claim/create
+    targetWorktreePath = options.existingWorktreePath;
+    onProgress?.({ type: "step", text: `Using existing worktree: ${targetWorktreePath}` });
+
+    // Determine current branch
+    const realPath = await fs.realpath(targetWorktreePath).catch(() => targetWorktreePath);
+    const worktrees = await gitPool.getWorktrees(repoPath);
+    const wt = worktrees.find((w) => w.path === realPath);
+    if (!wt) {
+      const msg = `Worktree not found at path: ${targetWorktreePath}`;
+      onProgress?.({ type: "error", text: msg });
+      throw new Error(msg);
+    }
+    taskBranch = wt.branch?.replace(/^refs\/heads\//, "") ?? "unknown";
+  } else if (options.poolType === "recyclable") {
     // Step 2a: Find an available worktree in the pool
     onProgress?.({ type: "step", text: `Finding available worktree in pool "${options.poolPrefix}"...` });
     const worktrees = await gitPool.getWorktrees(repoPath);
-    const available = worktrees.find(
+    const candidates = worktrees.filter(
       (w): w is WorktreeInfo =>
         w.path !== repoPath &&
         !w.bare &&
         (w.branch?.replace(/^refs\/heads\//, "") || "").startsWith("tmp-") &&
         w.worktreeName.startsWith(options.poolPrefix)
     );
-    if (!available) {
+    if (candidates.length === 0) {
       const msg = `No available worktrees in pool with prefix "${options.poolPrefix}".`;
       onProgress?.({ type: "error", text: msg });
       throw new Error(msg);
     }
+
+    // Prefer a clean worktree; fall back to a dirty one (cleaning it first)
+    let available: WorktreeInfo | undefined;
+    let needsClean = false;
+    for (const candidate of candidates) {
+      const status = await gitPool.getWorktreeStatus(candidate.path);
+      if (!status.hasChanges && !status.hasStaged) {
+        available = candidate;
+        break;
+      }
+    }
+    if (!available) {
+      available = candidates[0];
+      needsClean = true;
+    }
+
     onProgress?.({ type: "step", text: `Using worktree: ${available.worktreeName}` });
 
     // Step 2b: Claim the worktree
@@ -315,6 +396,11 @@ export async function launchTask(
         .replace(/[^a-zA-Z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
         .toLowerCase()}-${Date.now().toString(36)}`;
+
+    if (needsClean) {
+      onProgress?.({ type: "step", text: `Worktree has leftover changes, cleaning before claim...` });
+      await gitPool.cleanChanges(available.path);
+    }
 
     onProgress?.({ type: "step", text: `Claiming worktree → branch: ${taskBranch}` });
     try {
@@ -571,11 +657,11 @@ export async function getGitHubLink(repoPath: string, branch: string): Promise<G
     );
     const url = stdout.trim();
     if (url) return { type: "pr", url };
-    if (stderr.trim()) console.log(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
+    if (stderr.trim()) logger.debug(`[getGitHubLink] gh pr view stderr: ${stderr.trim()}`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("no pull requests found")) {
-      console.log(`[getGitHubLink] gh pr view failed for branch=${normalizedBranch} cwd=${repoPath}: ${msg}`);
+      logger.debug(`[getGitHubLink] gh pr view failed for branch=${normalizedBranch} cwd=${repoPath}: ${msg}`);
     }
   }
 

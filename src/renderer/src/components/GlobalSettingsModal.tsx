@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 
 interface GlobalSettingsModalProps {
   onClose: () => void;
@@ -28,7 +28,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
     const loadSettings = async () => {
       setIsLoading(true);
       try {
-        const settings = await client.getGlobalSettings.query();
+        const settings = await getRpcClient().query("settings.get", {});
         setDefaultEditor(settings.defaultEditor || "");
         setDefaultTerminal(settings.defaultTerminal || "");
       } catch (err) {
@@ -48,7 +48,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
     setError(null);
 
     try {
-      await client.saveGlobalSettings.mutate({
+      await getRpcClient().query("settings.save", {
         defaultEditor: defaultEditor.trim() || null,
         defaultTerminal: defaultTerminal.trim() || null,
       });

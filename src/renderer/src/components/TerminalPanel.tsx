@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 
 interface TerminalPanelProps {
@@ -22,7 +22,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
 
     const loadExisting = async () => {
       try {
-        const existingIds = await client.getTerminalSessions.query({
+        const existingIds = await getRpcClient().query("terminal.listSessions", {
           worktreePath,
         });
         if (cancelled) return;
@@ -55,7 +55,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
   const closeTerminal = useCallback(
     async (terminalId: string) => {
       try {
-        await client.closeTerminal.mutate({ terminalId });
+        await getRpcClient().query("terminal.close", { terminalId });
       } catch (err) {
         // Session may already be dead
       }

@@ -129,3 +129,4 @@ test-results/
 playwright-report/
 tests/screenshots/
 .playwright-mcp/
+agent-status/

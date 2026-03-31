@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
 import SessionHistoryTab from "./SessionHistoryTab";
+import ClaudeSessionTab from "./ClaudeSessionTab";
 
 interface TerminalStackProps {
   worktreePath: string;
@@ -13,6 +14,7 @@ export interface TerminalStackHandle {
   createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => void;
   openSessionHistory: (sessionId: string) => void;
   openTaskLog: (taskId: string, isSavedLog?: boolean) => void;
+  openClaudeSession: (sessionId?: string) => void;
 }
 
 interface TerminalInfo {
@@ -24,6 +26,7 @@ interface TerminalInfo {
   isSavedLog?: boolean; // saved terminal session from shutdown
   isSessionHistory?: boolean;
   sessionId?: string;
+  isClaudeSession?: boolean;
 }
 
 let terminalCounter = 0;
@@ -39,7 +42,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
 
     const loadExisting = async () => {
       try {
-        const existingIds = await client.getTerminalSessions.query({
+        const existingIds = await getRpcClient().query("terminal.listSessions", {
           worktreePath,
         });
         if (cancelled) return;
@@ -67,7 +70,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
 
     const checkForOrphanTasks = async () => {
       try {
-        const tasks = await client.listTasks.query({ repoPath });
+        const tasks = await getRpcClient().query("task.list", { repoPath });
         // Show running tasks (CLI-launched) — saved logs are opened on demand via "View Log" button
         const runningTasksForWorktree = tasks.filter(
           (t: any) => t.worktreePath === worktreePath && t.logFile && t.status === "running"
@@ -137,13 +140,26 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
+  const openClaudeSession = useCallback((sessionId?: string) => {
+    setTerminals((prev) => {
+      // Don't duplicate if resuming same session
+      if (sessionId && prev.some((t) => t.sessionId === sessionId && t.isClaudeSession)) return prev;
+      terminalCounter++;
+      const id = sessionId ? `claude-session-${sessionId}` : `claude-session-new-${Date.now()}`;
+      const next = [...prev, { id, isClaudeSession: true, sessionId }];
+      setSizes(next.map(() => 1 / next.length));
+      return next;
+    });
+  }, []);
+
   useImperativeHandle(ref, () => ({
     createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
       addTerminal(env, initialCommand, taskId);
     },
     openSessionHistory,
+    openClaudeSession,
     openTaskLog,
-  }), [addTerminal, openSessionHistory, openTaskLog]);
+  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
@@ -151,13 +167,13 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const term = terminals.find((t) => t.id === terminalId);
       if (term?.isTaskLog && term.taskId && !term.isSavedLog) {
         try {
-          await client.killTaskById.mutate({ taskId: term.taskId });
+          await getRpcClient().query("task.kill", { taskId: term.taskId });
         } catch {
           // Task may already be dead
         }
       } else if (!term?.isTaskLog) {
         try {
-          await client.closeTerminal.mutate({ terminalId });
+          await getRpcClient().query("terminal.close", { terminalId });
         } catch {
           // Session may already be dead
         }
@@ -228,9 +244,14 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     <div className="flex flex-col h-full overflow-hidden" ref={containerRef}>
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-200 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
-        <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>
-          + New
-        </button>
+        <div className="flex gap-1">
+          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => openClaudeSession()}>
+            + Claude
+          </button>
+          <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>
+            + New
+          </button>
+        </div>
       </div>
       <div
         className="flex-1 flex flex-col overflow-hidden min-h-0"
@@ -261,7 +282,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-300 border-b border-base-300 shrink-0">
                 <span className="text-xs text-base-content/60">
-                  {term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : `Terminal ${i + 1}`}
+                  {term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : `Terminal ${i + 1}`}
                 </span>
                 <button
                   className="btn btn-ghost btn-xs"
@@ -272,7 +293,12 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                 </button>
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
-                {term.isSessionHistory && term.sessionId ? (
+                {term.isClaudeSession ? (
+                  <ClaudeSessionTab
+                    worktreePath={worktreePath}
+                    sessionId={term.sessionId}
+                  />
+                ) : term.isSessionHistory && term.sessionId ? (
                   <SessionHistoryTab
                     sessionId={term.sessionId}
                     worktreePath={worktreePath}

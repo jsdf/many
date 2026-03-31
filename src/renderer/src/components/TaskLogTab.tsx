@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 
 const darkTheme = {
   background: "#1e1e1e",
@@ -44,7 +44,7 @@ const TaskLogTab: React.FC<TaskLogTabProps> = ({ taskId, isVisible }) => {
     if (!xterm) return;
 
     try {
-      const result = await client.getTaskLog.query({
+      const result = await getRpcClient().query("task.getLog", {
         taskId,
         offset: offsetRef.current,
       });
@@ -55,7 +55,7 @@ const TaskLogTab: React.FC<TaskLogTabProps> = ({ taskId, isVisible }) => {
       }
 
       // Check task status
-      const tasks = await client.listTasks.query({});
+      const tasks = await getRpcClient().query("task.list", {});
       const task = tasks.find((t: any) => t.id === taskId);
       if (task) {
         setStatus(task.status);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Worktree, PoolConfig, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
-import { client } from "../main";
+import { getRpcClient } from "../rpc-client";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
@@ -43,7 +43,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   // Fetch GitHub PR/branch link with periodic revalidation
   const fetchGhLink = useCallback(() => {
     if (!selectedWorktree?.branch || !currentRepo || isTmpBranch(selectedWorktree.branch)) return;
-    client.getGitHubLink.query({
+    getRpcClient().query("repo.githubLink", {
       repoPath: currentRepo,
       branch: selectedWorktree.branch,
     }).then((result) => {
@@ -135,19 +135,34 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
         <button
           className="btn btn-soft btn-neutral btn-sm"
-          onClick={() => selectedWorktree.path && client.openInFileManager.mutate({ folderPath: selectedWorktree.path })}
+          onClick={() => {
+            if (!selectedWorktree.path) return;
+            console.log("[action] openFileManager", selectedWorktree.path);
+            getRpcClient().query("action.openFileManager", { path: selectedWorktree.path })
+              .catch((err) => console.error("[action] openFileManager failed:", err));
+          }}
         >
           📁 Folder
         </button>
         <button
           className="btn btn-soft btn-neutral btn-sm"
-          onClick={() => selectedWorktree.path && client.openInEditor.mutate({ folderPath: selectedWorktree.path })}
+          onClick={() => {
+            if (!selectedWorktree.path) return;
+            console.log("[action] openEditor", selectedWorktree.path);
+            getRpcClient().query("action.openEditor", { path: selectedWorktree.path })
+              .catch((err) => console.error("[action] openEditor failed:", err));
+          }}
         >
           📝 Editor
         </button>
         <button
           className="btn btn-soft btn-neutral btn-sm"
-          onClick={() => selectedWorktree.path && client.openInTerminal.mutate({ folderPath: selectedWorktree.path })}
+          onClick={() => {
+            if (!selectedWorktree.path) return;
+            console.log("[action] openTerminal", selectedWorktree.path);
+            getRpcClient().query("action.openTerminal", { path: selectedWorktree.path })
+              .catch((err) => console.error("[action] openTerminal failed:", err));
+          }}
         >
           💻 Terminal
         </button>
