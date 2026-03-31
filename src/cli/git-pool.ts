@@ -239,8 +239,8 @@ export async function runInitCommand(
   return new Promise((resolve, reject) => {
     logger.info(`Running init command: ${initCommand}`);
 
-    const child = spawn(initCommand, {
-      shell: true,
+    const userShell = process.env.SHELL || "/bin/bash";
+    const child = spawn(userShell, ["-l", "-c", initCommand], {
       cwd: worktreePath,
       stdio: "inherit",
     });
