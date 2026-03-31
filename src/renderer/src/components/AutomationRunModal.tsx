@@ -132,10 +132,6 @@ const AutomationRunModal: React.FC<AutomationRunModalProps> = ({
     }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isRunning) onClose();
-  };
-
   const completedCount =
     run?.workItems.filter((i) => i.status === "completed").length ?? 0;
   const failedCount =
@@ -147,35 +143,28 @@ const AutomationRunModal: React.FC<AutomationRunModalProps> = ({
       : 0;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
-      onClick={handleBackdropClick}
-    >
-      <div
-        className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center p-5 border-b border-base-300">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold m-0">
-              Automation Run
-            </h3>
-            {run && (
-              <span className={`badge ${statusColors[run.status]} badge-sm`}>
-                {run.status}
-              </span>
-            )}
-          </div>
-          <button
-            className="btn btn-ghost btn-sm btn-circle text-base-content/60"
-            onClick={onClose}
-            disabled={isRunning}
-          >
-            &times;
-          </button>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex justify-between items-center px-5 py-3 border-b border-base-300 shrink-0">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold m-0">
+            Automation Run
+          </h3>
+          {run && (
+            <span className={`badge ${statusColors[run.status]} badge-sm`}>
+              {run.status}
+            </span>
+          )}
         </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={onClose}
+          disabled={isRunning}
+        >
+          &larr; Back
+        </button>
+      </div>
 
-        <div className="p-5 space-y-4">
+      <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Progress bar */}
           {totalCount > 0 && (
             <div>
@@ -264,20 +253,19 @@ const AutomationRunModal: React.FC<AutomationRunModalProps> = ({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 p-5 border-t border-base-300">
-          {isRunning && run && (
-            <button className="btn btn-error btn-sm" onClick={handleCancel}>
-              Cancel
-            </button>
-          )}
-          <button
-            className="btn btn-neutral"
-            onClick={onClose}
-            disabled={isRunning}
-          >
-            {done ? "Close" : "Cancel"}
+      <div className="flex justify-end gap-3 px-5 py-3 border-t border-base-300 shrink-0">
+        {isRunning && run && (
+          <button className="btn btn-error btn-sm" onClick={handleCancel}>
+            Cancel
           </button>
-        </div>
+        )}
+        <button
+          className="btn btn-neutral"
+          onClick={onClose}
+          disabled={isRunning}
+        >
+          {done ? "Close" : "Cancel"}
+        </button>
       </div>
     </div>
   );

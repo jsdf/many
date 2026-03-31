@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions } from "./types";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { TaskQueueSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
+import TaskQueuePanel from "./components/TaskQueuePanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
 import AutomationRunModal from "./components/AutomationRunModal";
@@ -14,6 +15,13 @@ import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { getRpcClient } from "./rpc-client";
 import { useWorktreeSubscription } from "./rpc-hooks";
+
+// Main pane routing
+type MainPaneView =
+  | { type: 'worktree' }
+  | { type: 'taskQueue' }
+  | { type: 'automations' }
+  | { type: 'automationRun'; automationId: string; manualWorkItems?: string[] };
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -41,9 +49,7 @@ const App: React.FC = () => {
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
-  const [showAutomationsModal, setShowAutomationsModal] = useState(false);
-  const [runningAutomationId, setRunningAutomationId] = useState<string | null>(null);
-  const [manualWorkItems, setManualWorkItems] = useState<string[] | null>(null);
+  const [mainPaneView, setMainPaneView] = useState<MainPaneView>({ type: 'worktree' });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
@@ -530,14 +536,21 @@ const App: React.FC = () => {
               selectedWorktree={selectedWorktree}
               pools={repoConfig?.pools}
               worktreeActivity={worktreeActivity}
+              taskQueueSubView={mainPaneView.type === 'taskQueue' ? 'queue' : mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'automations' : null}
               onRepoSelect={selectRepo}
-              onWorktreeSelect={handleWorktreeSelect}
+              onWorktreeSelect={(worktree) => {
+                handleWorktreeSelect(worktree);
+                setMainPaneView({ type: 'worktree' });
+              }}
               onCreateWorktree={() => setShowCreateModal(true)}
               onConfigRepo={() => setShowRepoConfigModal(true)}
               onSwitchWorktree={() => setShowSwitchModal(true)}
               onClaimPool={handleClaimPool}
               onNewTask={() => setShowNewTaskModal(true)}
-              onAutomations={() => setShowAutomationsModal(true)}
+              onTaskQueueSubViewChange={(view: TaskQueueSubView) => {
+                if (view === 'queue') setMainPaneView({ type: 'taskQueue' });
+                else if (view === 'automations') setMainPaneView({ type: 'automations' });
+              }}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />
@@ -553,17 +566,43 @@ const App: React.FC = () => {
         </>
       )}
 
-      <MainContent
-        ref={mainContentRef}
-        selectedWorktree={selectedWorktree}
-        currentRepo={currentRepo}
-        pools={repoConfig?.pools}
-        onArchiveWorktree={archiveWorktree}
-        onMergeWorktree={openMergeModal}
-        onRebaseWorktree={openRebaseModal}
-        onReleaseWorktree={openReleaseModal}
-        onClaimWorktree={handleClaimWorktree}
-      />
+      {mainPaneView.type === 'automationRun' && currentRepo ? (
+        <div className="flex-1 min-w-0">
+          <AutomationRunModal
+            currentRepo={currentRepo}
+            automationId={mainPaneView.automationId}
+            manualWorkItems={mainPaneView.manualWorkItems}
+            onClose={() => setMainPaneView({ type: 'taskQueue' })}
+          />
+        </div>
+      ) : mainPaneView.type === 'automations' && repoConfig?.pools && currentRepo ? (
+        <div className="flex-1 min-w-0">
+          <AutomationsModal
+            currentRepo={currentRepo}
+            pools={repoConfig.pools}
+            onClose={() => setMainPaneView({ type: 'taskQueue' })}
+            onStartRun={(automationId, workItems) => {
+              setMainPaneView({ type: 'automationRun', automationId, manualWorkItems: workItems });
+            }}
+          />
+        </div>
+      ) : mainPaneView.type === 'taskQueue' && currentRepo ? (
+        <div className="flex-1 min-w-0">
+          <TaskQueuePanel currentRepo={currentRepo} />
+        </div>
+      ) : (
+        <MainContent
+          ref={mainContentRef}
+          selectedWorktree={selectedWorktree}
+          currentRepo={currentRepo}
+          pools={repoConfig?.pools}
+          onArchiveWorktree={archiveWorktree}
+          onMergeWorktree={openMergeModal}
+          onRebaseWorktree={openRebaseModal}
+          onReleaseWorktree={openReleaseModal}
+          onClaimWorktree={handleClaimWorktree}
+        />
+      )}
 
       {showCreateModal && (
         <CreateWorktreeModal
@@ -668,30 +707,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {showAutomationsModal && repoConfig?.pools && currentRepo && (
-        <AutomationsModal
-          currentRepo={currentRepo}
-          pools={repoConfig.pools}
-          onClose={() => setShowAutomationsModal(false)}
-          onStartRun={(automationId, workItems) => {
-            setShowAutomationsModal(false);
-            setRunningAutomationId(automationId);
-            setManualWorkItems(workItems ?? null);
-          }}
-        />
-      )}
-
-      {runningAutomationId && currentRepo && (
-        <AutomationRunModal
-          currentRepo={currentRepo}
-          automationId={runningAutomationId}
-          manualWorkItems={manualWorkItems ?? undefined}
-          onClose={() => {
-            setRunningAutomationId(null);
-            setManualWorkItems(null);
-          }}
-        />
-      )}
     </div>
   );
 };

@@ -77,31 +77,20 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
     });
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
-      onClick={handleBackdropClick}
-    >
-      <div
-        className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[700px] max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center p-5 border-b border-base-300">
-          <h3 className="text-lg font-semibold m-0">Automations</h3>
-          <button
-            className="btn btn-ghost btn-sm btn-circle text-base-content/60"
-            onClick={onClose}
-          >
-            &times;
-          </button>
-        </div>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex justify-between items-center px-5 py-3 border-b border-base-300 shrink-0">
+        <h3 className="text-lg font-semibold m-0">Automations</h3>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={onClose}
+        >
+          &larr; Back
+        </button>
+      </div>
 
-        <div className="p-5">
-          {editing ? (
+      <div className="p-5 overflow-y-auto flex-1">
+        {editing ? (
             <AutomationForm
               automation={editing}
               pools={taskPools}
@@ -222,7 +211,6 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
               </div>
             </>
           )}
-        </div>
       </div>
     </div>
   );

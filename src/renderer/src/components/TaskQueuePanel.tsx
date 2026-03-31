@@ -30,7 +30,7 @@ const workItemColors: Record<WorkItemStatus, string> = {
 
 const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
   const [runs, setRuns] = useState<AutomationRun[]>([]);
-  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -51,7 +51,7 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
   useEffect(() => {
     setLoading(true);
     setRuns([]);
-    setExpandedRunId(null);
+    setSelectedRunId(null);
     fetchRuns();
 
     pollRef.current = setInterval(fetchRuns, 5000);
@@ -60,9 +60,11 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
     };
   }, [currentRepo]);
 
+  const selectedRun = runs.find((r) => r.id === selectedRunId) ?? null;
+
   if (!currentRepo) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-col h-full items-center justify-center">
         <p className="text-base-content/50 italic text-sm">
           Select a repository
         </p>
@@ -72,7 +74,7 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-col h-full items-center justify-center">
         <span className="loading loading-spinner loading-md"></span>
       </div>
     );
@@ -80,87 +82,164 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
 
   if (runs.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center px-4">
+      <div className="flex flex-col h-full items-center justify-center px-4">
         <p className="text-base-content/50 italic text-sm text-center">
-          No automation runs yet
+          No automation runs yet. Create an automation and run it to see results here.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto mb-3">
-      {runs.map((run) => {
-        const isExpanded = expandedRunId === run.id;
-        const completedCount = run.workItems.filter(
-          (i) => i.status === "completed"
-        ).length;
-        const failedCount = run.workItems.filter(
-          (i) => i.status === "failed"
-        ).length;
-        const totalCount = run.workItems.length;
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex justify-between items-center px-5 py-3 border-b border-base-300 shrink-0">
+        <h3 className="text-lg font-semibold m-0">Task Queue</h3>
+      </div>
 
-        return (
-          <div key={run.id} className="mb-1">
-            <div
-              className={`px-3 py-2 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-                isExpanded
-                  ? "border-l-primary bg-primary/15"
-                  : "border-l-transparent hover:bg-base-content/5"
-              }`}
-              onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`badge ${statusColors[run.status]} badge-xs`}>
-                  {run.status}
-                </span>
-                <span className="text-sm font-semibold leading-tight truncate">
-                  {run.automationName}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] text-base-content/50">
-                  {new Date(run.startedAt).toLocaleString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {totalCount > 0 && (
-                  <span className="text-[11px] text-base-content/50">
-                    {completedCount}/{totalCount}
-                    {failedCount > 0 && (
-                      <span className="text-error"> ({failedCount} failed)</span>
-                    )}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Run list */}
+        <div className="w-72 shrink-0 border-r border-base-300 overflow-y-auto">
+          {runs.map((run) => {
+            const isSelected = selectedRunId === run.id;
+            const completedCount = run.workItems.filter(
+              (i) => i.status === "completed"
+            ).length;
+            const failedCount = run.workItems.filter(
+              (i) => i.status === "failed"
+            ).length;
+            const totalCount = run.workItems.length;
+
+            return (
+              <div
+                key={run.id}
+                className={`px-4 py-3 cursor-pointer transition-colors border-l-[3px] ${
+                  isSelected
+                    ? "border-l-primary bg-primary/15"
+                    : "border-l-transparent hover:bg-base-content/5"
+                }`}
+                onClick={() => setSelectedRunId(isSelected ? null : run.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`badge ${statusColors[run.status]} badge-xs`}>
+                    {run.status}
                   </span>
-                )}
+                  <span className="text-sm font-semibold leading-tight truncate">
+                    {run.automationName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-base-content/50">
+                    {new Date(run.startedAt).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {totalCount > 0 && (
+                    <span className="text-xs text-base-content/50">
+                      {completedCount}/{totalCount}
+                      {failedCount > 0 && (
+                        <span className="text-error"> ({failedCount} failed)</span>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            );
+          })}
+        </div>
 
-            {isExpanded && run.workItems.length > 0 && (
-              <div className="pl-4 pr-2 py-1 space-y-0.5">
-                {run.workItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-1.5 text-xs py-0.5"
-                  >
-                    <span className={`shrink-0 ${workItemColors[item.status]}`}>
-                      {workItemIcons[item.status]}
-                    </span>
-                    <span
-                      className="flex-1 min-w-0 truncate text-base-content/70"
-                      title={item.prompt}
-                    >
-                      {item.prompt}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Run detail */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {selectedRun ? (
+            <RunDetail run={selectedRun} />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-base-content/50 italic text-sm">
+                Select a run to view details
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RunDetail: React.FC<{ run: AutomationRun }> = ({ run }) => {
+  const completedCount = run.workItems.filter((i) => i.status === "completed").length;
+  const failedCount = run.workItems.filter((i) => i.status === "failed").length;
+  const totalCount = run.workItems.length;
+  const progressPct = totalCount > 0
+    ? Math.round(((completedCount + failedCount) / totalCount) * 100)
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <h4 className="text-base font-semibold m-0">{run.automationName}</h4>
+        <span className={`badge ${statusColors[run.status]} badge-sm`}>
+          {run.status}
+        </span>
+      </div>
+
+      <div className="text-xs text-base-content/50">
+        Started: {new Date(run.startedAt).toLocaleString()}
+      </div>
+
+      {/* Progress bar */}
+      {totalCount > 0 && (
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span>
+              {completedCount}/{totalCount} completed
+              {failedCount > 0 && (
+                <span className="text-error ml-2">
+                  ({failedCount} failed)
+                </span>
+              )}
+            </span>
+            <span>{progressPct}%</span>
           </div>
-        );
-      })}
+          <progress
+            className="progress progress-primary w-full"
+            value={completedCount + failedCount}
+            max={totalCount}
+          />
+        </div>
+      )}
+
+      {/* Work items */}
+      {run.workItems.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold mb-2">
+            Work Items ({run.workItems.length})
+          </h4>
+          <div className="space-y-1">
+            {run.workItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start gap-2 text-sm bg-base-300 rounded px-3 py-2"
+              >
+                <span
+                  className={`shrink-0 mt-0.5 ${workItemColors[item.status]}`}
+                >
+                  {workItemIcons[item.status]}
+                </span>
+                <span className="flex-1 min-w-0" title={item.prompt}>
+                  {item.prompt}
+                </span>
+                <span
+                  className={`shrink-0 text-xs ${workItemColors[item.status]}`}
+                >
+                  {item.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
