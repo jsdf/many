@@ -33,7 +33,7 @@ function runScript(
   cwd: string
 ): Promise<{ exitCode: number; output: string }> {
   return new Promise((resolve) => {
-    const child = spawn(userShell, ["-l", "-c", script], {
+    const child = spawn(userShell, ["-li", "-c", script], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env },

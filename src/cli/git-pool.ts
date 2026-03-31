@@ -240,7 +240,7 @@ export async function runInitCommand(
     logger.info(`Running init command: ${initCommand}`);
 
     const userShell = process.env.SHELL || "/bin/bash";
-    const child = spawn(userShell, ["-l", "-c", initCommand], {
+    const child = spawn(userShell, ["-li", "-c", initCommand], {
       cwd: worktreePath,
       stdio: "inherit",
     });

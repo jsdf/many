@@ -387,7 +387,7 @@ function spawnTaskProcess(
   onProgress?: OnProgress
 ): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(userShell, ["-l", "-c", taskCommand], {
+    const child = spawn(userShell, ["-li", "-c", taskCommand], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: {

@@ -641,7 +641,7 @@ export function createSubscriptionHandlers(opts: {
 
     "stream.runInit": (input, push) => {
       const { worktreePath, initCommand } = input as { worktreePath: string; initCommand: string };
-      const child = spawn(userShell, ["-l", "-c", initCommand], {
+      const child = spawn(userShell, ["-li", "-c", initCommand], {
         cwd: worktreePath,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -659,7 +659,7 @@ export function createSubscriptionHandlers(opts: {
       };
       const runCommand: RunCommand = (command, cwd) =>
         new Promise((resolve) => {
-          const child = spawn(userShell, ["-l", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+          const child = spawn(userShell, ["-li", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
           child.stdout.on("data", (chunk: Buffer) => push({ type: "stdout", text: chunk.toString() }));
           child.stderr.on("data", (chunk: Buffer) => push({ type: "stderr", text: chunk.toString() }));
           child.on("error", (err) => { push({ type: "stderr", text: err.message }); resolve(1); });
@@ -700,7 +700,7 @@ export function createSubscriptionHandlers(opts: {
       };
       const runCommand: RunCommand = (command, cwd) =>
         new Promise((resolve) => {
-          const child = spawn(userShell, ["-l", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+          const child = spawn(userShell, ["-li", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
           child.stdout.on("data", (chunk: Buffer) => push({ type: "stdout", text: chunk.toString() }));
           child.stderr.on("data", (chunk: Buffer) => push({ type: "stderr", text: chunk.toString() }));
           child.on("error", (err) => { push({ type: "stderr", text: err.message }); resolve(1); });
@@ -755,7 +755,7 @@ export function createSubscriptionHandlers(opts: {
 
       const runCommand: RunCommand = (command, cwd) =>
         new Promise((resolve) => {
-          const child = spawn(userShell, ["-l", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
+          const child = spawn(userShell, ["-li", "-c", command], { cwd, stdio: ["ignore", "pipe", "pipe"] });
           child.stdout.on("data", (chunk: Buffer) => push({ type: "stdout", text: chunk.toString() }));
           child.stderr.on("data", (chunk: Buffer) => push({ type: "stderr", text: chunk.toString() }));
           child.on("error", (err) => { push({ type: "stderr", text: err.message }); resolve(1); });
