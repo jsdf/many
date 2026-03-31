@@ -91,6 +91,47 @@ export interface GitHubLink {
   url: string;
 }
 
+// ---------------------------------------------------------------------------
+// Automation types
+// ---------------------------------------------------------------------------
+
+export interface AutomationDefinition {
+  id: string;
+  name: string;
+  poolPrefix: string;
+  producerPrompt: string;
+  concurrency: number;
+}
+
+export type WorkItemStatus = "pending" | "running" | "completed" | "failed";
+export type AutomationRunStatus =
+  | "producing"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface WorkItem {
+  id: string;
+  prompt: string;
+  status: WorkItemStatus;
+  taskId?: string;
+  worktreePath?: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  automationName: string;
+  repoPath: string;
+  status: AutomationRunStatus;
+  startedAt: string;
+  endedAt?: string;
+  producerTaskId?: string;
+  producerWorktreePath?: string;
+  workItems: WorkItem[];
+}
+
 // Terminal events pushed via subscription
 export type TerminalEvent =
   | { type: "data"; data: string }
@@ -475,6 +516,32 @@ export interface QueryProcedures {
     input: { sessionId: string };
     output: { ok: boolean };
   };
+
+  // --- Automation management ---
+  "automation.list": {
+    input: { repoPath: string };
+    output: AutomationDefinition[];
+  };
+  "automation.save": {
+    input: { repoPath: string; automation: AutomationDefinition };
+    output: { ok: boolean };
+  };
+  "automation.delete": {
+    input: { repoPath: string; automationId: string };
+    output: { ok: boolean };
+  };
+  "automation.listRuns": {
+    input: { repoPath?: string };
+    output: AutomationRun[];
+  };
+  "automation.getRun": {
+    input: { runId: string };
+    output: AutomationRun | null;
+  };
+  "automation.cancelRun": {
+    input: { runId: string };
+    output: { ok: boolean };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -530,6 +597,15 @@ export interface SubscriptionProcedures {
   "session.list.updates": {
     input: { dir: string };
     output: SessionInfo[];
+  };
+  /** Streaming automation run progress */
+  "stream.startAutomation": {
+    input: {
+      repoPath: string;
+      automationId: string;
+      manualWorkItems?: string[];
+    };
+    output: StreamEvent;
   };
 }
 

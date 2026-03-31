@@ -533,6 +533,56 @@ export function createQueryHandlers(opts: {
       claudeService.close(sessionId);
       return { ok: true };
     },
+
+    // --- Automation ---
+    "automation.list": async (input) => {
+      const { repoPath } = input as { repoPath: string };
+      const appData = await loadAppData();
+      const repoConfig = getRepoConfig(appData, repoPath);
+      return repoConfig.automations ?? [];
+    },
+    "automation.save": async (input) => {
+      const { repoPath, automation } = input as { repoPath: string; automation: any };
+      const appData = await loadAppData();
+      const repoConfig = getRepoConfig(appData, repoPath);
+      if (!repoConfig.automations) repoConfig.automations = [];
+      const idx = repoConfig.automations.findIndex((a: any) => a.id === automation.id);
+      if (idx >= 0) {
+        repoConfig.automations[idx] = automation;
+      } else {
+        repoConfig.automations.push(automation);
+      }
+      appData.repositoryConfigs[repoPath] = repoConfig;
+      await saveAppData(appData);
+      return { ok: true };
+    },
+    "automation.delete": async (input) => {
+      const { repoPath, automationId } = input as { repoPath: string; automationId: string };
+      const appData = await loadAppData();
+      const repoConfig = getRepoConfig(appData, repoPath);
+      if (repoConfig.automations) {
+        repoConfig.automations = repoConfig.automations.filter((a: any) => a.id !== automationId);
+        appData.repositoryConfigs[repoPath] = repoConfig;
+        await saveAppData(appData);
+      }
+      return { ok: true };
+    },
+    "automation.listRuns": async (input) => {
+      const { repoPath } = input as { repoPath?: string };
+      const { listRuns } = await import("../cli/automation-registry.js");
+      return listRuns(repoPath ? { repoPath } : undefined);
+    },
+    "automation.getRun": async (input) => {
+      const { runId } = input as { runId: string };
+      const { getRun } = await import("../cli/automation-registry.js");
+      return getRun(runId);
+    },
+    "automation.cancelRun": async (input) => {
+      const { runId } = input as { runId: string };
+      const { cancelAutomationRun } = await import("../services/automation-service.js");
+      await cancelAutomationRun(runId);
+      return { ok: true };
+    },
   };
 }
 
@@ -695,6 +745,46 @@ export function createSubscriptionHandlers(opts: {
       // Initial data + broadcast on changes (placeholder — could be enhanced)
       const { dir } = input as { dir: string };
       // For now, just send initial. Real-time updates would need a watcher.
+    },
+
+    "stream.startAutomation": (input, push) => {
+      const inp = input as {
+        repoPath: string;
+        automationId: string;
+        manualWorkItems?: string[];
+      };
+
+      const runCommand: RunCommand = (command, cwd) =>
+        new Promise((resolve) => {
+          const child = spawn(command, { shell: userShell, cwd, stdio: ["ignore", "pipe", "pipe"] });
+          child.stdout.on("data", (chunk: Buffer) => push({ type: "stdout", text: chunk.toString() }));
+          child.stderr.on("data", (chunk: Buffer) => push({ type: "stderr", text: chunk.toString() }));
+          child.on("error", (err) => { push({ type: "stderr", text: err.message }); resolve(1); });
+          child.on("close", (code) => resolve(code ?? 1));
+        });
+
+      (async () => {
+        const { startAutomationRun } = await import("../services/automation-service.js");
+        const appData = await loadAppData();
+        const repoConfig = getRepoConfig(appData, inp.repoPath);
+        const automations = repoConfig.automations ?? [];
+        const automation = automations.find((a: any) => a.id === inp.automationId);
+        if (!automation) throw new Error(`Automation "${inp.automationId}" not found`);
+
+        await startAutomationRun({
+          repoPath: inp.repoPath,
+          automation,
+          repoConfig,
+          onProgress: (event) => push(event),
+          runCommand,
+          manualWorkItems: inp.manualWorkItems,
+        });
+
+        push({ type: "done", success: true });
+      })().catch((err: unknown) => {
+        push({ type: "error", text: err instanceof Error ? err.message : String(err) });
+        push({ type: "done", success: false });
+      });
     },
   };
 }

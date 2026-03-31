@@ -3,6 +3,8 @@ import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions } from
 import Sidebar from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import NewTaskModal from "./components/NewTaskModal";
+import AutomationsModal from "./components/AutomationsModal";
+import AutomationRunModal from "./components/AutomationRunModal";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -39,6 +41,9 @@ const App: React.FC = () => {
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [showAutomationsModal, setShowAutomationsModal] = useState(false);
+  const [runningAutomationId, setRunningAutomationId] = useState<string | null>(null);
+  const [manualWorkItems, setManualWorkItems] = useState<string[] | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
@@ -532,6 +537,7 @@ const App: React.FC = () => {
               onSwitchWorktree={() => setShowSwitchModal(true)}
               onClaimPool={handleClaimPool}
               onNewTask={() => setShowNewTaskModal(true)}
+              onAutomations={() => setShowAutomationsModal(true)}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />
@@ -659,6 +665,31 @@ const App: React.FC = () => {
         <GlobalSettingsModal
           onClose={() => setShowGlobalSettingsModal(false)}
           onAddRepo={() => setShowAddRepoModal(true)}
+        />
+      )}
+
+      {showAutomationsModal && repoConfig?.pools && currentRepo && (
+        <AutomationsModal
+          currentRepo={currentRepo}
+          pools={repoConfig.pools}
+          onClose={() => setShowAutomationsModal(false)}
+          onStartRun={(automationId, workItems) => {
+            setShowAutomationsModal(false);
+            setRunningAutomationId(automationId);
+            setManualWorkItems(workItems ?? null);
+          }}
+        />
+      )}
+
+      {runningAutomationId && currentRepo && (
+        <AutomationRunModal
+          currentRepo={currentRepo}
+          automationId={runningAutomationId}
+          manualWorkItems={manualWorkItems ?? undefined}
+          onClose={() => {
+            setRunningAutomationId(null);
+            setManualWorkItems(null);
+          }}
         />
       )}
     </div>

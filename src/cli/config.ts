@@ -19,6 +19,14 @@ export interface PoolConfig {
   claudeCommand?: string;
 }
 
+export interface AutomationDefinition {
+  id: string;
+  name: string;
+  poolPrefix: string;
+  producerPrompt: string;
+  concurrency: number;
+}
+
 export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
@@ -26,6 +34,7 @@ export interface RepositoryConfig {
   terminalLogDir?: string | null;
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
+  automations?: AutomationDefinition[];
 }
 
 export interface GlobalSettings {

@@ -56,6 +56,38 @@ export interface PoolConfig {
   claudeCommand?: string;
 }
 
+export interface AutomationDefinition {
+  id: string;
+  name: string;
+  poolPrefix: string;
+  producerPrompt: string;
+  concurrency: number;
+}
+
+export type WorkItemStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type AutomationRunStatus = 'producing' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface WorkItem {
+  id: string;
+  prompt: string;
+  status: WorkItemStatus;
+  taskId?: string;
+  worktreePath?: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  automationName: string;
+  repoPath: string;
+  status: AutomationRunStatus;
+  startedAt: string;
+  endedAt?: string;
+  producerTaskId?: string;
+  producerWorktreePath?: string;
+  workItems: WorkItem[];
+}
+
 export interface RepositoryConfig {
   mainBranch: string | null;
   initCommand: string | null;
@@ -63,6 +95,7 @@ export interface RepositoryConfig {
   terminalLogDir?: string | null;
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
+  automations?: AutomationDefinition[];
 }
 
 export interface MergeOptions {

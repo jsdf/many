@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
+import TaskQueuePanel from './TaskQueuePanel'
 
 interface WorktreeActivity {
   terminals: number
@@ -20,6 +21,7 @@ interface SidebarProps {
   onSwitchWorktree?: () => void
   onClaimPool?: (pool: PoolConfig) => void
   onNewTask?: () => void
+  onAutomations?: () => void
   onGlobalSettings: () => void
   onCollapse?: () => void
 }
@@ -44,6 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSwitchWorktree,
   onClaimPool,
   onNewTask,
+  onAutomations,
   onGlobalSettings,
   onCollapse
 }) => {
@@ -130,6 +133,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  const [activeTab, setActiveTab] = useState<'worktrees' | 'taskqueue'>('worktrees');
+
   const hasAnyPoolGroups = poolGroups.length > 0;
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
 
@@ -178,73 +183,106 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto mb-3">
-        {worktrees.length === 0 ? (
-          <p className="text-base-content/50 italic text-center mt-12">
-            {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
-          </p>
-        ) : (
-          <>
-            {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
+      {hasTaskPools && (
+        <div className="flex mb-2 border-b border-base-300">
+          <button
+            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'worktrees' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+            onClick={() => setActiveTab('worktrees')}
+          >
+            Worktrees
+          </button>
+          <button
+            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'taskqueue' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+            onClick={() => setActiveTab('taskqueue')}
+          >
+            Task Queue
+          </button>
+        </div>
+      )}
 
-            {poolGroups.map(({ pool, claimed, available }) => {
-              if (claimed.length === 0 && available.length === 0) return null;
-              return (
-                <div className="mt-2" key={pool.prefix}>
-                  <div className="flex items-center justify-between pr-1 mb-1">
-                    <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
-                      {pool.name}
-                    </span>
+      {activeTab === 'taskqueue' && hasTaskPools ? (
+        <TaskQueuePanel currentRepo={currentRepo} />
+      ) : (
+        <div className="flex-1 overflow-y-auto mb-3">
+          {worktrees.length === 0 ? (
+            <p className="text-base-content/50 italic text-center mt-12">
+              {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
+            </p>
+          ) : (
+            <>
+              {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
+
+              {poolGroups.map(({ pool, claimed, available }) => {
+                if (claimed.length === 0 && available.length === 0) return null;
+                return (
+                  <div className="mt-2" key={pool.prefix}>
+                    <div className="flex items-center justify-between pr-1 mb-1">
+                      <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
+                        {pool.name}
+                      </span>
+                    </div>
+                    {claimed.map(w => renderWorktreeItem(w, false, false))}
+                    {available.map(w => renderWorktreeItem(w, false, true))}
                   </div>
-                  {claimed.map(w => renderWorktreeItem(w, false, false))}
-                  {available.map(w => renderWorktreeItem(w, false, true))}
-                </div>
-              );
-            })}
+                );
+              })}
 
-            {!hasAnyPoolGroups ? (
-              <>
-                {ungroupedClaimed.length > 0 && (
+              {!hasAnyPoolGroups ? (
+                <>
+                  {ungroupedClaimed.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                        Claimed
+                      </div>
+                      {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
+                    </div>
+                  )}
+                  {ungroupedAvailable.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                        Available
+                      </div>
+                      {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                (ungroupedClaimed.length > 0 || ungroupedAvailable.length > 0) && (
                   <div className="mt-2">
                     <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                      Claimed
+                      Other
                     </div>
                     {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
-                  </div>
-                )}
-                {ungroupedAvailable.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                      Available
-                    </div>
                     {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
                   </div>
-                )}
-              </>
-            ) : (
-              (ungroupedClaimed.length > 0 || ungroupedAvailable.length > 0) && (
-                <div className="mt-2">
-                  <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                    Other
-                  </div>
-                  {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
-                  {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
-                </div>
-              )
-            )}
-          </>
-        )}
-      </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         {hasTaskPools && onNewTask && (
-          <button
-            onClick={onNewTask}
-            disabled={!currentRepo}
-            className="btn btn-success w-full"
-          >
-            New Task
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onNewTask}
+              disabled={!currentRepo}
+              className="btn btn-success flex-1"
+            >
+              New Task
+            </button>
+            {onAutomations && (
+              <button
+                onClick={onAutomations}
+                disabled={!currentRepo}
+                className="btn btn-soft btn-primary"
+                title="Automations"
+              >
+                Auto
+              </button>
+            )}
+          </div>
         )}
         <button
           data-testid="create-worktree-button"
