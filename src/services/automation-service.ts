@@ -19,7 +19,7 @@ import type { AutomationDefinition, RepositoryConfig } from "../cli/config.js";
 import type { OnProgress, RunCommand } from "./types.js";
 
 const userShell = process.env.SHELL || "/bin/bash";
-const WORK_ITEMS_FILENAME = ".many-work-items.json";
+export const WORK_ITEMS_FILENAME = ".many-work-items.json";
 const POLL_INTERVAL_MS = 3000;
 
 export interface StartAutomationOptions {
@@ -83,12 +83,19 @@ export async function startAutomationRun(
       await fs.mkdir(logDir, { recursive: true });
       const producerLogFile = path.join(logDir, `${run.id}-producer.log`);
 
+      const producerPrompt =
+        automation.producerPrompt +
+        `\n\nIMPORTANT: You must write your output to a file called "${WORK_ITEMS_FILENAME}" in the worktree root. ` +
+        `The file must contain a JSON array of strings, where each string is a work item prompt for a worker task. ` +
+        `Example: ["implement user auth", "add search API", "write tests for billing"]\n` +
+        `Before finishing, run "many validate-work-items" to verify the file is correctly formatted.`;
+
       const producerResult = await launchTask(
         repoPath,
         {
           poolType: pool.type,
           poolPrefix: pool.prefix,
-          prompt: automation.producerPrompt,
+          prompt: producerPrompt,
           maintenanceCommand: pool.maintenanceCommand,
           initCommand: repoConfig.initCommand,
           mainBranch: repoConfig.mainBranch,
@@ -115,7 +122,7 @@ export async function startAutomationRun(
       const producerExitCode = await spawnTaskProcess(
         taskCommand,
         producerResult.worktreePath,
-        automation.producerPrompt,
+        producerPrompt,
         producerLogFile,
         producerResult.taskRecord.id,
         onProgress

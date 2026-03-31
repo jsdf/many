@@ -1352,7 +1352,56 @@ function formatAge(date: Date): string {
   return `${days}d ago`;
 }
 
-// Run a shell command with inherited stdio, return exit code
+// Validate work items file for automation producer tasks
+async function cmdValidateWorkItems(): Promise<void> {
+  const { WORK_ITEMS_FILENAME } = await import("../services/automation-service.js");
+  const filePath = path.join(process.cwd(), WORK_ITEMS_FILENAME);
+
+  if (!existsSync(filePath)) {
+    console.error(red(`File not found: ${WORK_ITEMS_FILENAME}`));
+    console.error(`Expected location: ${filePath}`);
+    process.exit(1);
+  }
+
+  let raw: string;
+  try {
+    raw = await fsPromises.readFile(filePath, "utf-8");
+  } catch (err: any) {
+    console.error(red(`Failed to read ${WORK_ITEMS_FILENAME}: ${err.message}`));
+    process.exit(1);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.error(red(`${WORK_ITEMS_FILENAME} is not valid JSON`));
+    process.exit(1);
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.error(red(`${WORK_ITEMS_FILENAME} must contain a JSON array, got ${typeof parsed}`));
+    process.exit(1);
+  }
+
+  const nonStrings = parsed.filter((item) => typeof item !== "string");
+  if (nonStrings.length > 0) {
+    console.error(red(`All items must be strings. Found ${nonStrings.length} non-string item(s).`));
+    process.exit(1);
+  }
+
+  const items = parsed.filter((item: string) => item.trim().length > 0);
+  if (items.length === 0) {
+    console.error(red(`${WORK_ITEMS_FILENAME} contains no non-empty work items`));
+    process.exit(1);
+  }
+
+  console.log(green(`✓ ${WORK_ITEMS_FILENAME} is valid: ${items.length} work item(s)`));
+  for (const item of items) {
+    console.log(`  - ${(item as string).slice(0, 80)}${(item as string).length > 80 ? "..." : ""}`);
+  }
+}
+
 // Help command
 function showHelp(): void {
   console.log(`
@@ -1379,6 +1428,8 @@ ${bold("COMMANDS:")}
   ${bold("tasks log")} <id>          View a task's output log (-f to follow)
   ${bold("tasks kill")} <id>         Kill a running task
   ${bold("tasks prune")}             Remove old completed/failed task records
+  ${bold("validate-work-items")}     Validate .many-work-items.json in current dir
+                          For use by automation producer tasks
 
 ${bold("FLAGS:")}
   ${bold("--repo")} <path>           Specify which repository to operate on
@@ -1521,6 +1572,10 @@ async function main(): Promise<void> {
 
       case "tasks":
         await cmdTasks(positional[1] || null, positional.slice(2), flags);
+        break;
+
+      case "validate-work-items":
+        await cmdValidateWorkItems();
         break;
 
       case "web":
