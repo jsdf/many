@@ -359,22 +359,29 @@ export async function cleanChanges(worktreePath: string): Promise<void> {
 }
 
 /** Amend changes to the last commit */
-export async function amendChanges(worktreePath: string): Promise<void> {
+export async function amendChanges(worktreePath: string, options?: { noVerify?: boolean }): Promise<void> {
   await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   await git.add("-A");
-  await git.commit([], { "--amend": null, "--no-edit": null });
+  const commitOpts: Record<string, null> = { "--amend": null, "--no-edit": null };
+  if (options?.noVerify) commitOpts["--no-verify"] = null;
+  await git.commit([], commitOpts);
 }
 
 /** Commit changes with a message */
 export async function commitChanges(
   worktreePath: string,
-  message: string
+  message: string,
+  options?: { noVerify?: boolean }
 ): Promise<void> {
   await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
   await git.add("-A");
-  await git.commit(message);
+  if (options?.noVerify) {
+    await git.commit(message, { "--no-verify": null });
+  } else {
+    await git.commit(message);
+  }
 }
 
 /**

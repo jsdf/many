@@ -12,6 +12,7 @@ import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
 import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
+import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { getRpcClient } from "./rpc-client";
 import { useWorktreeSubscription } from "./rpc-hooks";
@@ -44,6 +45,8 @@ const App: React.FC = () => {
   const [worktreeToRelease, setWorktreeToRelease] = useState<Worktree | null>(
     null
   );
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [worktreesToArchive, setWorktreesToArchive] = useState<Worktree[]>([]);
   const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
   const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
@@ -306,31 +309,26 @@ const App: React.FC = () => {
     }
   };
 
-  const archiveWorktree = async (worktree: Worktree) => {
-    if (!currentRepo) {
-      throw new Error("No repository selected");
+  const openArchiveModal = (worktreesToArchive: Worktree[]) => {
+    setWorktreesToArchive(worktreesToArchive);
+    setShowArchiveModal(true);
+  };
+
+  const handleArchiveComplete = async () => {
+    if (!currentRepo) return;
+
+    const updatedWorktrees = await getRpcClient().query("worktree.list", {
+      repoPath: currentRepo,
+    });
+    setWorktrees(updatedWorktrees);
+
+    // Clear selection if the archived worktree was selected
+    if (selectedWorktree && worktreesToArchive.some(w => w.path === selectedWorktree.path)) {
+      setSelectedWorktree(null);
     }
 
-    if (worktree.path) {
-      await getRpcClient().query("worktree.archive", {
-        repoPath: currentRepo,
-        worktreePath: worktree.path,
-        force: true
-      });
-    }
-
-    // Refresh the worktree list
-    if (currentRepo) {
-      const updatedWorktrees = await getRpcClient().query("worktree.list", {
-        repoPath: currentRepo
-      });
-      setWorktrees(updatedWorktrees);
-
-      // Clear selection if the archived worktree was selected
-      if (selectedWorktree === worktree) {
-        setSelectedWorktree(null);
-      }
-    }
+    setShowArchiveModal(false);
+    setWorktreesToArchive([]);
   };
 
   const openMergeModal = (worktree: Worktree) => {
@@ -551,6 +549,7 @@ const App: React.FC = () => {
                 if (view === 'queue') setMainPaneView({ type: 'taskQueue' });
                 else if (view === 'automations') setMainPaneView({ type: 'automations' });
               }}
+              onArchiveWorktrees={(wts) => openArchiveModal(wts)}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />
@@ -596,7 +595,7 @@ const App: React.FC = () => {
           selectedWorktree={selectedWorktree}
           currentRepo={currentRepo}
           pools={repoConfig?.pools}
-          onArchiveWorktree={archiveWorktree}
+          onArchiveWorktree={(worktree) => openArchiveModal([worktree])}
           onMergeWorktree={openMergeModal}
           onRebaseWorktree={openRebaseModal}
           onReleaseWorktree={openReleaseModal}
@@ -687,6 +686,18 @@ const App: React.FC = () => {
             setWorktreeToRelease(null);
           }}
           onRelease={handleReleaseComplete}
+        />
+      )}
+
+      {showArchiveModal && worktreesToArchive.length > 0 && (
+        <ArchiveWorktreeModal
+          currentRepo={currentRepo}
+          worktrees={worktreesToArchive}
+          onClose={() => {
+            setShowArchiveModal(false);
+            setWorktreesToArchive([]);
+          }}
+          onArchive={handleArchiveComplete}
         />
       )}
 

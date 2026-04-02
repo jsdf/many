@@ -1402,6 +1402,29 @@ async function cmdValidateWorkItems(): Promise<void> {
   }
 }
 
+// Pools command - list configured pools for a repository
+async function cmdPools(flags: ParsedFlags): Promise<void> {
+  const { config } = await getRepoAndConfig(flags);
+
+  const pools = config.pools || [];
+  if (pools.length === 0) {
+    console.log("No pools configured for this repository.");
+    console.log("Configure pools in the web UI under repository settings.");
+    return;
+  }
+
+  console.log(bold("Configured pools:\n"));
+  for (const pool of pools) {
+    console.log(`  ${bold(pool.name)} (${pool.prefix})`);
+    console.log(`    Type: ${pool.type}`);
+    if (pool.taskCommand) console.log(`    Task command: ${pool.taskCommand}`);
+    if (pool.backgroundTaskCommand) console.log(`    Background task command: ${pool.backgroundTaskCommand}`);
+    if (pool.maintenanceCommand) console.log(`    Maintenance command: ${pool.maintenanceCommand}`);
+    if (pool.claudeCommand) console.log(`    Claude command: ${pool.claudeCommand}`);
+    console.log();
+  }
+}
+
 // Help command
 function showHelp(): void {
   console.log(`
@@ -1422,6 +1445,7 @@ ${bold("COMMANDS:")}
                           Handles uncommitted changes interactively
   ${bold("archive")} [branch|name]   Remove a worktree directory (keeps branch in git)
                           Checks if branch is merged first
+  ${bold("pools")}                   List configured pools for the repository
   ${bold("task")} [prompt]           Launch a task in a pool worktree
                           Claims/creates worktree & runs pool task command
   ${bold("tasks")}                   List tracked tasks and their status
@@ -1564,6 +1588,10 @@ async function main(): Promise<void> {
       case "archive":
       case "ar":
         await cmdArchive(positional[1], flags);
+        break;
+
+      case "pools":
+        await cmdPools(flags);
         break;
 
       case "task":

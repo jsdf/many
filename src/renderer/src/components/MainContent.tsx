@@ -9,7 +9,7 @@ interface MainContentProps {
   selectedWorktree: Worktree | null;
   currentRepo: string | null;
   pools?: PoolConfig[];
-  onArchiveWorktree: (worktree: Worktree) => Promise<void>;
+  onArchiveWorktree: (worktree: Worktree) => void;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
   onReleaseWorktree?: (worktree: Worktree) => void;
@@ -35,7 +35,6 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 }, ref) => {
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
   const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
@@ -107,18 +106,9 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const isBaseWorktree = selectedWorktree?.path === currentRepo;
   const showArchive = !isBaseWorktree && !(worktreePool?.type === 'recyclable');
 
-  const handleArchive = async () => {
+  const handleArchive = () => {
     if (!selectedWorktree) return;
-    const confirmed = confirm(
-      `Are you sure you want to archive the worktree "${formatBranchName(selectedWorktree.branch)}"?\n\nThis will remove the working directory but keep the branch in git.`
-    );
-    if (!confirmed) return;
-    setIsArchiving(true);
-    try {
-      await onArchiveWorktree(selectedWorktree);
-    } finally {
-      setIsArchiving(false);
-    }
+    onArchiveWorktree(selectedWorktree);
   };
 
   if (!selectedWorktree) {
@@ -190,9 +180,8 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             <button
               className="btn btn-warning btn-sm"
               onClick={handleArchive}
-              disabled={isArchiving}
             >
-              📦 {isArchiving ? "Archiving..." : "Archive"}
+              📦 Archive
             </button>
           )}
 

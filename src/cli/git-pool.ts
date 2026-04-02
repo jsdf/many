@@ -169,15 +169,16 @@ export async function cleanChanges(worktreePath: string): Promise<void> {
   return sharedCleanChanges(worktreePath);
 }
 
-export async function amendChanges(worktreePath: string): Promise<void> {
-  return sharedAmendChanges(worktreePath);
+export async function amendChanges(worktreePath: string, options?: { noVerify?: boolean }): Promise<void> {
+  return sharedAmendChanges(worktreePath, options);
 }
 
 export async function commitChanges(
   worktreePath: string,
-  message: string
+  message: string,
+  options?: { noVerify?: boolean }
 ): Promise<void> {
-  return sharedCommitChanges(worktreePath, message);
+  return sharedCommitChanges(worktreePath, message, options);
 }
 
 // --- Pool worktree creation ---

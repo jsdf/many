@@ -24,6 +24,7 @@ interface SidebarProps {
   onClaimPool?: (pool: PoolConfig) => void
   onNewTask?: () => void
   onTaskQueueSubViewChange?: (view: TaskQueueSubView) => void
+  onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onGlobalSettings: () => void
   onCollapse?: () => void
 }
@@ -47,6 +48,7 @@ interface WorktreesTabProps {
   onCreateWorktree: () => void
   onSwitchWorktree?: () => void
   onNewTask?: () => void
+  onArchiveWorktrees?: (worktrees: Worktree[]) => void
 }
 
 const WorktreesTab: React.FC<WorktreesTabProps> = ({
@@ -60,7 +62,31 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   onCreateWorktree,
   onSwitchWorktree,
   onNewTask,
+  onArchiveWorktrees,
 }) => {
+  const [multiSelect, setMultiSelect] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+
+  const toggleSelected = (path: string) => {
+    setSelectedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const exitMultiSelect = () => {
+    setMultiSelect(false);
+    setSelectedPaths(new Set());
+  };
+
+  const isArchivable = (worktree: Worktree) => {
+    if (worktree.path === currentRepo) return false; // base worktree
+    const pool = findWorktreePool(worktree, pools);
+    if (pool?.type === 'recyclable') return false;
+    return true;
+  };
   const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
     const base = worktrees.find(w => w.path === currentRepo);
     const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
@@ -103,23 +129,44 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     const activity = worktreeActivity?.[worktree.path];
     const termCount = activity?.terminals ?? 0;
     const claudeCount = activity?.claudeSessions ?? 0;
+    const canArchive = multiSelect && isArchivable(worktree);
+    const isChecked = selectedPaths.has(worktree.path);
 
     return (
       <div
         key={worktree.path}
         data-testid={`worktree-item-${worktree.branch || 'main'}`}
         className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-          selectedWorktree?.path === worktree.path
+          !multiSelect && selectedWorktree?.path === worktree.path
             ? 'border-l-primary bg-primary/15'
+            : multiSelect && isChecked
+            ? 'border-l-warning bg-warning/15'
             : 'border-l-transparent hover:bg-base-content/5'
         } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''}`}
-        onClick={() => onWorktreeSelect(worktree)}
+        onClick={() => {
+          if (multiSelect && canArchive) {
+            toggleSelected(worktree.path);
+          } else if (!multiSelect) {
+            onWorktreeSelect(worktree);
+          }
+        }}
       >
         <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
-            title={isAvailable ? 'Available' : 'Claimed'}
-          />
+          {canArchive && (
+            <input
+              type="checkbox"
+              className="checkbox checkbox-xs checkbox-warning"
+              checked={isChecked}
+              onChange={() => toggleSelected(worktree.path)}
+              onClick={e => e.stopPropagation()}
+            />
+          )}
+          {(!multiSelect || !canArchive) && (
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
+              title={isAvailable ? 'Available' : 'Claimed'}
+            />
+          )}
           <div className="text-sm font-semibold leading-tight flex-1 min-w-0" title={formatBranchName(worktree.branch)}>
             {formatBranchName(worktree.branch)}
             {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
@@ -207,33 +254,68 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        {hasTaskPools && onNewTask && (
-          <button
-            onClick={onNewTask}
-            disabled={!currentRepo}
-            className="btn btn-success w-full"
-          >
-            New Task
-          </button>
-        )}
-        <button
-          data-testid="create-worktree-button"
-          onClick={onCreateWorktree}
-          disabled={!currentRepo}
-          className="btn btn-soft btn-success w-full"
-        >
-          Create Worktree
-        </button>
-        {!hasAnyPoolGroups && ungroupedAvailable.length > 0 && onSwitchWorktree && (
-          <button
-            data-testid="switch-worktree-button"
-            onClick={onSwitchWorktree}
-            disabled={!currentRepo}
-            className="btn btn-soft btn-neutral w-full"
-            title="Claim an available worktree for a branch"
-          >
-            Switch Branch
-          </button>
+        {multiSelect ? (
+          <>
+            <button
+              className="btn btn-warning w-full"
+              disabled={selectedPaths.size === 0}
+              onClick={() => {
+                const selected = worktrees.filter(w => selectedPaths.has(w.path));
+                if (selected.length > 0 && onArchiveWorktrees) {
+                  onArchiveWorktrees(selected);
+                  exitMultiSelect();
+                }
+              }}
+            >
+              Archive {selectedPaths.size > 0 ? `${selectedPaths.size} ` : ''}Selected
+            </button>
+            <button
+              className="btn btn-soft btn-neutral w-full"
+              onClick={exitMultiSelect}
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            {hasTaskPools && onNewTask && (
+              <button
+                onClick={onNewTask}
+                disabled={!currentRepo}
+                className="btn btn-success w-full"
+              >
+                New Task
+              </button>
+            )}
+            <button
+              data-testid="create-worktree-button"
+              onClick={onCreateWorktree}
+              disabled={!currentRepo}
+              className="btn btn-soft btn-success w-full"
+            >
+              Create Worktree
+            </button>
+            {!hasAnyPoolGroups && ungroupedAvailable.length > 0 && onSwitchWorktree && (
+              <button
+                data-testid="switch-worktree-button"
+                onClick={onSwitchWorktree}
+                disabled={!currentRepo}
+                className="btn btn-soft btn-neutral w-full"
+                title="Claim an available worktree for a branch"
+              >
+                Switch Branch
+              </button>
+            )}
+            {onArchiveWorktrees && worktrees.some(w => isArchivable(w)) && (
+              <button
+                className="btn btn-soft btn-warning w-full"
+                disabled={!currentRepo}
+                onClick={() => setMultiSelect(true)}
+              >
+                Batch Archive...
+              </button>
+            )}
+          </>
         )}
       </div>
     </>
@@ -301,6 +383,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClaimPool,
   onNewTask,
   onTaskQueueSubViewChange,
+  onArchiveWorktrees,
   onGlobalSettings,
   onCollapse
 }) => {
@@ -393,6 +476,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onCreateWorktree={onCreateWorktree}
           onSwitchWorktree={onSwitchWorktree}
           onNewTask={onNewTask}
+          onArchiveWorktrees={onArchiveWorktrees}
         />
       )}
     </div>

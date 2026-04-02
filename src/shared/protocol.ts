@@ -283,11 +283,11 @@ export interface QueryProcedures {
     output: { ok: boolean };
   };
   "worktree.amend": {
-    input: { worktreePath: string };
+    input: { worktreePath: string; noVerify?: boolean };
     output: { ok: boolean };
   };
   "worktree.commit": {
-    input: { worktreePath: string; message: string };
+    input: { worktreePath: string; message: string; noVerify?: boolean };
     output: { ok: boolean };
   };
   "worktree.merge": {

@@ -226,13 +226,13 @@ export function createQueryHandlers(opts: {
       return { ok: true };
     },
     "worktree.amend": async (input) => {
-      const { worktreePath } = input as { worktreePath: string };
-      await amendChanges(worktreePath);
+      const { worktreePath, noVerify } = input as { worktreePath: string; noVerify?: boolean };
+      await amendChanges(worktreePath, { noVerify });
       return { ok: true };
     },
     "worktree.commit": async (input) => {
-      const { worktreePath, message } = input as { worktreePath: string; message: string };
-      await commitChanges(worktreePath, message);
+      const { worktreePath, message, noVerify } = input as { worktreePath: string; message: string; noVerify?: boolean };
+      await commitChanges(worktreePath, message, { noVerify });
       return { ok: true };
     },
     "worktree.merge": async (input) => {
