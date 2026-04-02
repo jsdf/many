@@ -224,7 +224,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               terminalStackRef.current?.openSessionHistory(sessionId);
             }}
             onResumeSession={(sessionId) => {
-              const cmd = worktreePool?.claudeCommand || "claude";
+              // Use pool's claudeCommand, or extract executable from taskCommand, or check any pool, or default
+              const poolCmd = worktreePool?.claudeCommand
+                || (worktreePool?.taskCommand?.split(/\s/)[0]);
+              const anyPoolCmd = pools?.map(p => p.claudeCommand || p.taskCommand?.split(/\s/)[0]).find(Boolean);
+              const cmd = poolCmd || anyPoolCmd || "claude";
               terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
             }}
           />
