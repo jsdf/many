@@ -21,7 +21,7 @@ Many Worktree Manager is a web application (with CLI) for managing Git worktree 
 - `npm run cli` - Build and run the CLI tool
 - `npm run test` - Run tests with Vitest
 
-be sure to run `start` and `dev` using `timeout` because they are long running processes and you will time out waiting for them to finish if you run them normally
+be sure to run `start` and `dev` as background tasks (not with `timeout`) because they are long running processes. If you use `timeout`, the server will be killed before you can interact with it in the browser. Run them in the background and wait a few seconds for startup.
 
 
 ### Setup
