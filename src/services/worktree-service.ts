@@ -620,9 +620,52 @@ export async function getBranchDiff(
     return { diff: "", mainBranch: resolvedMain };
   }
 
-  const committedDiff = await git.raw(["diff", `${mergeBase}...HEAD`]);
-  const uncommittedDiff = await git.raw(["diff", "HEAD"]);
-  const diff = [committedDiff, uncommittedDiff].filter(Boolean).join("\n");
+  // Single diff from merge-base to working tree: combines committed branch
+  // changes and uncommitted modifications into one diff per file.
+  const trackedDiff = await git.raw(["diff", mergeBase]);
+
+  // Include untracked files (new files not yet staged) so they appear in the
+  // branch changes view alongside everything else.
+  let untrackedDiff = "";
+  try {
+    const untrackedOutput = await git.raw([
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+    ]);
+    const untrackedFiles = untrackedOutput
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    if (untrackedFiles.length > 0) {
+      // Generate diffs for untracked files by diffing against empty tree
+      const untrackedPatches: string[] = [];
+      for (const file of untrackedFiles) {
+        try {
+          const patch = await git.raw([
+            "diff",
+            "--no-index",
+            "/dev/null",
+            file,
+          ]);
+          untrackedPatches.push(patch);
+        } catch (err: unknown) {
+          // git diff --no-index exits with code 1 when files differ (which is
+          // always the case here). simple-git throws on non-zero exit, but the
+          // stderr/stdout still contains the patch. Extract it from the error.
+          if (err && typeof err === "object" && "stdout" in err) {
+            const stdout = (err as { stdout: string }).stdout;
+            if (stdout) untrackedPatches.push(stdout);
+          }
+        }
+      }
+      untrackedDiff = untrackedPatches.filter(Boolean).join("\n");
+    }
+  } catch {
+    // If listing untracked files fails, just skip them
+  }
+
+  const diff = [trackedDiff, untrackedDiff].filter(Boolean).join("\n");
   return { diff, mainBranch: resolvedMain };
 }
 
