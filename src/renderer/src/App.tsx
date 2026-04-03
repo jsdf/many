@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions } from "./types";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
 import Sidebar, { TaskQueueSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import TaskQueuePanel from "./components/TaskQueuePanel";
@@ -57,6 +57,8 @@ const App: React.FC = () => {
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
   const [worktreeActivity, setWorktreeActivity] = useState<Record<string, { terminals: number; claudeSessions: number }>>({});
+  const [starredWorktrees, setStarredWorktrees] = useState<Set<string>>(new Set());
+  const [worktreeOrder, setWorktreeOrder] = useState<string[]>([]);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
 
@@ -154,12 +156,16 @@ const App: React.FC = () => {
 
     try {
       await getRpcClient().query("repo.setSelected", { repoPath });
-      const [repoWorktrees, config] = await Promise.all([
+      const [repoWorktrees, config, starred, order] = await Promise.all([
         getRpcClient().query("worktree.list", { repoPath }),
         getRpcClient().query("repo.getConfig", { repoPath }),
+        getRpcClient().query("worktree.getStarred", { repoPath }),
+        getRpcClient().query("worktree.getOrder", { repoPath }),
       ]);
       setRepoConfig(config);
       setWorktrees(repoWorktrees);
+      setStarredWorktrees(new Set(starred));
+      setWorktreeOrder(order);
 
       // Auto-select the most recent worktree or default to main/base branch
       if (repoWorktrees.length > 0) {
@@ -288,6 +294,47 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Failed to save repo config:", error);
       throw error;
+    }
+  };
+
+  const handleToggleStar = async (worktreePath: string) => {
+    if (!currentRepo) return;
+    const isStarred = starredWorktrees.has(worktreePath);
+    const newSet = new Set(starredWorktrees);
+    if (isStarred) newSet.delete(worktreePath);
+    else newSet.add(worktreePath);
+    setStarredWorktrees(newSet);
+    try {
+      await getRpcClient().query("worktree.setStarred", { repoPath: currentRepo, worktreePath, starred: !isStarred });
+    } catch (error) {
+      console.error("Failed to toggle star:", error);
+    }
+  };
+
+  const handleMoveWorktree = async (worktreePath: string, direction: 'up' | 'down') => {
+    if (!currentRepo) return;
+    // Build the effective order: all claimed worktree paths in their current display order
+    const claimed = worktrees.filter(w => w.path !== currentRepo && !w.bare && !isTmpBranch(w.branch));
+    const starSet = starredWorktrees;
+    const orderMap = new Map(worktreeOrder.map((p, i) => [p, i]));
+    const maxOrder = worktreeOrder.length;
+    const sorted = [...claimed].sort((a, b) => {
+      const aS = starSet.has(a.path), bS = starSet.has(b.path);
+      if (aS !== bS) return aS ? -1 : 1;
+      const aO = orderMap.get(a.path) ?? maxOrder, bO = orderMap.get(b.path) ?? maxOrder;
+      return aO - bO;
+    });
+    const paths = sorted.map(w => w.path);
+    const idx = paths.indexOf(worktreePath);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= paths.length) return;
+    [paths[idx], paths[swapIdx]] = [paths[swapIdx], paths[idx]];
+    setWorktreeOrder(paths);
+    try {
+      await getRpcClient().query("worktree.setOrder", { repoPath: currentRepo, order: paths });
+    } catch (error) {
+      console.error("Failed to save worktree order:", error);
     }
   };
 
@@ -534,6 +581,8 @@ const App: React.FC = () => {
               selectedWorktree={selectedWorktree}
               pools={repoConfig?.pools}
               worktreeActivity={worktreeActivity}
+              starredWorktrees={starredWorktrees}
+              worktreeOrder={worktreeOrder}
               taskQueueSubView={mainPaneView.type === 'taskQueue' ? 'queue' : mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'automations' : null}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
@@ -550,6 +599,8 @@ const App: React.FC = () => {
                 else if (view === 'automations') setMainPaneView({ type: 'automations' });
               }}
               onArchiveWorktrees={(wts) => openArchiveModal(wts)}
+              onToggleStar={handleToggleStar}
+              onMoveWorktree={handleMoveWorktree}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />

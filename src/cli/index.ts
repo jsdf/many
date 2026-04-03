@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Many CLI - Git worktree pool manager
 
-import { loadAppData, getRepoConfig, RepositoryConfig, PoolConfig, getDataPath } from "./config.js";
+import { loadAppData, saveAppData, getRepoConfig, RepositoryConfig, PoolConfig, getDataPath } from "./config.js";
 import {
   getWorktrees,
   getAvailableWorktrees,
@@ -27,6 +27,7 @@ import {
   archiveWorktree,
   createAndSetupWorktree,
   launchTask as servicelaunchTask,
+  assignPrToMe,
 } from "../services/worktree-service.js";
 import { simpleGit } from "simple-git";
 import path from "path";
@@ -434,6 +435,8 @@ async function cmdList(flags: ParsedFlags, options?: { showStat?: boolean }): Pr
   const showStat = options?.showStat ?? false;
   const { repoPath, config } = await getRepoAndConfig(flags);
   const worktrees = await getWorktrees(repoPath);
+  const appData = await loadAppData();
+  const starredSet = new Set((appData.starredWorktrees ?? {})[repoPath] ?? []);
 
   // Separate into available and claimed
   const available = worktrees.filter((w) => w.isAvailable && !w.bare);
@@ -470,8 +473,9 @@ async function cmdList(flags: ParsedFlags, options?: { showStat?: boolean }): Pr
         headerPrinted = true;
       }
       const info = infoMap.get(w.path)!;
+      const starIndicator = starredSet.has(w.path) ? yellow("\u2605") + " " : "";
       console.log(
-        `  ${green("●")} ${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(info.status)}`
+        `  ${green("●")} ${starIndicator}${bold(w.worktreeName)} ${dim(`(${getLocalBranchName(w.branch)})`)} - ${formatStatus(info.status)}`
       );
       console.log(`    ${dim(w.path)}`);
       if (showStat) {
@@ -1425,6 +1429,75 @@ async function cmdPools(flags: ParsedFlags): Promise<void> {
   }
 }
 
+// Star command - toggle or list starred worktrees
+async function cmdStar(subcommand: string | null, flags: ParsedFlags): Promise<void> {
+  const { repoPath, config, currentWorktree } = await getRepoAndConfig(flags);
+  const appData = await loadAppData();
+  if (!appData.starredWorktrees) appData.starredWorktrees = {};
+  const starred = appData.starredWorktrees[repoPath] ?? [];
+
+  if (subcommand === "list" || subcommand === "ls") {
+    if (starred.length === 0) {
+      console.log(dim("No starred worktrees."));
+      return;
+    }
+    const allWorktrees = await getWorktrees(repoPath);
+    console.log(bold("\nStarred worktrees:\n"));
+    for (const starPath of starred) {
+      const wt = allWorktrees.find(w => w.path === starPath);
+      if (wt) {
+        console.log(`  ${yellow("\u2605")} ${bold(wt.worktreeName)} ${dim(`(${getLocalBranchName(wt.branch)})`)}`);
+        console.log(`    ${dim(wt.path)}`);
+      } else {
+        console.log(`  ${yellow("\u2605")} ${dim(starPath)} ${red("(not found)")}`);
+      }
+    }
+    console.log();
+    return;
+  }
+
+  // Toggle star on a specific worktree
+  const allWorktrees = await getWorktrees(repoPath);
+  let target: WorktreeInfo | null = null;
+
+  if (subcommand) {
+    // Find worktree by name or branch
+    target = allWorktrees.find(
+      w => w.worktreeName === subcommand || getLocalBranchName(w.branch) === subcommand
+    ) ?? null;
+    if (!target) {
+      console.log(red(`Error: No worktree found matching "${subcommand}"`));
+      process.exit(1);
+    }
+  } else if (currentWorktree) {
+    target = currentWorktree;
+  } else {
+    console.log(red("Error: Not in a worktree. Specify a worktree name or branch."));
+    console.log("Usage: many star [name|branch]  or  many star list");
+    process.exit(1);
+  }
+
+  const targetPath = target.path;
+  const idx = starred.indexOf(targetPath);
+  if (idx >= 0) {
+    starred.splice(idx, 1);
+    console.log(`${dim("\u2606")} Unstarred ${bold(path.basename(targetPath))}`);
+  } else {
+    starred.push(targetPath);
+    console.log(`${yellow("\u2605")} Starred ${bold(path.basename(targetPath))}`);
+
+    // Assign the PR (if any) to the current gh user
+    if (target.branch) {
+      const assigned = await assignPrToMe(repoPath, target.branch);
+      if (assigned) {
+        console.log(`  ${dim("Assigned PR to you")}`);
+      }
+    }
+  }
+  appData.starredWorktrees[repoPath] = starred;
+  await saveAppData(appData);
+}
+
 // Help command
 function showHelp(): void {
   console.log(`
@@ -1445,6 +1518,9 @@ ${bold("COMMANDS:")}
                           Handles uncommitted changes interactively
   ${bold("archive")} [branch|name]   Remove a worktree directory (keeps branch in git)
                           Checks if branch is merged first
+  ${bold("star")} [name|branch]       Toggle star on a worktree (current if omitted)
+  ${bold("star list")}               List all starred worktrees
+  ${bold("starred")}                 Alias for 'star list'
   ${bold("pools")}                   List configured pools for the repository
   ${bold("task")} [prompt]           Launch a task in a pool worktree
                           Claims/creates worktree & runs pool task command
@@ -1600,6 +1676,14 @@ async function main(): Promise<void> {
 
       case "tasks":
         await cmdTasks(positional[1] || null, positional.slice(2), flags);
+        break;
+
+      case "star":
+        await cmdStar(positional[1] || null, flags);
+        break;
+
+      case "starred":
+        await cmdStar("list", flags);
         break;
 
       case "validate-work-items":

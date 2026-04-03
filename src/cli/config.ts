@@ -47,6 +47,8 @@ export interface AppData {
   repositoryConfigs: Record<string, RepositoryConfig>;
   selectedRepo: string | null;
   recentWorktrees: Record<string, string>;
+  starredWorktrees: Record<string, string[]>;
+  worktreeOrder: Record<string, string[]>;
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, unknown>;
   globalSettings: GlobalSettings;
@@ -57,6 +59,8 @@ const defaultAppData: AppData = {
   repositoryConfigs: {},
   selectedRepo: null,
   recentWorktrees: {},
+  starredWorktrees: {},
+  worktreeOrder: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},
   globalSettings: { defaultEditor: null, defaultTerminal: null },

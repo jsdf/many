@@ -37,6 +37,7 @@ import {
   getCommitLog,
   getBranchDiff,
   getGitHubLink,
+  assignPrToMe,
   getWorktrees,
   getWorktreesFromFS,
   getWorktreeStatus,
@@ -248,6 +249,51 @@ export function createQueryHandlers(opts: {
     "worktree.runMaintenance": async (input) => {
       const { worktreePath, command } = input as { worktreePath: string; command: string };
       execSync(command, { cwd: worktreePath, stdio: "pipe", timeout: 120000 });
+      return { ok: true };
+    },
+
+    // --- Worktree starring & ordering ---
+    "worktree.getStarred": async (input) => {
+      const { repoPath } = input as { repoPath: string };
+      const appData = await loadAppData();
+      return (appData.starredWorktrees ?? {})[repoPath] ?? [];
+    },
+    "worktree.setStarred": async (input) => {
+      const { repoPath, worktreePath, starred } = input as { repoPath: string; worktreePath: string; starred: boolean };
+      const appData = await loadAppData();
+      if (!appData.starredWorktrees) appData.starredWorktrees = {};
+      const list = appData.starredWorktrees[repoPath] ?? [];
+      if (starred && !list.includes(worktreePath)) {
+        list.push(worktreePath);
+      } else if (!starred) {
+        const idx = list.indexOf(worktreePath);
+        if (idx >= 0) list.splice(idx, 1);
+      }
+      appData.starredWorktrees[repoPath] = list;
+      await saveAppData(appData);
+
+      // When starring, assign the PR (if any) to the current gh user
+      if (starred) {
+        const wts = await getWorktrees(repoPath);
+        const wt = wts.find(w => w.path === worktreePath);
+        if (wt?.branch) {
+          assignPrToMe(repoPath, wt.branch).catch(() => {});
+        }
+      }
+
+      return { ok: true };
+    },
+    "worktree.getOrder": async (input) => {
+      const { repoPath } = input as { repoPath: string };
+      const appData = await loadAppData();
+      return (appData.worktreeOrder ?? {})[repoPath] ?? [];
+    },
+    "worktree.setOrder": async (input) => {
+      const { repoPath, order } = input as { repoPath: string; order: string[] };
+      const appData = await loadAppData();
+      if (!appData.worktreeOrder) appData.worktreeOrder = {};
+      appData.worktreeOrder[repoPath] = order;
+      await saveAppData(appData);
       return { ok: true };
     },
 

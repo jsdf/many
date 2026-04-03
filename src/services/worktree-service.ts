@@ -721,3 +721,24 @@ export async function getGitHubLink(repoPath: string, branch: string): Promise<G
   if (repoUrl) return { type: "branch", url: `${repoUrl}/tree/${normalizedBranch}` };
   return null;
 }
+
+/**
+ * Assign the PR for a branch to the current `gh` user (@me).
+ * Returns true if a PR was found and assigned, false otherwise.
+ * Silently swallows errors (no gh, no PR, already assigned, etc).
+ */
+export async function assignPrToMe(repoPath: string, branch: string): Promise<boolean> {
+  const normalizedBranch = branch.replace(/^refs\/heads\//, "");
+  try {
+    await execAsync(
+      `gh pr edit ${JSON.stringify(normalizedBranch)} --add-assignee @me`,
+      { cwd: repoPath }
+    );
+    logger.info(`[assignPrToMe] assigned PR for branch=${normalizedBranch} to @me`);
+    return true;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.debug(`[assignPrToMe] failed for branch=${normalizedBranch}: ${msg}`);
+    return false;
+  }
+}

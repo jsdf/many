@@ -15,6 +15,8 @@ interface SidebarProps {
   selectedWorktree: Worktree | null
   pools?: PoolConfig[]
   worktreeActivity?: Record<string, WorktreeActivity>
+  starredWorktrees: Set<string>
+  worktreeOrder: string[]
   taskQueueSubView?: TaskQueueSubView | null
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
@@ -25,6 +27,8 @@ interface SidebarProps {
   onNewTask?: () => void
   onTaskQueueSubViewChange?: (view: TaskQueueSubView) => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
+  onToggleStar: (worktreePath: string) => void
+  onMoveWorktree: (worktreePath: string, direction: 'up' | 'down') => void
   onGlobalSettings: () => void
   onCollapse?: () => void
 }
@@ -43,12 +47,29 @@ interface WorktreesTabProps {
   selectedWorktree: Worktree | null
   pools?: PoolConfig[]
   worktreeActivity?: Record<string, WorktreeActivity>
+  starredWorktrees: Set<string>
+  worktreeOrder: string[]
   hasTaskPools: boolean
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
   onSwitchWorktree?: () => void
   onNewTask?: () => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
+  onToggleStar: (worktreePath: string) => void
+  onMoveWorktree: (worktreePath: string, direction: 'up' | 'down') => void
+}
+
+function sortWorktreeList(worktrees: Worktree[], starred: Set<string>, order: string[]): Worktree[] {
+  const orderMap = new Map(order.map((p, i) => [p, i]));
+  const maxOrder = order.length;
+  return [...worktrees].sort((a, b) => {
+    const aStarred = starred.has(a.path);
+    const bStarred = starred.has(b.path);
+    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+    const aOrder = orderMap.get(a.path) ?? maxOrder;
+    const bOrder = orderMap.get(b.path) ?? maxOrder;
+    return aOrder - bOrder;
+  });
 }
 
 const WorktreesTab: React.FC<WorktreesTabProps> = ({
@@ -57,12 +78,16 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   selectedWorktree,
   pools,
   worktreeActivity,
+  starredWorktrees,
+  worktreeOrder,
   hasTaskPools,
   onWorktreeSelect,
   onCreateWorktree,
   onSwitchWorktree,
   onNewTask,
   onArchiveWorktrees,
+  onToggleStar,
+  onMoveWorktree,
 }) => {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
@@ -92,7 +117,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
 
     if (!pools || pools.length === 0) {
-      const claimed = others.filter(w => !isTmpBranch(w.branch));
+      const claimed = sortWorktreeList(others.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder);
       const available = others.filter(w => isTmpBranch(w.branch));
       return {
         baseWorktree: base,
@@ -108,7 +133,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       poolWorktrees.forEach(w => grouped.add(w.path));
       return {
         pool,
-        claimed: poolWorktrees.filter(w => !isTmpBranch(w.branch)),
+        claimed: sortWorktreeList(poolWorktrees.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder),
         available: poolWorktrees.filter(w => isTmpBranch(w.branch))
       };
     });
@@ -118,10 +143,10 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     return {
       baseWorktree: base,
       poolGroups: groups,
-      ungroupedClaimed: ungrouped.filter(w => !isTmpBranch(w.branch)),
+      ungroupedClaimed: sortWorktreeList(ungrouped.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder),
       ungroupedAvailable: ungrouped.filter(w => isTmpBranch(w.branch))
     };
-  }, [worktrees, currentRepo, pools]);
+  }, [worktrees, currentRepo, pools, starredWorktrees, worktreeOrder]);
 
   const hasAnyPoolGroups = poolGroups.length > 0;
 
@@ -131,12 +156,14 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     const claudeCount = activity?.claudeSessions ?? 0;
     const canArchive = multiSelect && isArchivable(worktree);
     const isChecked = selectedPaths.has(worktree.path);
+    const isStarred = starredWorktrees.has(worktree.path);
+    const canStar = !isBase && !isAvailable;
 
     return (
       <div
         key={worktree.path}
         data-testid={`worktree-item-${worktree.branch || 'main'}`}
-        className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
+        className={`group px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
           !multiSelect && selectedWorktree?.path === worktree.path
             ? 'border-l-primary bg-primary/15'
             : multiSelect && isChecked
@@ -171,20 +198,49 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
             {formatBranchName(worktree.branch)}
             {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
           </div>
-          {(termCount > 0 || claudeCount > 0) && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              {termCount > 0 && (
-                <span className="text-[10px] text-base-content/60 flex items-center gap-0.5" title={`${termCount} terminal${termCount > 1 ? 's' : ''}`}>
-                  &gt;_ {termCount}
-                </span>
-              )}
-              {claudeCount > 0 && (
-                <span className="text-[10px] text-accent flex items-center gap-0.5" title={`${claudeCount} Claude session${claudeCount > 1 ? 's' : ''}`}>
-                  &#9679; {claudeCount}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {canStar && !multiSelect && (
+              <button
+                className={`text-xs leading-none px-0.5 transition-opacity ${isStarred ? 'text-warning opacity-100' : 'opacity-0 group-hover:opacity-60 text-base-content/40 hover:!opacity-100'}`}
+                title={isStarred ? 'Unstar' : 'Star'}
+                onClick={e => { e.stopPropagation(); onToggleStar(worktree.path); }}
+              >
+                {isStarred ? '\u2605' : '\u2606'}
+              </button>
+            )}
+            {canStar && !multiSelect && (
+              <div className="flex flex-col opacity-0 group-hover:opacity-60 transition-opacity">
+                <button
+                  className="text-[9px] leading-none text-base-content/50 hover:text-base-content px-0.5"
+                  title="Move up"
+                  onClick={e => { e.stopPropagation(); onMoveWorktree(worktree.path, 'up'); }}
+                >
+                  &#x25B2;
+                </button>
+                <button
+                  className="text-[9px] leading-none text-base-content/50 hover:text-base-content px-0.5"
+                  title="Move down"
+                  onClick={e => { e.stopPropagation(); onMoveWorktree(worktree.path, 'down'); }}
+                >
+                  &#x25BC;
+                </button>
+              </div>
+            )}
+            {(termCount > 0 || claudeCount > 0) && (
+              <div className="flex items-center gap-1.5">
+                {termCount > 0 && (
+                  <span className="text-[10px] text-base-content/60 flex items-center gap-0.5" title={`${termCount} terminal${termCount > 1 ? 's' : ''}`}>
+                    &gt;_ {termCount}
+                  </span>
+                )}
+                {claudeCount > 0 && (
+                  <span className="text-[10px] text-accent flex items-center gap-0.5" title={`${claudeCount} Claude session${claudeCount > 1 ? 's' : ''}`}>
+                    &#9679; {claudeCount}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
           {worktree.worktreeName}
@@ -374,6 +430,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedWorktree,
   pools,
   worktreeActivity,
+  starredWorktrees,
+  worktreeOrder,
   taskQueueSubView,
   onRepoSelect,
   onWorktreeSelect,
@@ -384,6 +442,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNewTask,
   onTaskQueueSubViewChange,
   onArchiveWorktrees,
+  onToggleStar,
+  onMoveWorktree,
   onGlobalSettings,
   onCollapse
 }) => {
@@ -471,12 +531,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           selectedWorktree={selectedWorktree}
           pools={pools}
           worktreeActivity={worktreeActivity}
+          starredWorktrees={starredWorktrees}
+          worktreeOrder={worktreeOrder}
           hasTaskPools={hasTaskPools}
           onWorktreeSelect={onWorktreeSelect}
           onCreateWorktree={onCreateWorktree}
           onSwitchWorktree={onSwitchWorktree}
           onNewTask={onNewTask}
           onArchiveWorktrees={onArchiveWorktrees}
+          onToggleStar={onToggleStar}
+          onMoveWorktree={onMoveWorktree}
         />
       )}
     </div>

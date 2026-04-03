@@ -308,6 +308,24 @@ export interface QueryProcedures {
     output: { ok: boolean };
   };
 
+  // --- Worktree starring & ordering ---
+  "worktree.getStarred": {
+    input: { repoPath: string };
+    output: string[];
+  };
+  "worktree.setStarred": {
+    input: { repoPath: string; worktreePath: string; starred: boolean };
+    output: { ok: boolean };
+  };
+  "worktree.getOrder": {
+    input: { repoPath: string };
+    output: string[];
+  };
+  "worktree.setOrder": {
+    input: { repoPath: string; order: string[] };
+    output: { ok: boolean };
+  };
+
   // --- Branch operations ---
   "branch.list": {
     input: { repoPath: string };
