@@ -130,3 +130,6 @@ playwright-report/
 tests/screenshots/
 .playwright-mcp/
 agent-status/
+many.db
+many.db-wal
+many.db-shm

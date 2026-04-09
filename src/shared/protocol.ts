@@ -325,6 +325,14 @@ export interface QueryProcedures {
     input: { repoPath: string; order: string[] };
     output: { ok: boolean };
   };
+  "worktree.getNotes": {
+    input: { repoPath: string; branch: string };
+    output: string;
+  };
+  "worktree.setNotes": {
+    input: { repoPath: string; branch: string; notes: string };
+    output: { ok: boolean };
+  };
 
   // --- Branch operations ---
   "branch.list": {

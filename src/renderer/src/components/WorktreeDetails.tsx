@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Worktree, GitStatus } from "../types";
 import { getRpcClient } from "../rpc-client";
 import BranchChanges from "./BranchChanges";
@@ -53,6 +53,9 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const [task, setTask] = useState<TaskRecord | null>(null);
   const [claudeSessions, setClaudeSessions] = useState<ClaudeSession[]>([]);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(true);
+  const [notes, setNotes] = useState("");
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadGitStatus = async () => {
     if (!worktree.path) return;
@@ -90,10 +93,44 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     }
   }, [worktree.path]);
 
+  const loadNotes = useCallback(async () => {
+    if (!worktree.branch) { setNotes(""); setNotesLoaded(true); return; }
+    try {
+      const text = await getRpcClient().query("worktree.getNotes", {
+        repoPath,
+        branch: worktree.branch,
+      });
+      setNotes(text);
+    } catch {
+      setNotes("");
+    }
+    setNotesLoaded(true);
+  }, [worktree.branch, repoPath]);
+
+  const saveNotes = useCallback((text: string) => {
+    if (!worktree.branch) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      getRpcClient().query("worktree.setNotes", {
+        repoPath,
+        branch: worktree.branch!,
+        notes: text,
+      }).catch(() => {});
+    }, 500);
+  }, [worktree.branch, repoPath]);
+
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setNotes(text);
+    saveNotes(text);
+  };
+
   useEffect(() => {
     loadGitStatus();
     loadTask();
     loadClaudeSessions();
+    setNotesLoaded(false);
+    loadNotes();
   }, [worktree.path]);
 
   // Poll for task status updates when task is running
@@ -144,6 +181,18 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
 
   return (
     <div className="p-5 overflow-auto h-full w-full min-w-0">
+      {worktree.branch && notesLoaded && (
+        <div className="mb-3">
+          <h3 className="text-base font-semibold mb-3">Notes</h3>
+          <textarea
+            className="textarea textarea-bordered w-full bg-base-200 text-sm font-mono leading-relaxed"
+            rows={3}
+            placeholder="What are you working on?"
+            value={notes}
+            onChange={handleNotesChange}
+          />
+        </div>
+      )}
       {task && (
         <div className="mb-3">
           <div className="flex justify-between items-center mb-3">

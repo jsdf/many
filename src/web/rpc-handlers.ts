@@ -10,6 +10,7 @@ import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
 import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
 import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
+import { getBranchNotes, setBranchNotes } from "../cli/db.js";
 import {
   registerTask,
   markTaskCompleted,
@@ -294,6 +295,15 @@ export function createQueryHandlers(opts: {
       if (!appData.worktreeOrder) appData.worktreeOrder = {};
       appData.worktreeOrder[repoPath] = order;
       await saveAppData(appData);
+      return { ok: true };
+    },
+    "worktree.getNotes": async (input) => {
+      const { repoPath, branch } = input as { repoPath: string; branch: string };
+      return getBranchNotes(repoPath, branch);
+    },
+    "worktree.setNotes": async (input) => {
+      const { repoPath, branch, notes } = input as { repoPath: string; branch: string; notes: string };
+      setBranchNotes(repoPath, branch, notes);
       return { ok: true };
     },
 
