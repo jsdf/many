@@ -346,6 +346,17 @@ export function createQueryHandlers(opts: {
     },
     "repo.add": async (input) => {
       const { repoPath } = input as { repoPath: string };
+      // Validate that the path exists and is a git repository
+      try {
+        await fs.access(repoPath);
+      } catch {
+        throw new Error(`Path does not exist: ${repoPath}`);
+      }
+      try {
+        await gitPool.getWorktrees(repoPath);
+      } catch {
+        throw new Error(`Not a git repository: ${repoPath}`);
+      }
       const appData = await loadAppData();
       if (!appData.repositories.some((r: any) => r.path === repoPath)) {
         appData.repositories.push({ path: repoPath, name: path.basename(repoPath), addedAt: new Date().toISOString() });
@@ -445,6 +456,19 @@ export function createQueryHandlers(opts: {
       const { path: p } = input as { path: string };
       await openVSCode(p);
       return { ok: true };
+    },
+    "action.selectFolder": async (input) => {
+      const { initialPath } = input as { initialPath?: string };
+      try {
+        const { dialog } = await import("electron");
+        const result = await dialog.showOpenDialog({
+          ...(initialPath ? { defaultPath: initialPath } : {}),
+          properties: ["openDirectory", "createDirectory"],
+        });
+        return { path: result.canceled ? null : result.filePaths[0] };
+      } catch {
+        throw new Error("Folder picker is only available in the Electron app");
+      }
     },
 
     // --- Tasks ---

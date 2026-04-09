@@ -143,13 +143,29 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   };
 
   const handleBrowse = async () => {
-    // selectFolder is not supported in the new RPC client
-    setError("Folder picker is not available — please type the path manually");
+    try {
+      const result = await getRpcClient().query("action.selectFolder", {
+        initialPath: repoPath || undefined,
+      });
+      if (result.path) {
+        setRepoPath(result.path);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Folder picker failed");
+    }
   };
 
   const handleBrowseWorktreeDir = async () => {
-    // selectFolder is not supported in the new RPC client
-    setError("Folder picker is not available — please type the path manually");
+    try {
+      const result = await getRpcClient().query("action.selectFolder", {
+        initialPath: worktreeDirectory || repoPath || undefined,
+      });
+      if (result.path) {
+        setWorktreeDirectory(result.path);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Folder picker failed");
+    }
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -270,9 +286,17 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     <button
                       type="button"
                       className="btn btn-soft btn-neutral"
-                      onClick={() => {
-                        // selectFolder is not supported in the new RPC client
-                        setError("Folder picker is not available — please type the path manually");
+                      onClick={async () => {
+                        try {
+                          const result = await getRpcClient().query("action.selectFolder", {
+                            initialPath: terminalLogDir || repoPath || undefined,
+                          });
+                          if (result.path) {
+                            setTerminalLogDir(result.path);
+                          }
+                        } catch (error) {
+                          setError(error instanceof Error ? error.message : "Folder picker failed");
+                        }
                       }}
                       disabled={isLoading}
                     >

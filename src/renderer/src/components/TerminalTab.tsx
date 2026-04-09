@@ -146,6 +146,16 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     });
     const unsubscribe = () => unsubRef.current?.();
 
+    // Translate Shift+Enter into a literal newline so apps like
+    // Claude Code that distinguish Enter vs newline work correctly.
+    xterm.attachCustomKeyEventHandler((event) => {
+      if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
+        getRpcClient().query("terminal.input", { terminalId, data: "\n" });
+        return false; // prevent xterm from also sending \r
+      }
+      return true;
+    });
+
     // Send user input to server
     const dataDisposable = xterm.onData((data) => {
       getRpcClient().query("terminal.input", { terminalId, data });

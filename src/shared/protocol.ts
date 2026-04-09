@@ -425,6 +425,10 @@ export interface QueryProcedures {
     input: { path: string };
     output: { ok: boolean };
   };
+  "action.selectFolder": {
+    input: { initialPath?: string };
+    output: { path: string | null };
+  };
 
   // --- Task management ---
   "task.list": {

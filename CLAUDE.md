@@ -17,9 +17,12 @@ Many Worktree Manager is a web application (with CLI) for managing Git worktree 
 - `npm run build` - Type-check and build the React frontend with Vite
 - `npm run build:cli` - Build the server and CLI with TypeScript
 - `npm start` - Build everything and start the web server
-- `npm run dev` - Quick build frontend and start the web server
+- `npm run dev` - Quick build frontend and start the web server (hot-reloads on frontend changes)
 - `npm run cli` - Build and run the CLI tool
+- `npm run check` - Run TypeScript type checks
+- `npm run lint` - Run ESLint to check code style and quality
 - `npm run test` - Run tests with Vitest
+- `npm run electron:install` - Install the Electron app to the Applications folder (macOS)
 
 be sure to run `start` and `dev` as background tasks (not with `timeout`) because they are long running processes. If you use `timeout`, the server will be killed before you can interact with it in the browser. Run them in the background and wait a few seconds for startup.
 
