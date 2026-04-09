@@ -97,7 +97,11 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
 function ChatMessage({ message }: { message: SessionMessage }) {
   const isUser = message.role === "user";
-  const hasContent = message.content.some((b) => b.type === "text" || b.type === "thinking" || b.type === "tool_use" || b.type === "tool_result");
+  // For user messages, only show text content (tool_result blocks are internal protocol
+  // plumbing for tool call responses — they shouldn't appear as user-visible messages)
+  const hasContent = isUser
+    ? message.content.some((b) => b.type === "text")
+    : message.content.some((b) => b.type === "text" || b.type === "thinking" || b.type === "tool_use" || b.type === "tool_result");
   if (!hasContent) return null;
 
   return (
@@ -136,6 +140,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
   const [permissionMode, setPermissionMode] = useState("bypassPermissions");
   const [inputText, setInputText] = useState("");
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -189,11 +194,18 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
         switch (event.type) {
           case "message":
             setMessages((prev) => {
-              // Deduplicate user messages we added optimistically
               if (event.message.role === "user") {
-                const last = prev[prev.length - 1];
-                if (last?.role === "user") {
-                  const lastText = last.content.find((b) => b.type === "text");
+                // Skip user messages that only contain tool_results — these are internal
+                // protocol messages (tool call responses), not user-typed text.
+                const hasText = event.message.content.some((b) => b.type === "text");
+                if (!hasText) return prev;
+
+                // Deduplicate against the last user message we added optimistically.
+                // Search backwards past any non-user messages (e.g. tool_result messages
+                // that may have been interleaved) to find the most recent user message.
+                const lastUserMsg = [...prev].reverse().find((m) => m.role === "user");
+                if (lastUserMsg) {
+                  const lastText = lastUserMsg.content.find((b) => b.type === "text");
                   const newText = event.message.content.find((b) => b.type === "text");
                   if (lastText && newText && lastText.type === "text" && newText.type === "text" && lastText.text === newText.text) {
                     return prev; // skip duplicate
@@ -225,17 +237,30 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
 
   const handleStart = useCallback(async () => {
     setStarting(true);
+    setStartError(null);
+    const promptText = inputText.trim();
     try {
       const res = await getRpcClient().query("session.start", {
         cwd: worktreePath,
-        prompt: inputText || undefined,
+        prompt: promptText || undefined,
         permissionMode,
       });
+      // Show the initial prompt as a user message immediately (optimistic)
+      if (promptText) {
+        setMessages([{
+          id: crypto.randomUUID(),
+          role: "user",
+          content: [{ type: "text", text: promptText }],
+          timestamp: Date.now(),
+        }]);
+      }
       setSessionId(res.sessionId);
       setIsActive(true);
       setInputText("");
     } catch (err) {
-      console.error("Failed to start session:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Failed to start session:", msg);
+      setStartError(msg);
     } finally {
       setStarting(false);
     }
@@ -337,6 +362,9 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
               </button>
               <span className="text-xs text-base-content/40">{currentModeLabel} · Shift+Tab</span>
             </div>
+            {startError && (
+              <div className="text-xs text-error mt-1">{startError}</div>
+            )}
           </div>
         </div>
       </div>

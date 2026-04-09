@@ -45,6 +45,7 @@ export interface ActiveSession {
   streamDone: Promise<void>;
   /** Callback to resolve session ID from stream (new sessions only) */
   _resolveSessionId?: (id: string) => void;
+  _rejectSessionId?: (err: Error) => void;
 }
 
 interface PendingPermission {
@@ -138,7 +139,13 @@ export class ClaudeService {
           }, 30_000);
           session._resolveSessionId = (id: string) => {
             clearTimeout(timeout);
+            session._rejectSessionId = undefined;
             resolve(id);
+          };
+          session._rejectSessionId = (err: Error) => {
+            clearTimeout(timeout);
+            session._resolveSessionId = undefined;
+            reject(err);
           };
         });
 
@@ -313,6 +320,18 @@ export class ClaudeService {
       logger.error(`[claude-service] Stream error: ${errMsg}`);
       session.status = "error";
       this.emit(session, { type: "error", error: errMsg });
+
+      // If session ID was never resolved, reject the promise so the
+      // caller doesn't hang for the full 30s timeout.
+      if (session._resolveSessionId) {
+        // _resolveSessionId is actually a resolve callback, but we need
+        // to reject. We stored the reject separately below.
+        session._rejectSessionId?.(
+          new Error(`Session failed to start: ${errMsg}`)
+        );
+        session._resolveSessionId = undefined;
+        session._rejectSessionId = undefined;
+      }
     } finally {
       logger.info(`[claude-service] Session ended: ${session.sessionId}`);
       session.status = "idle";
@@ -473,6 +492,9 @@ export class ClaudeService {
         numTurns: msg.num_turns,
       },
     });
+
+    // Also emit a status change so the frontend updates its status badge.
+    this.emit(session, { type: "status", status: "idle" });
   }
 
   private handleSystem(

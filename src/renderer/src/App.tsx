@@ -6,6 +6,7 @@ import TaskQueuePanel from "./components/TaskQueuePanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
 import AutomationRunModal from "./components/AutomationRunModal";
+import { useHashRouter } from "./router";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
@@ -16,13 +17,6 @@ import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { getRpcClient } from "./rpc-client";
 import { useWorktreeSubscription } from "./rpc-hooks";
-
-// Main pane routing
-type MainPaneView =
-  | { type: 'worktree' }
-  | { type: 'taskQueue' }
-  | { type: 'automations' }
-  | { type: 'automationRun'; automationId: string; manualWorkItems?: string[] };
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -52,7 +46,7 @@ const App: React.FC = () => {
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
-  const [mainPaneView, setMainPaneView] = useState<MainPaneView>({ type: 'worktree' });
+  const { view: mainPaneView, navigate: setMainPaneView } = useHashRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
@@ -311,28 +305,11 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMoveWorktree = async (worktreePath: string, direction: 'up' | 'down') => {
+  const handleReorderWorktrees = async (orderedPaths: string[]) => {
     if (!currentRepo) return;
-    // Build the effective order: all claimed worktree paths in their current display order
-    const claimed = worktrees.filter(w => w.path !== currentRepo && !w.bare && !isTmpBranch(w.branch));
-    const starSet = starredWorktrees;
-    const orderMap = new Map(worktreeOrder.map((p, i) => [p, i]));
-    const maxOrder = worktreeOrder.length;
-    const sorted = [...claimed].sort((a, b) => {
-      const aS = starSet.has(a.path), bS = starSet.has(b.path);
-      if (aS !== bS) return aS ? -1 : 1;
-      const aO = orderMap.get(a.path) ?? maxOrder, bO = orderMap.get(b.path) ?? maxOrder;
-      return aO - bO;
-    });
-    const paths = sorted.map(w => w.path);
-    const idx = paths.indexOf(worktreePath);
-    if (idx < 0) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= paths.length) return;
-    [paths[idx], paths[swapIdx]] = [paths[swapIdx], paths[idx]];
-    setWorktreeOrder(paths);
+    setWorktreeOrder(orderedPaths);
     try {
-      await getRpcClient().query("worktree.setOrder", { repoPath: currentRepo, order: paths });
+      await getRpcClient().query("worktree.setOrder", { repoPath: currentRepo, order: orderedPaths });
     } catch (error) {
       console.error("Failed to save worktree order:", error);
     }
@@ -594,13 +571,14 @@ const App: React.FC = () => {
               onSwitchWorktree={() => setShowSwitchModal(true)}
               onClaimPool={handleClaimPool}
               onNewTask={() => setShowNewTaskModal(true)}
+              onNavigateWorktrees={() => setMainPaneView({ type: 'worktree' })}
               onTaskQueueSubViewChange={(view: TaskQueueSubView) => {
                 if (view === 'queue') setMainPaneView({ type: 'taskQueue' });
                 else if (view === 'automations') setMainPaneView({ type: 'automations' });
               }}
               onArchiveWorktrees={(wts) => openArchiveModal(wts)}
               onToggleStar={handleToggleStar}
-              onMoveWorktree={handleMoveWorktree}
+              onReorderWorktrees={handleReorderWorktrees}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
             />

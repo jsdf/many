@@ -1,4 +1,23 @@
 import React, { useMemo, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
 
 interface WorktreeActivity {
@@ -25,10 +44,11 @@ interface SidebarProps {
   onSwitchWorktree?: () => void
   onClaimPool?: (pool: PoolConfig) => void
   onNewTask?: () => void
+  onNavigateWorktrees?: () => void
   onTaskQueueSubViewChange?: (view: TaskQueueSubView) => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onToggleStar: (worktreePath: string) => void
-  onMoveWorktree: (worktreePath: string, direction: 'up' | 'down') => void
+  onReorderWorktrees: (orderedPaths: string[]) => void
   onGlobalSettings: () => void
   onCollapse?: () => void
 }
@@ -56,7 +76,7 @@ interface WorktreesTabProps {
   onNewTask?: () => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onToggleStar: (worktreePath: string) => void
-  onMoveWorktree: (worktreePath: string, direction: 'up' | 'down') => void
+  onReorderWorktrees: (orderedPaths: string[]) => void
 }
 
 function sortWorktreeList(worktrees: Worktree[], starred: Set<string>, order: string[]): Worktree[] {
@@ -71,6 +91,29 @@ function sortWorktreeList(worktrees: Worktree[], starred: Set<string>, order: st
     return aOrder - bOrder;
   });
 }
+
+const SortableWorktreeItem: React.FC<{ worktree: Worktree; children: React.ReactNode }> = ({ worktree, children }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: worktree.path });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: 'relative',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+};
 
 const WorktreesTab: React.FC<WorktreesTabProps> = ({
   worktrees,
@@ -87,7 +130,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   onNewTask,
   onArchiveWorktrees,
   onToggleStar,
-  onMoveWorktree,
+  onReorderWorktrees,
 }) => {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
@@ -150,7 +193,50 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
   const hasAnyPoolGroups = poolGroups.length > 0;
 
-  const renderWorktreeItem = (worktree: Worktree, isBase = false, isAvailable = false) => {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Collect all claimed worktrees across all groups in display order for the reorder callback
+  const allClaimedInOrder = useMemo(() => {
+    const result: Worktree[] = [];
+    for (const { claimed } of poolGroups) result.push(...claimed);
+    result.push(...ungroupedClaimed);
+    return result;
+  }, [poolGroups, ungroupedClaimed]);
+
+  const handleDragEnd = (event: DragEndEvent, claimedList: Worktree[]) => {
+    setDraggingId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = claimedList.findIndex(w => w.path === active.id);
+    const newIndex = claimedList.findIndex(w => w.path === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    // Build the new full order: start from allClaimedInOrder, apply the swap within this group
+    const reordered = arrayMove(claimedList, oldIndex, newIndex);
+    // Rebuild full order: replace the group's portion with the reordered version
+    const groupPaths = new Set(claimedList.map(w => w.path));
+    const fullOrder: string[] = [];
+    let groupInserted = false;
+    for (const w of allClaimedInOrder) {
+      if (groupPaths.has(w.path)) {
+        if (!groupInserted) {
+          fullOrder.push(...reordered.map(rw => rw.path));
+          groupInserted = true;
+        }
+      } else {
+        fullOrder.push(w.path);
+      }
+    }
+    if (!groupInserted) fullOrder.push(...reordered.map(rw => rw.path));
+    onReorderWorktrees(fullOrder);
+  };
+
+  const renderWorktreeItem = (worktree: Worktree, opts: { isBase?: boolean; isAvailable?: boolean; isDragOverlay?: boolean } = {}) => {
+    const { isBase = false, isAvailable = false, isDragOverlay = false } = opts;
     const activity = worktreeActivity?.[worktree.path];
     const termCount = activity?.terminals ?? 0;
     const claudeCount = activity?.claudeSessions ?? 0;
@@ -161,15 +247,16 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
     return (
       <div
-        key={worktree.path}
         data-testid={`worktree-item-${worktree.branch || 'main'}`}
         className={`group px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-          !multiSelect && selectedWorktree?.path === worktree.path
+          isDragOverlay
+            ? 'border-l-primary bg-base-200 shadow-lg opacity-95'
+            : !multiSelect && selectedWorktree?.path === worktree.path
             ? 'border-l-primary bg-primary/15'
             : multiSelect && isChecked
             ? 'border-l-warning bg-warning/15'
             : 'border-l-transparent hover:bg-base-content/5'
-        } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''}`}
+        } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''} ${draggingId === worktree.path && !isDragOverlay ? 'opacity-30' : ''}`}
         onClick={() => {
           if (multiSelect && canArchive) {
             toggleSelected(worktree.path);
@@ -208,24 +295,6 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                 {isStarred ? '\u2605' : '\u2606'}
               </button>
             )}
-            {canStar && !multiSelect && (
-              <div className="flex flex-col opacity-0 group-hover:opacity-60 transition-opacity">
-                <button
-                  className="text-[9px] leading-none text-base-content/50 hover:text-base-content px-0.5"
-                  title="Move up"
-                  onClick={e => { e.stopPropagation(); onMoveWorktree(worktree.path, 'up'); }}
-                >
-                  &#x25B2;
-                </button>
-                <button
-                  className="text-[9px] leading-none text-base-content/50 hover:text-base-content px-0.5"
-                  title="Move down"
-                  onClick={e => { e.stopPropagation(); onMoveWorktree(worktree.path, 'down'); }}
-                >
-                  &#x25BC;
-                </button>
-              </div>
-            )}
             {(termCount > 0 || claudeCount > 0) && (
               <div className="flex items-center gap-1.5">
                 {termCount > 0 && (
@@ -249,6 +318,38 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     );
   };
 
+  const worktreeMap = useMemo(() => {
+    const m = new Map<string, Worktree>();
+    for (const w of worktrees) m.set(w.path, w);
+    return m;
+  }, [worktrees]);
+
+  const renderSortableList = (claimed: Worktree[], available: Worktree[]) => (
+    <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e: DragStartEvent) => setDraggingId(e.active.id as string)}
+        onDragEnd={(e) => handleDragEnd(e, claimed)}
+        onDragCancel={() => setDraggingId(null)}
+      >
+        <SortableContext items={claimed.map(w => w.path)} strategy={verticalListSortingStrategy}>
+          {claimed.map(w => (
+            <SortableWorktreeItem key={w.path} worktree={w}>
+              {renderWorktreeItem(w)}
+            </SortableWorktreeItem>
+          ))}
+        </SortableContext>
+        <DragOverlay>
+          {draggingId && worktreeMap.get(draggingId)
+            ? renderWorktreeItem(worktreeMap.get(draggingId)!, { isDragOverlay: true })
+            : null}
+        </DragOverlay>
+      </DndContext>
+      {available.map(w => renderWorktreeItem(w, { isAvailable: true }))}
+    </>
+  );
+
   return (
     <>
       <div className="flex-1 overflow-y-auto mb-3">
@@ -258,7 +359,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
           </p>
         ) : (
           <>
-            {baseWorktree && renderWorktreeItem(baseWorktree, true, false)}
+            {baseWorktree && renderWorktreeItem(baseWorktree, { isBase: true })}
 
             {poolGroups.map(({ pool, claimed, available }) => {
               if (claimed.length === 0 && available.length === 0) return null;
@@ -269,8 +370,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                       {pool.name}
                     </span>
                   </div>
-                  {claimed.map(w => renderWorktreeItem(w, false, false))}
-                  {available.map(w => renderWorktreeItem(w, false, true))}
+                  {renderSortableList(claimed, available)}
                 </div>
               );
             })}
@@ -282,7 +382,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                     <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
                       Claimed
                     </div>
-                    {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
+                    {renderSortableList(ungroupedClaimed, [])}
                   </div>
                 )}
                 {ungroupedAvailable.length > 0 && (
@@ -290,7 +390,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                     <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
                       Available
                     </div>
-                    {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
+                    {ungroupedAvailable.map(w => renderWorktreeItem(w, { isAvailable: true }))}
                   </div>
                 )}
               </>
@@ -300,8 +400,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                   <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
                     Other
                   </div>
-                  {ungroupedClaimed.map(w => renderWorktreeItem(w, false, false))}
-                  {ungroupedAvailable.map(w => renderWorktreeItem(w, false, true))}
+                  {renderSortableList(ungroupedClaimed, ungroupedAvailable)}
                 </div>
               )
             )}
@@ -440,16 +539,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSwitchWorktree,
   onClaimPool,
   onNewTask,
+  onNavigateWorktrees,
   onTaskQueueSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
-  onMoveWorktree,
+  onReorderWorktrees,
   onGlobalSettings,
   onCollapse
 }) => {
-  const [activeTab, setActiveTab] = useState<'worktrees' | 'taskqueue'>('worktrees');
-
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
+  const activeTab = taskQueueSubView ? 'taskqueue' : 'worktrees';
 
   return (
     <div className="bg-base-200 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
@@ -500,18 +599,13 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex mb-2 border-b border-base-300">
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'worktrees' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-            onClick={() => setActiveTab('worktrees')}
+            onClick={() => onNavigateWorktrees?.()}
           >
             Worktrees
           </button>
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'taskqueue' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-            onClick={() => {
-              setActiveTab('taskqueue');
-              if (onTaskQueueSubViewChange && !taskQueueSubView) {
-                onTaskQueueSubViewChange('queue');
-              }
-            }}
+            onClick={() => onTaskQueueSubViewChange?.('queue')}
           >
             Task Queue
           </button>
@@ -540,7 +634,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onNewTask={onNewTask}
           onArchiveWorktrees={onArchiveWorktrees}
           onToggleStar={onToggleStar}
-          onMoveWorktree={onMoveWorktree}
+          onReorderWorktrees={onReorderWorktrees}
         />
       )}
     </div>

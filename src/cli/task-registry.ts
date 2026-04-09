@@ -128,6 +128,10 @@ function generateTaskId(): string {
 }
 
 export function isProcessAlive(pid: number): boolean {
+  // pid <= 0 is invalid: 0 means "current process group", negative means
+  // "process group abs(pid)".  Sending signals to these would affect the
+  // server itself, so treat them as "not alive".
+  if (pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
