@@ -1,8 +1,5 @@
-// Automation registry - persistent tracking of automation runs and work items
-import { promises as fs, constants as fsConstants } from "fs";
-import { open } from "fs/promises";
-import path from "path";
-import { getDataPath } from "./config.js";
+// Automation registry - persistent tracking of automation runs and work items (SQLite-backed)
+import { getDb } from "./db.js";
 
 export type WorkItemStatus = "pending" | "running" | "completed" | "failed";
 export type AutomationRunStatus =
@@ -33,102 +30,51 @@ export interface AutomationRun {
   workItems: WorkItem[];
 }
 
-interface AutomationRegistryData {
-  runs: AutomationRun[];
+// DB row types
+interface RunRow {
+  id: string;
+  automation_id: string;
+  automation_name: string;
+  repo_path: string;
+  status: string;
+  started_at: number;
+  ended_at: number | null;
+  producer_task_id: string | null;
+  producer_worktree_path: string | null;
 }
 
-const defaultRegistryData: AutomationRegistryData = { runs: [] };
-
-function getRegistryFilePath(): string {
-  return path.join(getDataPath(), "automation-registry.json");
+interface WorkItemRow {
+  id: string;
+  run_id: string;
+  prompt: string;
+  status: string;
+  task_id: string | null;
+  worktree_path: string | null;
 }
 
-async function loadRegistry(): Promise<AutomationRegistryData> {
-  const filePath = getRegistryFilePath();
-  try {
-    const data = await fs.readFile(filePath, "utf-8");
-    return { ...defaultRegistryData, ...JSON.parse(data) };
-  } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code: string }).code === "ENOENT"
-    ) {
-      return defaultRegistryData;
-    }
-    throw new Error(
-      `Failed to load automation registry: ${error instanceof Error ? error.message : error}`
-    );
-  }
+function rowToRun(row: RunRow, items: WorkItem[]): AutomationRun {
+  return {
+    id: row.id,
+    automationId: row.automation_id,
+    automationName: row.automation_name,
+    repoPath: row.repo_path,
+    status: row.status as AutomationRunStatus,
+    startedAt: new Date(row.started_at).toISOString(),
+    endedAt: row.ended_at != null ? new Date(row.ended_at).toISOString() : undefined,
+    producerTaskId: row.producer_task_id ?? undefined,
+    producerWorktreePath: row.producer_worktree_path ?? undefined,
+    workItems: items,
+  };
 }
 
-async function saveRegistry(data: AutomationRegistryData): Promise<void> {
-  const filePath = getRegistryFilePath();
-  const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
-  const tmpPath = filePath + ".tmp";
-  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2));
-  await fs.rename(tmpPath, filePath);
-}
-
-// File-based locking — same pattern as task-registry.ts
-const LOCK_STALE_MS = 10_000;
-
-async function acquireLock(): Promise<void> {
-  const lockPath = getRegistryFilePath() + ".lock";
-  const maxAttempts = 50;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const fh = await open(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY
-      );
-      await fh.write(`${process.pid}\n`);
-      await fh.close();
-      return;
-    } catch (err: any) {
-      if (err.code !== "EEXIST") throw err;
-
-      try {
-        const stat = await fs.stat(lockPath);
-        if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          await fs.unlink(lockPath).catch(() => {});
-          continue;
-        }
-      } catch {
-        continue;
-      }
-
-      await new Promise((r) => setTimeout(r, 20 + Math.random() * 30));
-    }
-  }
-
-  await fs.unlink(getRegistryFilePath() + ".lock").catch(() => {});
-  throw new Error(
-    "Failed to acquire automation registry lock after max attempts"
-  );
-}
-
-async function releaseLock(): Promise<void> {
-  await fs.unlink(getRegistryFilePath() + ".lock").catch(() => {});
-}
-
-async function withRegistry<T>(
-  fn: (registry: AutomationRegistryData) => Promise<{ result: T; save: boolean }>
-): Promise<T> {
-  await acquireLock();
-  try {
-    const registry = await loadRegistry();
-    const { result, save } = await fn(registry);
-    if (save) {
-      await saveRegistry(registry);
-    }
-    return result;
-  } finally {
-    await releaseLock();
-  }
+function rowToWorkItem(row: WorkItemRow): WorkItem {
+  return {
+    id: row.id,
+    prompt: row.prompt,
+    status: row.status as WorkItemStatus,
+    taskId: row.task_id ?? undefined,
+    worktreePath: row.worktree_path ?? undefined,
+  };
 }
 
 function generateId(prefix: string): string {
@@ -137,52 +83,107 @@ function generateId(prefix: string): string {
   return `${prefix}-${ts}-${rand}`;
 }
 
+function getWorkItemsForRun(runId: string): WorkItem[] {
+  const rows = getDb().prepare<[string], WorkItemRow>(
+    "SELECT * FROM work_items WHERE run_id = ?"
+  ).all(runId);
+  return rows.map(rowToWorkItem);
+}
+
 export async function createRun(
   fields: Omit<AutomationRun, "id" | "startedAt" | "workItems">
 ): Promise<AutomationRun> {
-  return withRegistry(async (registry) => {
-    const run: AutomationRun = {
-      id: generateId("auto"),
-      startedAt: new Date().toISOString(),
-      workItems: [],
-      ...fields,
-    };
-    registry.runs.push(run);
-    return { result: run, save: true };
+  const db = getDb();
+  const id = generateId("auto");
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO automation_runs (id, automation_id, automation_name, repo_path, status, started_at, ended_at, producer_task_id, producer_worktree_path)
+    VALUES (@id, @automation_id, @automation_name, @repo_path, @status, @started_at, @ended_at, @producer_task_id, @producer_worktree_path)
+  `).run({
+    id,
+    automation_id: fields.automationId,
+    automation_name: fields.automationName,
+    repo_path: fields.repoPath,
+    status: fields.status,
+    started_at: now,
+    ended_at: null,
+    producer_task_id: fields.producerTaskId ?? null,
+    producer_worktree_path: fields.producerWorktreePath ?? null,
   });
+
+  return {
+    id,
+    startedAt: new Date(now).toISOString(),
+    workItems: [],
+    ...fields,
+  };
 }
 
 export async function updateRun(
   id: string,
   updates: Partial<Pick<AutomationRun, "status" | "endedAt" | "producerTaskId" | "producerWorktreePath">>
 ): Promise<void> {
-  await withRegistry(async (registry) => {
-    const run = registry.runs.find((r) => r.id === id);
-    if (!run) return { result: undefined, save: false };
-    Object.assign(run, updates);
-    if (updates.status && updates.status !== "producing" && updates.status !== "running") {
-      run.endedAt = run.endedAt || new Date().toISOString();
-    }
-    return { result: undefined, save: true };
-  });
+  const db = getDb();
+  const sets: string[] = [];
+  const params: any[] = [];
+
+  if (updates.status !== undefined) {
+    sets.push("status = ?");
+    params.push(updates.status);
+  }
+  if (updates.producerTaskId !== undefined) {
+    sets.push("producer_task_id = ?");
+    params.push(updates.producerTaskId);
+  }
+  if (updates.producerWorktreePath !== undefined) {
+    sets.push("producer_worktree_path = ?");
+    params.push(updates.producerWorktreePath);
+  }
+
+  // Auto-set endedAt for terminal statuses
+  if (updates.endedAt !== undefined) {
+    sets.push("ended_at = ?");
+    params.push(new Date(updates.endedAt).getTime());
+  } else if (updates.status && updates.status !== "producing" && updates.status !== "running") {
+    sets.push("ended_at = COALESCE(ended_at, ?)");
+    params.push(Date.now());
+  }
+
+  if (sets.length === 0) return;
+
+  params.push(id);
+  db.prepare(`UPDATE automation_runs SET ${sets.join(", ")} WHERE id = ?`).run(...params);
 }
 
 export async function addWorkItems(
   runId: string,
   prompts: string[]
 ): Promise<WorkItem[]> {
-  return withRegistry(async (registry) => {
-    const run = registry.runs.find((r) => r.id === runId);
-    if (!run) return { result: [], save: false };
+  const db = getDb();
 
-    const items: WorkItem[] = prompts.map((prompt) => ({
-      id: generateId("wi"),
-      prompt,
-      status: "pending" as const,
-    }));
-    run.workItems.push(...items);
-    return { result: items, save: true };
-  });
+  // Verify run exists
+  const run = db.prepare("SELECT id FROM automation_runs WHERE id = ?").get(runId);
+  if (!run) return [];
+
+  const items: WorkItem[] = prompts.map((prompt) => ({
+    id: generateId("wi"),
+    prompt,
+    status: "pending" as const,
+  }));
+
+  const insert = db.prepare(`
+    INSERT INTO work_items (id, run_id, prompt, status)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  db.transaction(() => {
+    for (const item of items) {
+      insert.run(item.id, runId, item.prompt, item.status);
+    }
+  })();
+
+  return items;
 }
 
 export async function updateWorkItem(
@@ -190,34 +191,58 @@ export async function updateWorkItem(
   workItemId: string,
   updates: Partial<Pick<WorkItem, "status" | "taskId" | "worktreePath">>
 ): Promise<void> {
-  await withRegistry(async (registry) => {
-    const run = registry.runs.find((r) => r.id === runId);
-    if (!run) return { result: undefined, save: false };
-    const item = run.workItems.find((i) => i.id === workItemId);
-    if (!item) return { result: undefined, save: false };
-    Object.assign(item, updates);
-    return { result: undefined, save: true };
-  });
+  const db = getDb();
+  const sets: string[] = [];
+  const params: any[] = [];
+
+  if (updates.status !== undefined) {
+    sets.push("status = ?");
+    params.push(updates.status);
+  }
+  if (updates.taskId !== undefined) {
+    sets.push("task_id = ?");
+    params.push(updates.taskId);
+  }
+  if (updates.worktreePath !== undefined) {
+    sets.push("worktree_path = ?");
+    params.push(updates.worktreePath);
+  }
+
+  if (sets.length === 0) return;
+
+  params.push(workItemId, runId);
+  db.prepare(`UPDATE work_items SET ${sets.join(", ")} WHERE id = ? AND run_id = ?`).run(...params);
 }
 
 export async function getRun(id: string): Promise<AutomationRun | null> {
-  const registry = await loadRegistry();
-  return registry.runs.find((r) => r.id === id) || null;
+  const row = getDb().prepare<[string], RunRow>(
+    "SELECT * FROM automation_runs WHERE id = ?"
+  ).get(id);
+  if (!row) return null;
+  return rowToRun(row, getWorkItemsForRun(id));
 }
 
 export async function listRuns(filter?: {
   repoPath?: string;
   status?: AutomationRunStatus;
 }): Promise<AutomationRun[]> {
-  const registry = await loadRegistry();
-  let runs = registry.runs;
+  const db = getDb();
+  const conditions: string[] = [];
+  const params: any[] = [];
 
   if (filter?.repoPath) {
-    runs = runs.filter((r) => r.repoPath === filter.repoPath);
+    conditions.push("repo_path = ?");
+    params.push(filter.repoPath);
   }
   if (filter?.status) {
-    runs = runs.filter((r) => r.status === filter.status);
+    conditions.push("status = ?");
+    params.push(filter.status);
   }
 
-  return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = db.prepare<unknown[], RunRow>(
+    `SELECT * FROM automation_runs ${where} ORDER BY started_at DESC`
+  ).all(...params);
+
+  return rows.map((row) => rowToRun(row, getWorkItemsForRun(row.id)));
 }

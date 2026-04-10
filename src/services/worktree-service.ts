@@ -613,16 +613,26 @@ export async function getBranchDiff(
   const git = simpleGit(worktreePath);
   const resolvedMain = await gitPool.getDefaultBranch(repoPath, { mainBranch, initCommand: null, worktreeDirectory: null });
 
-  let mergeBase: string;
-  try {
-    mergeBase = (await git.raw(["merge-base", resolvedMain, "HEAD"])).trim();
-  } catch {
-    return { diff: "", mainBranch: resolvedMain };
+  // Detect if we're on the main branch itself. If so, only show uncommitted
+  // working tree changes (diff against HEAD), not committed history.
+  const currentBranch = (await git.raw(["symbolic-ref", "--short", "HEAD"]).catch(() => "")).trim();
+  const onMainBranch = currentBranch === resolvedMain;
+
+  let diffBase: string;
+  if (onMainBranch) {
+    diffBase = "HEAD";
+  } else {
+    try {
+      diffBase = (await git.raw(["merge-base", resolvedMain, "HEAD"])).trim();
+    } catch {
+      return { diff: "", mainBranch: resolvedMain };
+    }
   }
 
-  // Single diff from merge-base to working tree: combines committed branch
-  // changes and uncommitted modifications into one diff per file.
-  const trackedDiff = await git.raw(["diff", mergeBase]);
+  // Diff from the base to working tree. On feature branches this combines
+  // committed branch changes and uncommitted modifications. On main this
+  // only shows uncommitted modifications.
+  const trackedDiff = await git.raw(["diff", diffBase]);
 
   // Include untracked files (new files not yet staged) so they appear in the
   // branch changes view alongside everything else.

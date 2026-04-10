@@ -37,7 +37,7 @@
     "check": "tsgo -p tsconfig.cli.json",
     "lint": "oxlint src/",
     "test": "vitest run",
-    "electron:rebuild": "electron-rebuild -f -w @lydell/node-pty",
+    "electron:rebuild": "electron-rebuild -f -w @lydell/node-pty -w better-sqlite3",
     "electron:dev": "npm run build && npm run build:cli && npm run electron:rebuild && electron .",
     "electron:build": "npm run build && npm run build:cli && electron-builder --mac",
     "electron:install": "npm run electron:build && ./scripts/install-mac.sh",
