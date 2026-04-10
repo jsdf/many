@@ -380,7 +380,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
       </div>
 
       {worktree.path && repoPath && (
-        <BranchChanges worktreePath={worktree.path} repoPath={repoPath} />
+        <BranchChanges worktreePath={worktree.path} repoPath={repoPath} commit={worktree.commit} />
       )}
     </div>
   );

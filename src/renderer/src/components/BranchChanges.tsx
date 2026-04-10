@@ -70,12 +70,14 @@ interface BranchDiffContentProps {
   worktreePath: string;
   repoPath: string;
   refreshKey: number;
+  commit?: string;
 }
 
 const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyle }> = ({
   worktreePath,
   repoPath,
   refreshKey,
+  commit,
   diffStyle,
 }) => {
   const [diff, setDiff] = useState<string | null>(null);
@@ -104,7 +106,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
     return () => {
       cancelled = true;
     };
-  }, [worktreePath, repoPath, refreshKey]);
+  }, [worktreePath, repoPath, refreshKey, commit]);
 
   if (loading && !diff) {
     return (
@@ -144,11 +146,14 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
 interface BranchChangesProps {
   worktreePath: string;
   repoPath: string;
+  /** Current commit hash - when this changes, the diff is re-fetched */
+  commit?: string;
 }
 
 const BranchChanges: React.FC<BranchChangesProps> = ({
   worktreePath,
   repoPath,
+  commit,
 }) => {
   const [collapsed, setCollapsed] = useState(() => {
     const stored = localStorage.getItem("branchChangesCollapsed");
@@ -200,6 +205,7 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
           worktreePath={worktreePath}
           repoPath={repoPath}
           refreshKey={refreshKey}
+          commit={commit}
           diffStyle={diffStyle}
         />
       )}
