@@ -33,7 +33,7 @@ interface TrackedItemData {
   notesLoaded: boolean
 }
 
-const SortableTrackedItem: React.FC<{ id: string; children: React.ReactNode }> = ({ id, children }) => {
+const SortableTrackedItem: React.FC<{ id: string; children: (dragHandleProps: React.HTMLAttributes<HTMLElement>) => React.ReactNode }> = ({ id, children }) => {
   const {
     attributes,
     listeners,
@@ -50,8 +50,8 @@ const SortableTrackedItem: React.FC<{ id: string; children: React.ReactNode }> =
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {children({ ...listeners })}
     </div>
   );
 };
@@ -211,14 +211,17 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
               const data = itemData.get(branch);
               return (
                 <SortableTrackedItem key={branch} id={branch}>
-                  <TrackedItem
-                    branch={branch}
-                    notes={data?.notes ?? ''}
-                    notesLoaded={data?.notesLoaded ?? false}
-                    repoPath={currentRepo}
-                    onRemove={handleRemove}
-                    onNotesChange={handleNotesChange}
-                  />
+                  {(dragHandleProps) => (
+                    <TrackedItem
+                      branch={branch}
+                      notes={data?.notes ?? ''}
+                      notesLoaded={data?.notesLoaded ?? false}
+                      repoPath={currentRepo}
+                      onRemove={handleRemove}
+                      onNotesChange={handleNotesChange}
+                      dragHandleProps={dragHandleProps}
+                    />
+                  )}
                 </SortableTrackedItem>
               );
             })}
