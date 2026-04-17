@@ -608,7 +608,7 @@ const App: React.FC = () => {
             starredBranches={new Set(
               worktrees
                 .filter((w) => starredWorktrees.has(w.path) && w.branch)
-                .map((w) => w.branch!)
+                .map((w) => w.branch!.replace(/^refs\/heads\//, ''))
             )}
           />
         </div>

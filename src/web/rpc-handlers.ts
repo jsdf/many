@@ -315,7 +315,7 @@ export function createQueryHandlers(opts: {
     "tracked.add": async (input) => {
       const { repoPath, input: rawInput } = input as { repoPath: string; input: string };
       const trimmed = rawInput.trim();
-      let branch = trimmed;
+      let branch = trimmed.replace(/^refs\/heads\//, "");
 
       // Resolve PR URL or number to branch name
       const prUrlMatch = trimmed.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
