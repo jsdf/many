@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 // Main pane routing
 export type MainPaneView =
   | { type: 'worktree' }
+  | { type: 'tracked' }
   | { type: 'taskQueue' }
   | { type: 'automations' }
   | { type: 'automationRun'; automationId: string; manualWorkItems?: string[] };
@@ -11,6 +12,8 @@ function viewToHash(view: MainPaneView): string {
   switch (view.type) {
     case 'worktree':
       return '#/worktree';
+    case 'tracked':
+      return '#/tracked';
     case 'taskQueue':
       return '#/tasks';
     case 'automations':
@@ -23,6 +26,7 @@ function viewToHash(view: MainPaneView): string {
 function hashToView(hash: string): MainPaneView {
   const path = hash.replace(/^#\/?/, '');
 
+  if (path === 'tracked') return { type: 'tracked' };
   if (path === 'tasks') return { type: 'taskQueue' };
   if (path === 'automations') return { type: 'automations' };
 

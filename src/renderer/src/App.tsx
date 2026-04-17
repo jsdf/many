@@ -3,6 +3,7 @@ import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmp
 import Sidebar, { TaskQueueSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import TaskQueuePanel from "./components/TaskQueuePanel";
+import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
 import AutomationRunModal from "./components/AutomationRunModal";
@@ -561,6 +562,11 @@ const App: React.FC = () => {
               starredWorktrees={starredWorktrees}
               worktreeOrder={worktreeOrder}
               taskQueueSubView={mainPaneView.type === 'taskQueue' ? 'queue' : mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'automations' : null}
+              activeTab={
+                mainPaneView.type === 'tracked' ? 'tracked'
+                : mainPaneView.type === 'taskQueue' || mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'taskqueue'
+                : 'worktrees'
+              }
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);
@@ -572,6 +578,7 @@ const App: React.FC = () => {
               onClaimPool={handleClaimPool}
               onNewTask={() => setShowNewTaskModal(true)}
               onNavigateWorktrees={() => setMainPaneView({ type: 'worktree' })}
+              onNavigateTracked={() => setMainPaneView({ type: 'tracked' })}
               onTaskQueueSubViewChange={(view: TaskQueueSubView) => {
                 if (view === 'queue') setMainPaneView({ type: 'taskQueue' });
                 else if (view === 'automations') setMainPaneView({ type: 'automations' });
@@ -594,7 +601,18 @@ const App: React.FC = () => {
         </>
       )}
 
-      {mainPaneView.type === 'automationRun' && currentRepo ? (
+      {mainPaneView.type === 'tracked' && currentRepo ? (
+        <div className="flex-1 min-w-0">
+          <TrackedPanel
+            currentRepo={currentRepo}
+            starredBranches={new Set(
+              worktrees
+                .filter((w) => starredWorktrees.has(w.path) && w.branch)
+                .map((w) => w.branch!)
+            )}
+          />
+        </div>
+      ) : mainPaneView.type === 'automationRun' && currentRepo ? (
         <div className="flex-1 min-w-0">
           <AutomationRunModal
             currentRepo={currentRepo}

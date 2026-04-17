@@ -334,6 +334,24 @@ export interface QueryProcedures {
     output: { ok: boolean };
   };
 
+  // --- Tracked branches ---
+  "tracked.list": {
+    input: { repoPath: string };
+    output: string[];
+  };
+  "tracked.add": {
+    input: { repoPath: string; input: string };
+    output: { branch: string };
+  };
+  "tracked.remove": {
+    input: { repoPath: string; branch: string };
+    output: { ok: boolean };
+  };
+  "tracked.reorder": {
+    input: { repoPath: string; branches: string[] };
+    output: { ok: boolean };
+  };
+
   // --- Branch operations ---
   "branch.list": {
     input: { repoPath: string };

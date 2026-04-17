@@ -37,6 +37,7 @@ interface SidebarProps {
   starredWorktrees: Set<string>
   worktreeOrder: string[]
   taskQueueSubView?: TaskQueueSubView | null
+  activeTab: 'worktrees' | 'tracked' | 'taskqueue'
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
@@ -45,6 +46,7 @@ interface SidebarProps {
   onClaimPool?: (pool: PoolConfig) => void
   onNewTask?: () => void
   onNavigateWorktrees?: () => void
+  onNavigateTracked?: () => void
   onTaskQueueSubViewChange?: (view: TaskQueueSubView) => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onToggleStar: (worktreePath: string) => void
@@ -539,7 +541,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSwitchWorktree,
   onClaimPool,
   onNewTask,
+  activeTab,
   onNavigateWorktrees,
+  onNavigateTracked,
   onTaskQueueSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
@@ -548,7 +552,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCollapse
 }) => {
   const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
-  const activeTab = taskQueueSubView ? 'taskqueue' : 'worktrees';
 
   return (
     <div className="bg-base-200 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
@@ -595,24 +598,36 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {hasTaskPools && (
-        <div className="flex mb-2 border-b border-base-300">
-          <button
-            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'worktrees' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-            onClick={() => onNavigateWorktrees?.()}
-          >
-            Worktrees
-          </button>
+      <div className="flex mb-2 border-b border-base-300">
+        <button
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'worktrees' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          onClick={() => onNavigateWorktrees?.()}
+        >
+          Worktrees
+        </button>
+        <button
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'tracked' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          onClick={() => onNavigateTracked?.()}
+        >
+          Tracked
+        </button>
+        {hasTaskPools && (
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'taskqueue' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
             onClick={() => onTaskQueueSubViewChange?.('queue')}
           >
-            Task Queue
+            Tasks
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {activeTab === 'taskqueue' && hasTaskPools ? (
+      {activeTab === 'tracked' ? (
+        <div className="flex-1 overflow-y-auto mb-3">
+          <p className="text-base-content/50 text-xs text-center mt-4 px-2">
+            Tracked branches are shown in the main panel.
+          </p>
+        </div>
+      ) : activeTab === 'taskqueue' && hasTaskPools ? (
         <TaskQueueTab
           currentRepo={currentRepo}
           subView={taskQueueSubView ?? 'queue'}

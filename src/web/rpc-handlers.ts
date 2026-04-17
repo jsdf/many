@@ -10,7 +10,7 @@ import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
 import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
-import { getBranchNotes, setBranchNotes } from "../cli/db.js";
+import { getBranchNotes, setBranchNotes, getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
 import {
   registerTask,
   markTaskCompleted,
@@ -304,6 +304,46 @@ export function createQueryHandlers(opts: {
     "worktree.setNotes": async (input) => {
       const { repoPath, branch, notes } = input as { repoPath: string; branch: string; notes: string };
       setBranchNotes(repoPath, branch, notes);
+      return { ok: true };
+    },
+
+    // --- Tracked branches ---
+    "tracked.list": async (input) => {
+      const { repoPath } = input as { repoPath: string };
+      return getTrackedBranches(repoPath);
+    },
+    "tracked.add": async (input) => {
+      const { repoPath, input: rawInput } = input as { repoPath: string; input: string };
+      const trimmed = rawInput.trim();
+      let branch = trimmed;
+
+      // Resolve PR URL or number to branch name
+      const prUrlMatch = trimmed.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+      const prNumberMatch = trimmed.match(/^#?(\d+)$/);
+      if (prUrlMatch || prNumberMatch) {
+        const prRef = prUrlMatch ? trimmed : trimmed.replace(/^#/, '');
+        try {
+          const resolved = execSync(
+            `gh pr view ${JSON.stringify(prRef)} --json headRefName --jq .headRefName`,
+            { cwd: repoPath, encoding: "utf-8", timeout: 10000 }
+          ).trim();
+          if (resolved) branch = resolved;
+        } catch {
+          // If gh fails, use the input as-is
+        }
+      }
+
+      addTrackedBranch(repoPath, branch);
+      return { branch };
+    },
+    "tracked.remove": async (input) => {
+      const { repoPath, branch } = input as { repoPath: string; branch: string };
+      removeTrackedBranch(repoPath, branch);
+      return { ok: true };
+    },
+    "tracked.reorder": async (input) => {
+      const { repoPath, branches } = input as { repoPath: string; branches: string[] };
+      reorderTrackedBranches(repoPath, branches);
       return { ok: true };
     },
 

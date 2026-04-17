@@ -76,6 +76,15 @@ function initSchema(db: Database.Database): void {
       worktree_path TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS tracked_branches (
+      repo_path TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      added_at INTEGER NOT NULL,
+      PRIMARY KEY (repo_path, branch)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tracked_repo ON tracked_branches(repo_path);
     CREATE INDEX IF NOT EXISTS idx_tasks_repo ON tasks(repo_path);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_worktree ON tasks(worktree_path);
@@ -205,4 +214,49 @@ export function setBranchNotes(repoPath: string, branch: string, notes: string):
   } else {
     db.prepare("DELETE FROM branch_notes WHERE repo_path = ? AND branch = ?").run(repoPath, branch);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Tracked branches
+// ---------------------------------------------------------------------------
+
+export function getTrackedBranches(repoPath: string): string[] {
+  const rows = getDb()
+    .prepare<[string], { branch: string }>(
+      "SELECT branch FROM tracked_branches WHERE repo_path = ? ORDER BY sort_order ASC"
+    )
+    .all(repoPath);
+  return rows.map((r) => r.branch);
+}
+
+export function addTrackedBranch(repoPath: string, branch: string): void {
+  const db = getDb();
+  const maxRow = db
+    .prepare<[string], { m: number | null }>(
+      "SELECT MAX(sort_order) as m FROM tracked_branches WHERE repo_path = ?"
+    )
+    .get(repoPath);
+  const nextOrder = (maxRow?.m ?? -1) + 1;
+  db.prepare(
+    `INSERT OR IGNORE INTO tracked_branches (repo_path, branch, sort_order, added_at)
+     VALUES (?, ?, ?, ?)`
+  ).run(repoPath, branch, nextOrder, Date.now());
+}
+
+export function removeTrackedBranch(repoPath: string, branch: string): void {
+  getDb()
+    .prepare("DELETE FROM tracked_branches WHERE repo_path = ? AND branch = ?")
+    .run(repoPath, branch);
+}
+
+export function reorderTrackedBranches(repoPath: string, branches: string[]): void {
+  const db = getDb();
+  const update = db.prepare(
+    "UPDATE tracked_branches SET sort_order = ? WHERE repo_path = ? AND branch = ?"
+  );
+  db.transaction((ordered: string[]) => {
+    for (let i = 0; i < ordered.length; i++) {
+      update.run(i, repoPath, ordered[i]);
+    }
+  })(branches);
 }
