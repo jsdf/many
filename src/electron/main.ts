@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell } from "electron";
 import crypto from "crypto";
-import { loadAppData, saveAppData } from "../cli/config.js";
+import { loadAppData, withAppData } from "../cli/config.js";
 
 let mainWindow: BrowserWindow | null = null;
 let serverUrl: string | null = null;
@@ -57,9 +57,9 @@ async function createWindow(url: string) {
       const [width, height] = mainWindow.getSize();
       const [x, y] = mainWindow.getPosition();
       try {
-        const appData = await loadAppData();
-        appData.windowBounds = { width, height, x, y };
-        await saveAppData(appData);
+        await withAppData((appData) => {
+          appData.windowBounds = { width, height, x, y };
+        });
       } catch {
         // Non-critical, ignore save failures
       }

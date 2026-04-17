@@ -9,7 +9,7 @@ import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
 import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
-import { loadAppData, saveAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
+import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import { getBranchNotes, setBranchNotes } from "../cli/db.js";
 import {
   registerTask,
@@ -261,17 +261,17 @@ export function createQueryHandlers(opts: {
     },
     "worktree.setStarred": async (input) => {
       const { repoPath, worktreePath, starred } = input as { repoPath: string; worktreePath: string; starred: boolean };
-      const appData = await loadAppData();
-      if (!appData.starredWorktrees) appData.starredWorktrees = {};
-      const list = appData.starredWorktrees[repoPath] ?? [];
-      if (starred && !list.includes(worktreePath)) {
-        list.push(worktreePath);
-      } else if (!starred) {
-        const idx = list.indexOf(worktreePath);
-        if (idx >= 0) list.splice(idx, 1);
-      }
-      appData.starredWorktrees[repoPath] = list;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        if (!appData.starredWorktrees) appData.starredWorktrees = {};
+        const list = appData.starredWorktrees[repoPath] ?? [];
+        if (starred && !list.includes(worktreePath)) {
+          list.push(worktreePath);
+        } else if (!starred) {
+          const idx = list.indexOf(worktreePath);
+          if (idx >= 0) list.splice(idx, 1);
+        }
+        appData.starredWorktrees[repoPath] = list;
+      });
 
       // When starring, assign the PR (if any) to the current gh user
       if (starred) {
@@ -291,10 +291,10 @@ export function createQueryHandlers(opts: {
     },
     "worktree.setOrder": async (input) => {
       const { repoPath, order } = input as { repoPath: string; order: string[] };
-      const appData = await loadAppData();
-      if (!appData.worktreeOrder) appData.worktreeOrder = {};
-      appData.worktreeOrder[repoPath] = order;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        if (!appData.worktreeOrder) appData.worktreeOrder = {};
+        appData.worktreeOrder[repoPath] = order;
+      });
       return { ok: true };
     },
     "worktree.getNotes": async (input) => {
@@ -367,11 +367,11 @@ export function createQueryHandlers(opts: {
       } catch {
         throw new Error(`Not a git repository: ${repoPath}`);
       }
-      const appData = await loadAppData();
-      if (!appData.repositories.some((r: any) => r.path === repoPath)) {
-        appData.repositories.push({ path: repoPath, name: path.basename(repoPath), addedAt: new Date().toISOString() });
-        await saveAppData(appData);
-      }
+      await withAppData((appData) => {
+        if (!appData.repositories.some((r: any) => r.path === repoPath)) {
+          appData.repositories.push({ path: repoPath, name: path.basename(repoPath), addedAt: new Date().toISOString() });
+        }
+      });
       return { ok: true };
     },
     "repo.getSelected": async () => {
@@ -380,9 +380,9 @@ export function createQueryHandlers(opts: {
     },
     "repo.setSelected": async (input) => {
       const { repoPath } = input as { repoPath: string | null };
-      const appData = await loadAppData();
-      appData.selectedRepo = repoPath;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        appData.selectedRepo = repoPath;
+      });
       return { ok: true };
     },
     "repo.getConfig": async (input) => {
@@ -392,9 +392,9 @@ export function createQueryHandlers(opts: {
     },
     "repo.saveConfig": async (input) => {
       const { repoPath, config } = input as { repoPath: string; config: any };
-      const appData = await loadAppData();
-      appData.repositoryConfigs[repoPath] = config;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        appData.repositoryConfigs[repoPath] = config;
+      });
       return { ok: true };
     },
     "repo.recentWorktree": async (input) => {
@@ -404,9 +404,9 @@ export function createQueryHandlers(opts: {
     },
     "repo.setRecentWorktree": async (input) => {
       const { repoPath, worktreePath } = input as { repoPath: string; worktreePath: string };
-      const appData = await loadAppData();
-      appData.recentWorktrees[repoPath] = worktreePath;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        appData.recentWorktrees[repoPath] = worktreePath;
+      });
       return { ok: true };
     },
     "repo.gitUsername": async (input) => {
@@ -424,9 +424,9 @@ export function createQueryHandlers(opts: {
       return getGlobalSettings(appData);
     },
     "settings.save": async (input) => {
-      const appData = await loadAppData();
-      appData.globalSettings = input as any;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        appData.globalSettings = input as any;
+      });
       return { ok: true };
     },
 
@@ -623,28 +623,28 @@ export function createQueryHandlers(opts: {
     },
     "automation.save": async (input) => {
       const { repoPath, automation } = input as { repoPath: string; automation: any };
-      const appData = await loadAppData();
-      const repoConfig = getRepoConfig(appData, repoPath);
-      if (!repoConfig.automations) repoConfig.automations = [];
-      const idx = repoConfig.automations.findIndex((a: any) => a.id === automation.id);
-      if (idx >= 0) {
-        repoConfig.automations[idx] = automation;
-      } else {
-        repoConfig.automations.push(automation);
-      }
-      appData.repositoryConfigs[repoPath] = repoConfig;
-      await saveAppData(appData);
+      await withAppData((appData) => {
+        const repoConfig = getRepoConfig(appData, repoPath);
+        if (!repoConfig.automations) repoConfig.automations = [];
+        const idx = repoConfig.automations.findIndex((a: any) => a.id === automation.id);
+        if (idx >= 0) {
+          repoConfig.automations[idx] = automation;
+        } else {
+          repoConfig.automations.push(automation);
+        }
+        appData.repositoryConfigs[repoPath] = repoConfig;
+      });
       return { ok: true };
     },
     "automation.delete": async (input) => {
       const { repoPath, automationId } = input as { repoPath: string; automationId: string };
-      const appData = await loadAppData();
-      const repoConfig = getRepoConfig(appData, repoPath);
-      if (repoConfig.automations) {
-        repoConfig.automations = repoConfig.automations.filter((a: any) => a.id !== automationId);
-        appData.repositoryConfigs[repoPath] = repoConfig;
-        await saveAppData(appData);
-      }
+      await withAppData((appData) => {
+        const repoConfig = getRepoConfig(appData, repoPath);
+        if (repoConfig.automations) {
+          repoConfig.automations = repoConfig.automations.filter((a: any) => a.id !== automationId);
+          appData.repositoryConfigs[repoPath] = repoConfig;
+        }
+      });
       return { ok: true };
     },
     "automation.listRuns": async (input) => {

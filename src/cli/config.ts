@@ -2,6 +2,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 
 export interface Repository {
   path: string;
@@ -105,10 +106,34 @@ export async function saveAppData(data: AppData): Promise<void> {
   const dataPath = getDataFilePath();
   const dir = path.dirname(dataPath);
   await fs.mkdir(dir, { recursive: true });
-  // Write to a temp file first, then rename for atomic write
-  const tmpPath = dataPath + ".tmp";
+  // Write to a unique temp file, then rename for atomic write
+  const tmpPath = dataPath + `.tmp.${process.pid}.${crypto.randomBytes(4).toString("hex")}`;
   await fs.writeFile(tmpPath, JSON.stringify(data, null, 2));
   await fs.rename(tmpPath, dataPath);
+}
+
+// In-process mutex for serializing read-modify-write cycles on app data.
+// Prevents concurrent RPC handlers from clobbering each other's changes.
+let appDataLock: Promise<void> = Promise.resolve();
+
+/**
+ * Atomically load app data, apply a mutation, and save it back.
+ * Concurrent calls are serialized so no updates are lost.
+ */
+export async function withAppData<T>(mutator: (data: AppData) => T | Promise<T>): Promise<T> {
+  // Chain onto the existing lock so callers serialize in order
+  const prev = appDataLock;
+  let resolve: () => void;
+  appDataLock = new Promise<void>((r) => { resolve = r; });
+  try {
+    await prev;
+    const data = await loadAppData();
+    const result = await mutator(data);
+    await saveAppData(data);
+    return result;
+  } finally {
+    resolve!();
+  }
 }
 
 export function getGlobalSettings(appData: AppData): GlobalSettings {

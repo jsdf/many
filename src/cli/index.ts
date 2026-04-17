@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Many CLI - Git worktree pool manager
 
-import { loadAppData, saveAppData, getRepoConfig, RepositoryConfig, PoolConfig, getDataPath } from "./config.js";
+import { loadAppData, withAppData, getRepoConfig, RepositoryConfig, PoolConfig, getDataPath } from "./config.js";
 import {
   getWorktrees,
   getAvailableWorktrees,
@@ -1494,8 +1494,10 @@ async function cmdStar(subcommand: string | null, flags: ParsedFlags): Promise<v
       }
     }
   }
-  appData.starredWorktrees[repoPath] = starred;
-  await saveAppData(appData);
+  await withAppData((data) => {
+    if (!data.starredWorktrees) data.starredWorktrees = {};
+    data.starredWorktrees[repoPath] = starred;
+  });
 }
 
 // Help command

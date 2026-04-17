@@ -40,8 +40,8 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
 	REMAINING=$(grep -c '^\- \[ \]' "$TASK_FILE")
 	echo "=== Iteration $ITERATION/$MAX_ITERATIONS ($REMAINING tasks remaining) ==="
 
-	# Run dclaude in non-interactive mode with the prompt
-	OUTPUT=$(dclaude -p "$PROMPT" 2>&1) || true
+	# Run claude in non-interactive mode with the prompt
+	OUTPUT=$(claude --dangerously-skip-permissions -p "$PROMPT" 2>&1) || true
 	echo "$OUTPUT"
 
 	# Check if all tasks are done
