@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
 
 export interface TrackedItemProps {
@@ -20,7 +21,7 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
   branch, notes, notesLoaded, repoPath, worktreePath, hasTaskPools,
   isOverlay, dragHandleProps, onRemove, onNotesChange, onGoToWorktree, onNewTask,
 }) => {
-  const displayBranch = branch.replace(/^refs\/heads\//, '');
+  const displayBranch = formatBranchName(branch);
   const [expanded, setExpanded] = useState(false);
   const [prUrl, setPrUrl] = useState<string | null>(null);
 
