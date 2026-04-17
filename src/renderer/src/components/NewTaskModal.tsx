@@ -7,6 +7,7 @@ interface NewTaskModalProps {
   pools: PoolConfig[];
   currentRepo: string;
   defaultTaskPool?: string | null;
+  initialBranch?: string | null;
   onClose: () => void;
   onComplete: (worktreePath: string, pool: PoolConfig, prompt: string, taskId?: string) => void;
 }
@@ -17,6 +18,7 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
   pools,
   currentRepo,
   defaultTaskPool,
+  initialBranch,
   onClose,
   onComplete,
 }) => {
@@ -26,7 +28,7 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
     : 0;
   const [selectedPoolIndex, setSelectedPoolIndex] = useState(defaultIndex);
   const [prompt, setPrompt] = useState("");
-  const [startingPoint, setStartingPoint] = useState("");
+  const [startingPoint, setStartingPoint] = useState(initialBranch ?? "");
   const [isLaunching, setIsLaunching] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);

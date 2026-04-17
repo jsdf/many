@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react'
 import { getRpcClient } from '../rpc-client'
 
-const TrackedItem: React.FC<{
+export interface TrackedItemProps {
   branch: string
   notes: string
   notesLoaded: boolean
   repoPath: string
+  worktreePath?: string | null
+  hasTaskPools?: boolean
   isOverlay?: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLElement>
   onRemove: (branch: string) => void
   onNotesChange: (branch: string, notes: string) => void
-}> = ({ branch, notes, notesLoaded, repoPath, isOverlay, dragHandleProps, onRemove, onNotesChange }) => {
+  onGoToWorktree?: (worktreePath: string) => void
+  onNewTask?: (branch: string) => void
+}
+
+const TrackedItem: React.FC<TrackedItemProps> = ({
+  branch, notes, notesLoaded, repoPath, worktreePath, hasTaskPools,
+  isOverlay, dragHandleProps, onRemove, onNotesChange, onGoToWorktree, onNewTask,
+}) => {
+  const displayBranch = branch.replace(/^refs\/heads\//, '');
   const [expanded, setExpanded] = useState(false);
   const [prUrl, setPrUrl] = useState<string | null>(null);
 
@@ -38,9 +48,27 @@ const TrackedItem: React.FC<{
         >
           {expanded ? '\u25BC' : '\u25B6'}
         </span>
-        <span className="font-semibold text-sm flex-1 min-w-0 truncate select-text cursor-text" title={branch}>
-          {branch}
+        <span className="font-semibold text-sm flex-1 min-w-0 truncate select-text cursor-text" title={displayBranch}>
+          {displayBranch}
         </span>
+        {worktreePath && onGoToWorktree && (
+          <button
+            className="btn btn-xs btn-soft btn-neutral shrink-0"
+            title="Go to worktree"
+            onClick={() => onGoToWorktree(worktreePath)}
+          >
+            Go to
+          </button>
+        )}
+        {!worktreePath && hasTaskPools && onNewTask && (
+          <button
+            className="btn btn-xs btn-soft btn-success shrink-0"
+            title="Start a new task on this branch"
+            onClick={() => onNewTask(branch)}
+          >
+            New task
+          </button>
+        )}
         {prUrl && (
           <button
             className="btn btn-xs btn-primary btn-soft shrink-0"

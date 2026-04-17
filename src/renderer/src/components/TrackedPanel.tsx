@@ -18,6 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Worktree } from '../types'
 import { getRpcClient } from '../rpc-client'
 import BranchTypeahead from './BranchTypeahead'
 import TrackedItem from './TrackedItem'
@@ -25,6 +26,10 @@ import TrackedItem from './TrackedItem'
 interface TrackedPanelProps {
   currentRepo: string
   starredBranches: Set<string>
+  worktrees: Worktree[]
+  hasTaskPools: boolean
+  onGoToWorktree: (worktreePath: string) => void
+  onNewTask: (branch: string) => void
 }
 
 interface TrackedItemData {
@@ -56,7 +61,7 @@ const SortableTrackedItem: React.FC<{ id: string; children: (dragHandleProps: Re
   );
 };
 
-const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranches }) => {
+const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranches, worktrees, hasTaskPools, onGoToWorktree, onNewTask }) => {
   const [trackedBranches, setTrackedBranches] = useState<string[]>([]);
   const [itemData, setItemData] = useState<Map<string, TrackedItemData>>(new Map());
   const [adding, setAdding] = useState(false);
@@ -75,6 +80,16 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
   }, [trackedBranches, starredBranches]);
 
   const excludeSet = React.useMemo(() => new Set(mergedBranches), [mergedBranches]);
+
+  const branchToWorktree = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of worktrees) {
+      if (w.branch) {
+        map.set(w.branch.replace(/^refs\/heads\//, ''), w.path);
+      }
+    }
+    return map;
+  }, [worktrees]);
 
   const loadTracked = useCallback(async () => {
     try {
@@ -217,8 +232,12 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
                       notes={data?.notes ?? ''}
                       notesLoaded={data?.notesLoaded ?? false}
                       repoPath={currentRepo}
+                      worktreePath={branchToWorktree.get(branch)}
+                      hasTaskPools={hasTaskPools}
                       onRemove={handleRemove}
                       onNotesChange={handleNotesChange}
+                      onGoToWorktree={onGoToWorktree}
+                      onNewTask={onNewTask}
                       dragHandleProps={dragHandleProps}
                     />
                   )}

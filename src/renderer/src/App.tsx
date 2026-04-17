@@ -47,6 +47,7 @@ const App: React.FC = () => {
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [newTaskInitialBranch, setNewTaskInitialBranch] = useState<string | null>(null);
   const { view: mainPaneView, navigate: setMainPaneView } = useHashRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
@@ -610,6 +611,19 @@ const App: React.FC = () => {
                 .filter((w) => starredWorktrees.has(w.path) && w.branch)
                 .map((w) => w.branch!.replace(/^refs\/heads\//, ''))
             )}
+            worktrees={worktrees}
+            hasTaskPools={repoConfig?.pools?.some(p => p.taskCommand) ?? false}
+            onGoToWorktree={(worktreePath) => {
+              const wt = worktrees.find((w) => w.path === worktreePath);
+              if (wt) {
+                handleWorktreeSelect(wt);
+                setMainPaneView({ type: 'worktree' });
+              }
+            }}
+            onNewTask={(branch) => {
+              setNewTaskInitialBranch(branch);
+              setShowNewTaskModal(true);
+            }}
           />
         </div>
       ) : mainPaneView.type === 'automationRun' && currentRepo ? (
@@ -753,7 +767,8 @@ const App: React.FC = () => {
           pools={repoConfig.pools}
           currentRepo={currentRepo}
           defaultTaskPool={repoConfig.defaultTaskPool}
-          onClose={() => setShowNewTaskModal(false)}
+          initialBranch={newTaskInitialBranch}
+          onClose={() => { setShowNewTaskModal(false); setNewTaskInitialBranch(null); }}
           onComplete={handleTaskComplete}
         />
       )}
