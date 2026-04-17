@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
+import TrackedSteps from './TrackedSteps'
 
 export interface TrackedItemProps {
   branch: string
@@ -91,11 +92,12 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
         <div className="px-3 pb-3">
           <textarea
             className="textarea textarea-bordered w-full bg-base-200 text-sm font-mono leading-relaxed"
-            rows={4}
+            rows={3}
             placeholder="Notes..."
             value={notes}
             onChange={(e) => onNotesChange(branch, e.target.value)}
           />
+          <TrackedSteps repoPath={repoPath} branch={branch} />
         </div>
       )}
     </div>

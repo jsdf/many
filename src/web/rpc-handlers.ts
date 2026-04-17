@@ -4,13 +4,14 @@
  */
 
 import path from "path";
+import crypto from "crypto";
 import { promises as fs } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
 import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
-import { getBranchNotes, setBranchNotes, getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
+import { getBranchNotes, setBranchNotes, getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches, getTrackedSteps, addTrackedStep, updateTrackedStep, removeTrackedStep } from "../cli/db.js";
 import {
   registerTask,
   markTaskCompleted,
@@ -344,6 +345,28 @@ export function createQueryHandlers(opts: {
     "tracked.reorder": async (input) => {
       const { repoPath, branches } = input as { repoPath: string; branches: string[] };
       reorderTrackedBranches(repoPath, branches);
+      return { ok: true };
+    },
+
+    // --- Tracked steps ---
+    "tracked.getSteps": async (input) => {
+      const { repoPath, branch } = input as { repoPath: string; branch: string };
+      return getTrackedSteps(repoPath, branch);
+    },
+    "tracked.addStep": async (input) => {
+      const { repoPath, branch, type, data } = input as { repoPath: string; branch: string; type: string; data: Record<string, unknown> };
+      const id = crypto.randomUUID();
+      addTrackedStep(repoPath, branch, id, type, data);
+      return { id };
+    },
+    "tracked.updateStep": async (input) => {
+      const { id, data, completed } = input as { id: string; data: Record<string, unknown>; completed: boolean };
+      updateTrackedStep(id, data, completed);
+      return { ok: true };
+    },
+    "tracked.removeStep": async (input) => {
+      const { id } = input as { id: string };
+      removeTrackedStep(id);
       return { ok: true };
     },
 

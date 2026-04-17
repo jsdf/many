@@ -352,6 +352,24 @@ export interface QueryProcedures {
     output: { ok: boolean };
   };
 
+  // --- Tracked steps ---
+  "tracked.getSteps": {
+    input: { repoPath: string; branch: string };
+    output: { id: string; type: string; data: Record<string, unknown>; completed: boolean }[];
+  };
+  "tracked.addStep": {
+    input: { repoPath: string; branch: string; type: string; data: Record<string, unknown> };
+    output: { id: string };
+  };
+  "tracked.updateStep": {
+    input: { id: string; data: Record<string, unknown>; completed: boolean };
+    output: { ok: boolean };
+  };
+  "tracked.removeStep": {
+    input: { id: string };
+    output: { ok: boolean };
+  };
+
   // --- Branch operations ---
   "branch.list": {
     input: { repoPath: string };

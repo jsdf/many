@@ -85,6 +85,19 @@ function initSchema(db: Database.Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_tracked_repo ON tracked_branches(repo_path);
+
+    CREATE TABLE IF NOT EXISTS tracked_steps (
+      id TEXT PRIMARY KEY,
+      repo_path TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'text',
+      data TEXT NOT NULL DEFAULT '{}',
+      completed INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tracked_steps_branch ON tracked_steps(repo_path, branch);
     CREATE INDEX IF NOT EXISTS idx_tasks_repo ON tasks(repo_path);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_worktree ON tasks(worktree_path);
@@ -259,4 +272,64 @@ export function reorderTrackedBranches(repoPath: string, branches: string[]): vo
       update.run(i, repoPath, ordered[i]);
     }
   })(branches);
+}
+
+// ---------------------------------------------------------------------------
+// Tracked steps
+// ---------------------------------------------------------------------------
+
+export interface TrackedStep {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+  completed: boolean;
+  sortOrder: number;
+}
+
+export function getTrackedSteps(repoPath: string, branch: string): TrackedStep[] {
+  const rows = getDb()
+    .prepare<[string, string], { id: string; type: string; data: string; completed: number; sort_order: number }>(
+      "SELECT id, type, data, completed, sort_order FROM tracked_steps WHERE repo_path = ? AND branch = ? ORDER BY sort_order ASC"
+    )
+    .all(repoPath, branch);
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    data: JSON.parse(r.data),
+    completed: r.completed === 1,
+    sortOrder: r.sort_order,
+  }));
+}
+
+export function addTrackedStep(repoPath: string, branch: string, id: string, type: string, data: Record<string, unknown>): void {
+  const db = getDb();
+  const maxRow = db
+    .prepare<[string, string], { m: number | null }>(
+      "SELECT MAX(sort_order) as m FROM tracked_steps WHERE repo_path = ? AND branch = ?"
+    )
+    .get(repoPath, branch);
+  const nextOrder = (maxRow?.m ?? -1) + 1;
+  db.prepare(
+    "INSERT INTO tracked_steps (id, repo_path, branch, sort_order, type, data, completed, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)"
+  ).run(id, repoPath, branch, nextOrder, type, JSON.stringify(data), Date.now());
+}
+
+export function updateTrackedStep(id: string, data: Record<string, unknown>, completed: boolean): void {
+  getDb()
+    .prepare("UPDATE tracked_steps SET data = ?, completed = ? WHERE id = ?")
+    .run(JSON.stringify(data), completed ? 1 : 0, id);
+}
+
+export function removeTrackedStep(id: string): void {
+  getDb().prepare("DELETE FROM tracked_steps WHERE id = ?").run(id);
+}
+
+export function reorderTrackedSteps(repoPath: string, branch: string, ids: string[]): void {
+  const db = getDb();
+  const update = db.prepare("UPDATE tracked_steps SET sort_order = ? WHERE id = ?");
+  db.transaction((ordered: string[]) => {
+    for (let i = 0; i < ordered.length; i++) {
+      update.run(i, ordered[i]);
+    }
+  })(ids);
 }
