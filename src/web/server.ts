@@ -9,6 +9,7 @@ import type { AddressInfo } from "net";
 
 import logger from "../shared/logger.js";
 import { loadAppData } from "../cli/config.js";
+import { startTrackedPoller } from "./tracked-poller.js";
 import {
   registerTask,
   markTaskCompleted,
@@ -149,6 +150,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     repoWatcher.watchRepo(repo.path).catch(() => {});
   }
 
+  // Poll GitHub for assigned PRs and auto-track their branches
+  const trackedPoller = startTrackedPoller();
+
   // WebSocket upgrade — single path
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url || "/", `http://${host}:${port}`);
@@ -169,6 +173,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   // Cleanup on server shutdown — save terminal logs before exiting
   const cleanupAndExit = async () => {
+    trackedPoller.stop();
     repoWatcher.close();
     claudeService.destroy();
     rpcServer.destroy();

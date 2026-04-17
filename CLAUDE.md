@@ -80,9 +80,8 @@ All server-renderer communication uses a custom mux-style WebSocket RPC, not tRP
 **Web Server** (`src/web/server.ts`):
 
 - HTTP server serving static files + WebSocket RPC
-- Handles git operations via `src/cli/git-pool.ts`
-- Persistent data via `src/cli/config.ts`
-- External actions (open folder, editor, terminal) via `child_process`
+- Wires up dependencies (terminal manager, RPC server, watchers) and handles lifecycle
+- Keep this file thin - new features should go in their own modules under `src/web/` or `src/services/`, not inline in server.ts
 
 **Services** (`src/services/`):
 
