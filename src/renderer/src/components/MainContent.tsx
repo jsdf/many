@@ -36,6 +36,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
+  const [isTracked, setIsTracked] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
 
@@ -64,6 +65,40 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     const interval = setInterval(fetchGhLink, 30_000);
     return () => clearInterval(interval);
   }, [fetchGhLink, selectedWorktree?.branch, currentRepo]);
+
+  const checkTracked = useCallback(async () => {
+    if (!selectedWorktree?.branch || !currentRepo || isTmpBranch(selectedWorktree.branch)) {
+      setIsTracked(false);
+      return;
+    }
+    try {
+      const branches = await getRpcClient().query("tracked.list", { repoPath: currentRepo });
+      const branchName = selectedWorktree.branch.replace(/^refs\/heads\//, '');
+      setIsTracked(branches.includes(branchName));
+    } catch {
+      setIsTracked(false);
+    }
+  }, [selectedWorktree?.branch, currentRepo]);
+
+  useEffect(() => {
+    checkTracked();
+  }, [checkTracked]);
+
+  const handleToggleTrack = async () => {
+    if (!selectedWorktree?.branch || !currentRepo) return;
+    const branchName = selectedWorktree.branch.replace(/^refs\/heads\//, '');
+    try {
+      if (isTracked) {
+        await getRpcClient().query("tracked.remove", { repoPath: currentRepo, branch: branchName });
+        setIsTracked(false);
+      } else {
+        await getRpcClient().query("tracked.add", { repoPath: currentRepo, input: branchName });
+        setIsTracked(true);
+      }
+    } catch (err) {
+      console.error("Failed to toggle tracked:", err);
+    }
+  };
 
   useImperativeHandle(ref, () => ({
     launchTaskTerminal: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
@@ -172,6 +207,16 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             title="Release this worktree back to the pool"
           >
             🔓 Release
+          </button>
+        )}
+
+        {!isTmpBranch(selectedWorktree.branch) && (
+          <button
+            className={`btn btn-sm ${isTracked ? 'btn-primary btn-soft' : 'btn-soft btn-neutral'}`}
+            onClick={handleToggleTrack}
+            title={isTracked ? "Remove from tracked" : "Add to tracked"}
+          >
+            {isTracked ? "Tracked" : "Track"}
           </button>
         )}
 
