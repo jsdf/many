@@ -61,11 +61,15 @@ const SortableTrackedItem: React.FC<{ id: string; children: (dragHandleProps: Re
   );
 };
 
+type StatusFilter = 'all' | 'active' | 'idle';
+
 const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranches, worktrees, hasTaskPools, onGoToWorktree, onNewTask }) => {
   const [trackedBranches, setTrackedBranches] = useState<string[]>([]);
   const [itemData, setItemData] = useState<Map<string, TrackedItemData>>(new Map());
   const [adding, setAdding] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const sensors = useSensors(
@@ -90,6 +94,24 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
     }
     return map;
   }, [worktrees]);
+
+  const hasActiveFilter = filterText !== '' || statusFilter !== 'all';
+
+  const filteredBranches = React.useMemo(() => {
+    if (!hasActiveFilter) return mergedBranches;
+    const q = filterText.trim().toLowerCase();
+    return mergedBranches.filter((branch) => {
+      if (q) {
+        const data = itemData.get(branch);
+        const matchesBranch = branch.toLowerCase().includes(q);
+        const matchesNotes = data?.notes?.toLowerCase().includes(q) ?? false;
+        if (!matchesBranch && !matchesNotes) return false;
+      }
+      if (statusFilter === 'active') return branchToWorktree.has(branch);
+      if (statusFilter === 'idle') return !branchToWorktree.has(branch);
+      return true;
+    });
+  }, [mergedBranches, filterText, statusFilter, itemData, branchToWorktree, hasActiveFilter]);
 
   const loadTracked = useCallback(async () => {
     try {
@@ -178,16 +200,39 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
     }, 500));
   };
 
+  const handleMoveToTop = (branch: string) => {
+    const reordered = [branch, ...mergedBranches.filter((b) => b !== branch)];
+    setTrackedBranches(reordered);
+    getRpcClient().query("tracked.reorder", {
+      repoPath: currentRepo,
+      branches: reordered,
+    }).catch((err) => {
+      console.error("Failed to reorder tracked branches:", err);
+      loadTracked();
+    });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     setDraggingId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = mergedBranches.indexOf(active.id as string);
-    const newIndex = mergedBranches.indexOf(over.id as string);
+    const sourceList = hasActiveFilter ? filteredBranches : mergedBranches;
+    const oldIndex = sourceList.indexOf(active.id as string);
+    const newIndex = sourceList.indexOf(over.id as string);
     if (oldIndex < 0 || newIndex < 0) return;
 
-    const reordered = arrayMove(mergedBranches, oldIndex, newIndex);
+    let reordered: string[];
+    if (hasActiveFilter) {
+      // Reorder within the full list by moving active.id to just before/after over.id
+      reordered = mergedBranches.filter((b) => b !== active.id);
+      const targetIdx = reordered.indexOf(over.id as string);
+      const insertIdx = oldIndex < newIndex ? targetIdx + 1 : targetIdx;
+      reordered.splice(insertIdx, 0, active.id as string);
+    } else {
+      reordered = arrayMove(mergedBranches, oldIndex, newIndex);
+    }
+
     setTrackedBranches(reordered);
     getRpcClient().query("tracked.reorder", {
       repoPath: currentRepo,
@@ -209,9 +254,36 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
         onAdd={handleAdd}
       />
 
+      {mergedBranches.length > 0 && (
+        <div className="flex items-center gap-2 mt-3 mb-2">
+          <input
+            type="text"
+            className="input input-sm input-bordered flex-1 min-w-0 bg-base-200"
+            placeholder="Filter branches..."
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+          />
+          <div className="flex gap-0.5">
+            {(['all', 'active', 'idle'] as const).map((f) => (
+              <button
+                key={f}
+                className={`btn btn-xs ${statusFilter === f ? 'btn-primary' : 'btn-ghost text-base-content/50'}`}
+                onClick={() => setStatusFilter(f)}
+              >
+                {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Idle'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {mergedBranches.length === 0 ? (
         <p className="text-base-content/50 text-sm italic mt-8 text-center">
           No tracked branches yet. Star a worktree or add a branch above.
+        </p>
+      ) : filteredBranches.length === 0 ? (
+        <p className="text-base-content/50 text-sm italic mt-4 text-center">
+          No branches match the current filter.
         </p>
       ) : (
         <DndContext
@@ -221,8 +293,8 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
           onDragEnd={handleDragEnd}
           onDragCancel={() => setDraggingId(null)}
         >
-          <SortableContext items={mergedBranches} strategy={verticalListSortingStrategy}>
-            {mergedBranches.map((branch) => {
+          <SortableContext items={filteredBranches} strategy={verticalListSortingStrategy}>
+            {filteredBranches.map((branch) => {
               const data = itemData.get(branch);
               return (
                 <SortableTrackedItem key={branch} id={branch}>
@@ -238,6 +310,7 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
                       onNotesChange={handleNotesChange}
                       onGoToWorktree={onGoToWorktree}
                       onNewTask={onNewTask}
+                      onMoveToTop={handleMoveToTop}
                       dragHandleProps={dragHandleProps}
                     />
                   )}

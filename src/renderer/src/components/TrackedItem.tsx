@@ -16,11 +16,12 @@ export interface TrackedItemProps {
   onNotesChange: (branch: string, notes: string) => void
   onGoToWorktree?: (worktreePath: string) => void
   onNewTask?: (branch: string) => void
+  onMoveToTop?: (branch: string) => void
 }
 
 const TrackedItem: React.FC<TrackedItemProps> = ({
   branch, notes, notesLoaded, repoPath, worktreePath, hasTaskPools,
-  isOverlay, dragHandleProps, onRemove, onNotesChange, onGoToWorktree, onNewTask,
+  isOverlay, dragHandleProps, onRemove, onNotesChange, onGoToWorktree, onNewTask, onMoveToTop,
 }) => {
   const displayBranch = formatBranchName(branch);
   const [expanded, setExpanded] = useState(false);
@@ -78,6 +79,15 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
             onClick={() => window.open(prUrl, '_blank', 'noopener,noreferrer')}
           >
             PR
+          </button>
+        )}
+        {onMoveToTop && (
+          <button
+            className="text-xs text-base-content/40 hover:text-base-content/70 shrink-0 px-1"
+            title="Move to top"
+            onClick={() => onMoveToTop(branch)}
+          >
+            &#x21E7;
           </button>
         )}
         <button
