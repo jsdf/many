@@ -39,6 +39,7 @@ import {
   getCommitLog,
   getBranchDiff,
   getGitHubLink,
+  getLinearLink,
   assignPrToMe,
   getWorktrees,
   getWorktreesFromFS,
@@ -479,6 +480,10 @@ export function createQueryHandlers(opts: {
     "repo.githubLink": async (input) => {
       const { repoPath, branch } = input as { repoPath: string; branch: string };
       return getGitHubLink(repoPath, branch);
+    },
+    "repo.linearLink": async (input) => {
+      const { repoPath, branch } = input as { repoPath: string; branch: string };
+      return getLinearLink(repoPath, branch);
     },
 
     // --- Settings ---

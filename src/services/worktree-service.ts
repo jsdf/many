@@ -5,6 +5,9 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { promises as fs } from "fs";
+import path from "path";
+import { homedir } from "os";
+import Database from "better-sqlite3";
 import logger from "../shared/logger.js";
 import * as gitPool from "../cli/git-pool.js";
 import type { WorktreeInfo } from "../cli/git-pool.js";
@@ -729,6 +732,55 @@ export async function getGitHubLink(repoPath: string, branch: string): Promise<G
 
   const repoUrl = await getGitHubRepoUrl();
   if (repoUrl) return { type: "branch", url: `${repoUrl}/tree/${normalizedBranch}` };
+  return null;
+}
+
+// --- getLinearLink (via mux work items DB) ---
+
+export type LinearLinkResult = { linearId: string; linearUrl: string } | null;
+
+async function getGitHubRepo(repoPath: string): Promise<string | null> {
+  try {
+    const { simpleGit } = await import("simple-git");
+    const git = simpleGit(repoPath);
+    const remoteUrl = (await git.remote(["get-url", "origin"])) as string;
+    const trimmed = remoteUrl.trim();
+    const match = trimmed.match(/[:/]([^/]+\/[^/.]+?)(?:\.git)?$/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+let _muxDb: Database.Database | null = null;
+function getMuxDb(): Database.Database | null {
+  if (_muxDb) return _muxDb;
+  const dbPath = path.join(homedir(), ".claude", "mux-cache.db");
+  try {
+    _muxDb = new Database(dbPath, { readonly: true, timeout: 5_000 });
+    _muxDb.pragma("journal_mode = WAL");
+    return _muxDb;
+  } catch {
+    return null;
+  }
+}
+
+export async function getLinearLink(repoPath: string, branch: string): Promise<LinearLinkResult> {
+  const normalizedBranch = branch.replace(/^refs\/heads\//, "");
+  const repo = await getGitHubRepo(repoPath);
+  if (!repo) return null;
+  const db = getMuxDb();
+  if (!db) return null;
+  try {
+    const row = db.prepare<[string, string], { linearId: string; linearUrl: string }>(
+      "SELECT linear_id as linearId, linear_url as linearUrl FROM work_items WHERE repo = ? AND branch = ?"
+    ).get(repo, normalizedBranch);
+    if (row && (row.linearUrl || row.linearId)) {
+      return { linearId: row.linearId, linearUrl: row.linearUrl };
+    }
+  } catch (err) {
+    logger.debug(`[getLinearLink] mux db query failed: ${err instanceof Error ? err.message : err}`);
+  }
   return null;
 }
 

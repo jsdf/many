@@ -36,6 +36,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
+  const [linearLink, setLinearLink] = useState<{ linearId: string; linearUrl: string } | null>(null);
   const [isTracked, setIsTracked] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
@@ -53,11 +54,23 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     });
   }, [selectedWorktree?.branch, currentRepo]);
 
+  const fetchLinearLink = useCallback(() => {
+    if (!selectedWorktree?.branch || !currentRepo || isTmpBranch(selectedWorktree.branch)) return;
+    getRpcClient().query("repo.linearLink", {
+      repoPath: currentRepo,
+      branch: selectedWorktree.branch,
+    }).then((result) => {
+      setLinearLink(result);
+    }).catch(() => {});
+  }, [selectedWorktree?.branch, currentRepo]);
+
   // Reset and fetch on worktree change (path included so re-selecting triggers it)
   useEffect(() => {
     setGhLink(null);
+    setLinearLink(null);
     fetchGhLink();
-  }, [selectedWorktree?.path, fetchGhLink]);
+    fetchLinearLink();
+  }, [selectedWorktree?.path, fetchGhLink, fetchLinearLink]);
 
   // Revalidate every 30 seconds
   useEffect(() => {
@@ -230,6 +243,16 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             </button>
           )}
 
+          {!isTmpBranch(selectedWorktree.branch) && linearLink?.linearUrl && (
+            <a
+              className="btn btn-sm btn-accent"
+              href={linearLink.linearUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {linearLink.linearId || "Linear"}
+            </a>
+          )}
           {!isTmpBranch(selectedWorktree.branch) && (
             <a
               className={`btn btn-sm ${ghLink?.type === "pr" ? "btn-primary" : "btn-neutral"}`}

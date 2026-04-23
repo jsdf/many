@@ -91,6 +91,11 @@ export interface GitHubLink {
   url: string;
 }
 
+export interface LinearLink {
+  linearId: string;
+  linearUrl: string;
+}
+
 // ---------------------------------------------------------------------------
 // Automation types
 // ---------------------------------------------------------------------------
@@ -432,6 +437,10 @@ export interface QueryProcedures {
   "repo.githubLink": {
     input: { repoPath: string; branch: string };
     output: GitHubLink | null;
+  };
+  "repo.linearLink": {
+    input: { repoPath: string; branch: string };
+    output: LinearLink | null;
   };
 
   // --- Settings ---

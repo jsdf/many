@@ -26,11 +26,15 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
   const displayBranch = formatBranchName(branch);
   const [expanded, setExpanded] = useState(false);
   const [prUrl, setPrUrl] = useState<string | null>(null);
+  const [linearLink, setLinearLink] = useState<{ linearId: string; linearUrl: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getRpcClient().query("repo.githubLink", { repoPath, branch }).then((link) => {
       if (!cancelled && link?.type === 'pr') setPrUrl(link.url);
+    }).catch(() => {});
+    getRpcClient().query("repo.linearLink", { repoPath, branch }).then((link) => {
+      if (!cancelled && link) setLinearLink(link);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [repoPath, branch]);
@@ -79,6 +83,15 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
             onClick={() => window.open(prUrl, '_blank', 'noopener,noreferrer')}
           >
             PR
+          </button>
+        )}
+        {linearLink?.linearUrl && (
+          <button
+            className="btn btn-xs btn-accent btn-soft shrink-0"
+            title={`Open Linear: ${linearLink.linearId}`}
+            onClick={() => window.open(linearLink.linearUrl, '_blank', 'noopener,noreferrer')}
+          >
+            {linearLink.linearId || 'Linear'}
           </button>
         )}
         {onMoveToTop && (
