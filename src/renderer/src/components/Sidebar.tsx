@@ -136,6 +136,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 }) => {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
 
   const toggleSelected = (path: string) => {
     setSelectedPaths(prev => {
@@ -159,7 +160,12 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   };
   const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
     const base = worktrees.find(w => w.path === currentRepo);
-    const others = worktrees.filter(w => w.path !== currentRepo && !w.bare);
+    const lowerFilter = filter.toLowerCase();
+    const matchesFilter = (w: Worktree) =>
+      !lowerFilter ||
+      (w.branch && formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
+      w.worktreeName.toLowerCase().includes(lowerFilter);
+    const others = worktrees.filter(w => w.path !== currentRepo && !w.bare && matchesFilter(w));
 
     if (!pools || pools.length === 0) {
       const claimed = sortWorktreeList(others.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder);
@@ -191,7 +197,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       ungroupedClaimed: sortWorktreeList(ungrouped.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder),
       ungroupedAvailable: ungrouped.filter(w => isTmpBranch(w.branch))
     };
-  }, [worktrees, currentRepo, pools, starredWorktrees, worktreeOrder]);
+  }, [worktrees, currentRepo, pools, starredWorktrees, worktreeOrder, filter]);
 
   const hasAnyPoolGroups = poolGroups.length > 0;
 
@@ -361,7 +367,18 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
           </p>
         ) : (
           <>
-            {baseWorktree && renderWorktreeItem(baseWorktree, { isBase: true })}
+            {worktrees.length > 5 && (
+              <div className="px-1 mb-2">
+                <input
+                  type="text"
+                  className="input input-bordered input-sm w-full"
+                  placeholder="Filter worktrees..."
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                />
+              </div>
+            )}
+            {baseWorktree && !filter && renderWorktreeItem(baseWorktree, { isBase: true })}
 
             {poolGroups.map(({ pool, claimed, available }) => {
               if (claimed.length === 0 && available.length === 0) return null;
