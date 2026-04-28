@@ -41,6 +41,7 @@ import {
   getGitHubLink,
   getLinearLink,
   assignPrToMe,
+  getBranchStack,
   getWorktrees,
   getWorktreesFromFS,
   getWorktreeStatus,
@@ -411,6 +412,12 @@ export function createQueryHandlers(opts: {
       const { repoPath, startingPoint, pullLatest } = input as { repoPath: string; startingPoint?: string; pullLatest?: boolean };
       const branchName = await resolveStartingPoint(repoPath, startingPoint ?? "");
       return { startingPoint: branchName };
+    },
+    "branch.stack": async (input) => {
+      const { worktreePath, repoPath } = input as { worktreePath: string; repoPath: string };
+      const appData = await loadAppData();
+      const repoConfig = getRepoConfig(appData, repoPath);
+      return getBranchStack(worktreePath, repoPath, repoConfig.mainBranch);
     },
 
     // --- Repository ---

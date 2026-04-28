@@ -9,6 +9,7 @@ import path from "path";
 import { homedir } from "os";
 import Database from "better-sqlite3";
 import logger from "../shared/logger.js";
+import type { BranchStackEntry, BranchStackResult } from "../shared/protocol.js";
 import * as gitPool from "../cli/git-pool.js";
 import type { WorktreeInfo } from "../cli/git-pool.js";
 import type { RepositoryConfig, PoolConfig } from "../cli/config.js";
@@ -803,4 +804,89 @@ export async function assignPrToMe(repoPath: string, branch: string): Promise<bo
     logger.debug(`[assignPrToMe] failed for branch=${normalizedBranch}: ${msg}`);
     return false;
   }
+}
+
+function getGraphiteStack(dbPath: string, currentBranch: string): BranchStackResult | null {
+  let db: InstanceType<typeof Database>;
+  try {
+    db = new Database(dbPath, { readonly: true, timeout: 2_000 });
+  } catch {
+    return null;
+  }
+
+  try {
+    const rows = db.prepare(
+      "SELECT branch_name, parent_branch_name, validation_result FROM branch_metadata"
+    ).all() as Array<{
+      branch_name: string;
+      parent_branch_name: string | null;
+      validation_result: string | null;
+    }>;
+
+    const byName = new Map(rows.map(r => [r.branch_name, r]));
+    const currentRow = byName.get(currentBranch);
+    if (!currentRow) return null;
+
+    const trunkRow = rows.find(r => r.validation_result === "TRUNK");
+    const trunk = trunkRow?.branch_name || "main";
+
+    const chain: BranchStackEntry[] = [];
+    let cursor: string | null = currentBranch;
+    const seen = new Set<string>();
+
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      const row = byName.get(cursor);
+      if (!row) break;
+      chain.unshift({
+        branch: cursor,
+        isCurrent: cursor === currentBranch,
+        isTrunk: row.validation_result === "TRUNK",
+      });
+      cursor = row.parent_branch_name || null;
+    }
+
+    return { stack: chain, source: "graphite", trunk };
+  } finally {
+    db.close();
+  }
+}
+
+export async function getBranchStack(
+  worktreePath: string,
+  repoPath: string,
+  mainBranch: string | null
+): Promise<BranchStackResult> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(worktreePath);
+
+  const currentBranch = (await git.raw(["symbolic-ref", "--short", "HEAD"]).catch(() => "")).trim();
+  if (!currentBranch) {
+    return { stack: [], source: "git", trunk: mainBranch || "main" };
+  }
+
+  const graphiteDbPath = path.join(repoPath, ".git", ".graphite_metadata.db");
+  try {
+    await fs.access(graphiteDbPath);
+    const result = getGraphiteStack(graphiteDbPath, currentBranch);
+    if (result) return result;
+  } catch {
+    // No Graphite DB
+  }
+
+  const resolvedMain = await gitPool.getDefaultBranch(repoPath, {
+    mainBranch, initCommand: null, worktreeDirectory: null
+  });
+
+  const stack: BranchStackEntry[] = [];
+  if (currentBranch !== resolvedMain) {
+    stack.push({ branch: resolvedMain, isCurrent: false, isTrunk: true });
+  }
+  stack.push({
+    branch: currentBranch,
+    isCurrent: true,
+    isTrunk: currentBranch === resolvedMain,
+  });
+
+  return { stack, source: "git", trunk: resolvedMain };
 }

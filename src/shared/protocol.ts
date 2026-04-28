@@ -63,6 +63,18 @@ export interface GitStatus {
   hasStaged: boolean;
 }
 
+export interface BranchStackEntry {
+  branch: string;
+  isCurrent: boolean;
+  isTrunk: boolean;
+}
+
+export interface BranchStackResult {
+  stack: BranchStackEntry[];
+  source: "graphite" | "git";
+  trunk: string;
+}
+
 export interface GlobalSettings {
   defaultEditor?: string | null;
   defaultTerminal?: string | null;
@@ -395,6 +407,10 @@ export interface QueryProcedures {
   "branch.resolveStartingPoint": {
     input: { repoPath: string; startingPoint?: string; pullLatest?: boolean };
     output: { startingPoint: string };
+  };
+  "branch.stack": {
+    input: { worktreePath: string; repoPath: string };
+    output: BranchStackResult;
   };
 
   // --- Repository management ---

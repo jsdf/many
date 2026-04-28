@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Worktree, GitStatus } from "../types";
+import type { BranchStackResult } from "../../../shared/protocol";
 import { getRpcClient } from "../rpc-client";
 import BranchChanges from "./BranchChanges";
 
@@ -55,6 +56,8 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const [sessionsCollapsed, setSessionsCollapsed] = useState(true);
   const [notes, setNotes] = useState("");
   const [notesLoaded, setNotesLoaded] = useState(false);
+  const [branchStack, setBranchStack] = useState<BranchStackResult | null>(null);
+  const [stackCollapsed, setStackCollapsed] = useState(true);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadGitStatus = async () => {
@@ -125,10 +128,24 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     saveNotes(text);
   };
 
+  const loadBranchStack = useCallback(async () => {
+    if (!worktree.path || !worktree.branch) { setBranchStack(null); return; }
+    try {
+      const result = await getRpcClient().query("branch.stack", {
+        worktreePath: worktree.path,
+        repoPath,
+      });
+      setBranchStack(result);
+    } catch {
+      setBranchStack(null);
+    }
+  }, [worktree.path, worktree.branch, repoPath]);
+
   useEffect(() => {
     loadGitStatus();
     loadTask();
     loadClaudeSessions();
+    loadBranchStack();
     setNotesLoaded(false);
     loadNotes();
   }, [worktree.path]);
@@ -310,6 +327,54 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {branchStack && branchStack.stack.length > 1 && (
+        <div className="mb-3">
+          <h3
+            className="text-base font-semibold cursor-pointer select-none mb-3"
+            onClick={() => setStackCollapsed(!stackCollapsed)}
+          >
+            <span className="text-base-content/40 mr-1">{stackCollapsed ? "▶" : "▼"}</span>
+            Branch Stack
+            {stackCollapsed && (
+              <span className="text-xs font-normal text-base-content/50 ml-2">
+                {branchStack.stack.filter(e => !e.isTrunk).length} branch{branchStack.stack.filter(e => !e.isTrunk).length !== 1 ? "es" : ""}
+                {branchStack.source === "graphite" && (
+                  <span className="text-base-content/40 ml-1">(graphite)</span>
+                )}
+              </span>
+            )}
+          </h3>
+          {!stackCollapsed && (
+            <div className="bg-base-200 border border-base-300 rounded-lg p-3">
+              <div className="flex flex-col gap-0.5 font-mono text-sm">
+                {branchStack.stack.map((entry) => (
+                  <div key={entry.branch} className="flex items-center gap-2">
+                    <span className="text-base-content/30 w-4 text-center shrink-0">
+                      {entry.isCurrent ? "◉" : "○"}
+                    </span>
+                    <span className={
+                      entry.isCurrent
+                        ? "text-primary font-semibold truncate"
+                        : entry.isTrunk
+                          ? "text-base-content/50 truncate"
+                          : "text-base-content/80 truncate"
+                    }>
+                      {entry.branch}
+                    </span>
+                    {entry.isCurrent && (
+                      <span className="badge badge-primary badge-xs shrink-0">HEAD</span>
+                    )}
+                    {entry.isTrunk && (
+                      <span className="badge badge-neutral badge-xs shrink-0">trunk</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
