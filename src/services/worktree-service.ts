@@ -890,3 +890,12 @@ export async function getBranchStack(
 
   return { stack, source: "git", trunk: resolvedMain };
 }
+
+export async function checkoutBranch(
+  worktreePath: string,
+  branch: string
+): Promise<void> {
+  const { simpleGit } = await import("simple-git");
+  const git = simpleGit(worktreePath);
+  await git.raw(["checkout", "--no-recurse-submodules", branch]);
+}

@@ -42,6 +42,7 @@ import {
   getGitHubRepo,
   assignPrToMe,
   getBranchStack,
+  checkoutBranch,
   getWorktrees,
   getWorktreesFromFS,
   getWorktreeStatus,
@@ -404,6 +405,11 @@ export function createQueryHandlers(opts: {
       const appData = await loadAppData();
       const repoConfig = getRepoConfig(appData, repoPath);
       return getBranchStack(worktreePath, repoPath, repoConfig.mainBranch);
+    },
+    "branch.checkout": async (input) => {
+      const { worktreePath, branch } = input as { worktreePath: string; branch: string };
+      await checkoutBranch(worktreePath, branch);
+      return { ok: true };
     },
 
     // --- Repository ---

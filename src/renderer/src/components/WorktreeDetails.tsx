@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Worktree, GitStatus } from "../types";
+import { Worktree, GitStatus, ChangeHandlingOption } from "../types";
 import type { BranchStackResult } from "../../../shared/protocol";
 import { getRpcClient } from "../rpc-client";
 import { setMuxNotes, getMuxBranchInfo, type MuxBranchInfo } from "../mux-client";
@@ -60,6 +60,12 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const [muxInfo, setMuxInfo] = useState<MuxBranchInfo | null>(null);
   const [branchStack, setBranchStack] = useState<BranchStackResult | null>(null);
   const [stackCollapsed, setStackCollapsed] = useState(true);
+  const [switchTarget, setSwitchTarget] = useState<string | null>(null);
+  const [switchHandling, setSwitchHandling] = useState<ChangeHandlingOption>("commit");
+  const [switchCommitMsg, setSwitchCommitMsg] = useState("wip changes");
+  const [switchNoVerify, setSwitchNoVerify] = useState(false);
+  const [switchBusy, setSwitchBusy] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadGitStatus = async () => {
@@ -160,6 +166,64 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     const interval = setInterval(loadClaudeSessions, 10_000);
     return () => clearInterval(interval);
   }, [loadClaudeSessions]);
+
+  const handleBranchClick = async (branch: string) => {
+    if (!worktree.path) return;
+    setSwitchError(null);
+    const status = gitStatus ?? await getRpcClient().query("worktree.status", { worktreePath: worktree.path });
+    if (status.hasChanges || status.hasStaged) {
+      setSwitchTarget(branch);
+      return;
+    }
+    await doCheckout(branch);
+  };
+
+  const doCheckout = async (branch: string) => {
+    if (!worktree.path) return;
+    setSwitchBusy(true);
+    setSwitchError(null);
+    try {
+      await getRpcClient().query("branch.checkout", { worktreePath: worktree.path, branch });
+      setSwitchTarget(null);
+      loadBranchStack();
+      loadGitStatus();
+    } catch (err: any) {
+      setSwitchError(err.message || "Checkout failed");
+    } finally {
+      setSwitchBusy(false);
+    }
+  };
+
+  const handleSwitchWithChanges = async () => {
+    if (!worktree.path || !switchTarget) return;
+    setSwitchBusy(true);
+    setSwitchError(null);
+    try {
+      switch (switchHandling) {
+        case "commit":
+          if (!switchCommitMsg.trim()) { setSwitchError("Commit message is required"); setSwitchBusy(false); return; }
+          await getRpcClient().query("worktree.commit", { worktreePath: worktree.path, message: switchCommitMsg.trim(), noVerify: switchNoVerify });
+          break;
+        case "amend":
+          await getRpcClient().query("worktree.amend", { worktreePath: worktree.path, noVerify: switchNoVerify });
+          break;
+        case "stash":
+          await getRpcClient().query("worktree.stash", { worktreePath: worktree.path });
+          break;
+        case "clean":
+          await getRpcClient().query("worktree.clean", { worktreePath: worktree.path });
+          break;
+        case "cancel":
+          setSwitchTarget(null);
+          setSwitchBusy(false);
+          return;
+      }
+      await doCheckout(switchTarget);
+    } catch (err: any) {
+      setSwitchError(err.message || "Failed to handle changes");
+      setSwitchBusy(false);
+    }
+  };
 
   const handleKillTask = async () => {
     if (!task) return;
@@ -365,24 +429,83 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                     <span className="text-base-content/30 w-4 text-center shrink-0">
                       {entry.isCurrent ? "◉" : "○"}
                     </span>
-                    <span className={
-                      entry.isCurrent
-                        ? "text-primary font-semibold truncate"
-                        : entry.isTrunk
-                          ? "text-base-content/50 truncate"
-                          : "text-base-content/80 truncate"
-                    }>
+                    <span
+                      className={
+                        entry.isCurrent
+                          ? "text-primary font-semibold truncate"
+                          : "text-base-content/80 truncate cursor-pointer hover:text-primary hover:underline"
+                      }
+                      onClick={entry.isCurrent ? undefined : () => handleBranchClick(entry.branch)}
+                    >
                       {entry.branch}
                     </span>
                     {entry.isCurrent && (
                       <span className="badge badge-primary badge-xs shrink-0">HEAD</span>
                     )}
-                    {entry.isTrunk && (
+                    {entry.isTrunk && !entry.isCurrent && (
                       <span className="badge badge-neutral badge-xs shrink-0">trunk</span>
                     )}
                   </div>
                 ))}
               </div>
+              {switchError && !switchTarget && (
+                <p className="text-error text-xs mt-2 p-2 bg-error/10 rounded">{switchError}</p>
+              )}
+              {switchTarget && (
+                <div className="mt-3 pt-3 border-t border-base-300">
+                  <h4 className="text-sm font-semibold mb-2 text-warning">Uncommitted changes</h4>
+                  <p className="text-xs text-base-content/60 mb-3">
+                    Handle changes before switching to <strong>{switchTarget}</strong>:
+                  </p>
+                  <div className="flex flex-col gap-1.5 mb-3">
+                    {([
+                      { value: "commit" as const, label: "Commit", hint: "Create a new commit" },
+                      { value: "amend" as const, label: "Amend", hint: "Add to last commit" },
+                      { value: "stash" as const, label: "Stash", hint: "Save for later" },
+                      { value: "clean" as const, label: "Discard", hint: "Delete all changes", hintClass: "text-error" },
+                    ] as const).map(opt => (
+                      <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 bg-base-100 border border-base-300 rounded cursor-pointer hover:border-base-content/30 text-xs">
+                        <input
+                          type="radio"
+                          name="switchHandling"
+                          value={opt.value}
+                          checked={switchHandling === opt.value}
+                          onChange={() => setSwitchHandling(opt.value)}
+                          disabled={switchBusy}
+                          className="radio radio-xs"
+                        />
+                        <strong>{opt.label}</strong>
+                        <span className={"text-base-content/50" + ("hintClass" in opt ? ` ${opt.hintClass}` : "")}>{opt.hint}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {switchHandling === "commit" && (
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm w-full mb-2"
+                      value={switchCommitMsg}
+                      onChange={e => setSwitchCommitMsg(e.target.value)}
+                      placeholder="wip changes"
+                      disabled={switchBusy}
+                    />
+                  )}
+                  {(switchHandling === "commit" || switchHandling === "amend") && (
+                    <label className="flex items-center gap-2 mb-3 cursor-pointer text-xs">
+                      <input type="checkbox" className="checkbox checkbox-xs" checked={switchNoVerify} onChange={e => setSwitchNoVerify(e.target.checked)} disabled={switchBusy} />
+                      Skip git hooks (--no-verify)
+                    </label>
+                  )}
+                  {switchError && <p className="text-error text-xs mb-2 p-2 bg-error/10 rounded">{switchError}</p>}
+                  <div className="flex gap-2">
+                    <button className="btn btn-primary btn-xs" onClick={handleSwitchWithChanges} disabled={switchBusy || (switchHandling === "commit" && !switchCommitMsg.trim())}>
+                      {switchBusy ? "Switching..." : "Switch"}
+                    </button>
+                    <button className="btn btn-neutral btn-xs" onClick={() => { setSwitchTarget(null); setSwitchError(null); }} disabled={switchBusy}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

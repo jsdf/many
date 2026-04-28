@@ -385,6 +385,10 @@ export interface QueryProcedures {
     input: { worktreePath: string; repoPath: string };
     output: BranchStackResult;
   };
+  "branch.checkout": {
+    input: { worktreePath: string; branch: string };
+    output: { ok: boolean };
+  };
 
   // --- Repository management ---
   "repo.list": {
