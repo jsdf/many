@@ -29,14 +29,6 @@ export function getDb(): Database.Database {
 
 function initSchema(db: Database.Database): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS branch_notes (
-      repo_path TEXT NOT NULL,
-      branch TEXT NOT NULL,
-      notes TEXT NOT NULL,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (repo_path, branch)
-    );
-
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
       pid INTEGER NOT NULL,
@@ -86,18 +78,6 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_tracked_repo ON tracked_branches(repo_path);
 
-    CREATE TABLE IF NOT EXISTS tracked_steps (
-      id TEXT PRIMARY KEY,
-      repo_path TEXT NOT NULL,
-      branch TEXT NOT NULL,
-      sort_order INTEGER NOT NULL,
-      type TEXT NOT NULL DEFAULT 'text',
-      data TEXT NOT NULL DEFAULT '{}',
-      completed INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tracked_steps_branch ON tracked_steps(repo_path, branch);
     CREATE INDEX IF NOT EXISTS idx_tasks_repo ON tasks(repo_path);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_worktree ON tasks(worktree_path);
@@ -204,32 +184,6 @@ function migrateJsonData(db: Database.Database): void {
 }
 
 // ---------------------------------------------------------------------------
-// Branch notes
-// ---------------------------------------------------------------------------
-
-export function getBranchNotes(repoPath: string, branch: string): string {
-  const row = getDb()
-    .prepare<[string, string], { notes: string }>(
-      "SELECT notes FROM branch_notes WHERE repo_path = ? AND branch = ?"
-    )
-    .get(repoPath, branch);
-  return row?.notes ?? "";
-}
-
-export function setBranchNotes(repoPath: string, branch: string, notes: string): void {
-  const db = getDb();
-  if (notes) {
-    db.prepare(
-      `INSERT INTO branch_notes (repo_path, branch, notes, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(repo_path, branch) DO UPDATE SET notes = excluded.notes, updated_at = excluded.updated_at`
-    ).run(repoPath, branch, notes, Date.now());
-  } else {
-    db.prepare("DELETE FROM branch_notes WHERE repo_path = ? AND branch = ?").run(repoPath, branch);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Tracked branches
 // ---------------------------------------------------------------------------
 
@@ -274,62 +228,3 @@ export function reorderTrackedBranches(repoPath: string, branches: string[]): vo
   })(branches);
 }
 
-// ---------------------------------------------------------------------------
-// Tracked steps
-// ---------------------------------------------------------------------------
-
-export interface TrackedStep {
-  id: string;
-  type: string;
-  data: Record<string, unknown>;
-  completed: boolean;
-  sortOrder: number;
-}
-
-export function getTrackedSteps(repoPath: string, branch: string): TrackedStep[] {
-  const rows = getDb()
-    .prepare<[string, string], { id: string; type: string; data: string; completed: number; sort_order: number }>(
-      "SELECT id, type, data, completed, sort_order FROM tracked_steps WHERE repo_path = ? AND branch = ? ORDER BY sort_order ASC"
-    )
-    .all(repoPath, branch);
-  return rows.map((r) => ({
-    id: r.id,
-    type: r.type,
-    data: JSON.parse(r.data),
-    completed: r.completed === 1,
-    sortOrder: r.sort_order,
-  }));
-}
-
-export function addTrackedStep(repoPath: string, branch: string, id: string, type: string, data: Record<string, unknown>): void {
-  const db = getDb();
-  const maxRow = db
-    .prepare<[string, string], { m: number | null }>(
-      "SELECT MAX(sort_order) as m FROM tracked_steps WHERE repo_path = ? AND branch = ?"
-    )
-    .get(repoPath, branch);
-  const nextOrder = (maxRow?.m ?? -1) + 1;
-  db.prepare(
-    "INSERT INTO tracked_steps (id, repo_path, branch, sort_order, type, data, completed, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)"
-  ).run(id, repoPath, branch, nextOrder, type, JSON.stringify(data), Date.now());
-}
-
-export function updateTrackedStep(id: string, data: Record<string, unknown>, completed: boolean): void {
-  getDb()
-    .prepare("UPDATE tracked_steps SET data = ?, completed = ? WHERE id = ?")
-    .run(JSON.stringify(data), completed ? 1 : 0, id);
-}
-
-export function removeTrackedStep(id: string): void {
-  getDb().prepare("DELETE FROM tracked_steps WHERE id = ?").run(id);
-}
-
-export function reorderTrackedSteps(repoPath: string, branch: string, ids: string[]): void {
-  const db = getDb();
-  const update = db.prepare("UPDATE tracked_steps SET sort_order = ? WHERE id = ?");
-  db.transaction((ordered: string[]) => {
-    for (let i = 0; i < ordered.length; i++) {
-      update.run(i, ordered[i]);
-    }
-  })(ids);
-}

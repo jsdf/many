@@ -342,15 +342,6 @@ export interface QueryProcedures {
     input: { repoPath: string; order: string[] };
     output: { ok: boolean };
   };
-  "worktree.getNotes": {
-    input: { repoPath: string; branch: string };
-    output: string;
-  };
-  "worktree.setNotes": {
-    input: { repoPath: string; branch: string; notes: string };
-    output: { ok: boolean };
-  };
-
   // --- Tracked branches ---
   "tracked.list": {
     input: { repoPath: string };
@@ -366,24 +357,6 @@ export interface QueryProcedures {
   };
   "tracked.reorder": {
     input: { repoPath: string; branches: string[] };
-    output: { ok: boolean };
-  };
-
-  // --- Tracked steps ---
-  "tracked.getSteps": {
-    input: { repoPath: string; branch: string };
-    output: { id: string; type: string; data: Record<string, unknown>; completed: boolean }[];
-  };
-  "tracked.addStep": {
-    input: { repoPath: string; branch: string; type: string; data: Record<string, unknown> };
-    output: { id: string };
-  };
-  "tracked.updateStep": {
-    input: { id: string; data: Record<string, unknown>; completed: boolean };
-    output: { ok: boolean };
-  };
-  "tracked.removeStep": {
-    input: { id: string };
     output: { ok: boolean };
   };
 
@@ -467,6 +440,10 @@ export interface QueryProcedures {
   "settings.save": {
     input: GlobalSettings;
     output: { ok: boolean };
+  };
+  "settings.muxUrl": {
+    input: { repoPath: string };
+    output: { wsUrl: string | null; repo: string | null };
   };
 
   // --- External actions ---

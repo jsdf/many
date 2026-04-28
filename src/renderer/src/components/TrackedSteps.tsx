@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Menu } from '@base-ui-components/react/menu'
-import { getRpcClient } from '../rpc-client'
+import { getMuxSteps, addMuxStep, updateMuxStep, deleteMuxStep, type TrackedStep } from '../mux-client'
 
 const STEP_TYPES = [
   { type: 'text', label: 'Text', defaultData: { text: '' } },
 ] as const;
 
-interface Step {
-  id: string
-  type: string
-  data: Record<string, unknown>
-  completed: boolean
-}
+type Step = TrackedStep;
 
 const TrackedSteps: React.FC<{
   repoPath: string
@@ -23,7 +18,7 @@ const TrackedSteps: React.FC<{
 
   const load = useCallback(async () => {
     try {
-      const result = await getRpcClient().query("tracked.getSteps", { repoPath, branch });
+      const result = await getMuxSteps(repoPath, branch);
       setSteps(result);
     } catch {
       setSteps([]);
@@ -33,12 +28,12 @@ const TrackedSteps: React.FC<{
 
   useEffect(() => { load(); }, [load]);
 
-  const addStep = async (type: string, defaultData: Record<string, unknown>) => {
+  const addStep = async (_type: string, defaultData: Record<string, unknown>) => {
     try {
-      const { id } = await getRpcClient().query("tracked.addStep", {
-        repoPath, branch, type, data: defaultData,
-      });
-      setSteps((prev) => [...prev, { id, type, data: { ...defaultData }, completed: false }]);
+      const id = await addMuxStep(repoPath, branch, (defaultData.text as string) ?? "");
+      if (id) {
+        setSteps((prev) => [...prev, { id, type: "text", data: { ...defaultData }, completed: false }]);
+      }
     } catch (err) {
       console.error("Failed to add step:", err);
     }
@@ -47,7 +42,7 @@ const TrackedSteps: React.FC<{
   const removeStep = async (id: string) => {
     setSteps((prev) => prev.filter((s) => s.id !== id));
     try {
-      await getRpcClient().query("tracked.removeStep", { id });
+      await deleteMuxStep(id);
     } catch {
       load();
     }
@@ -57,7 +52,7 @@ const TrackedSteps: React.FC<{
     const next = !step.completed;
     setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: next } : s));
     try {
-      await getRpcClient().query("tracked.updateStep", { id: step.id, data: step.data, completed: next });
+      await updateMuxStep(step.id, undefined, next);
     } catch {
       load();
     }
@@ -69,11 +64,7 @@ const TrackedSteps: React.FC<{
     const existing = saveTimers.current.get(step.id);
     if (existing) clearTimeout(existing);
     saveTimers.current.set(step.id, setTimeout(() => {
-      getRpcClient().query("tracked.updateStep", {
-        id: step.id,
-        data: { ...step.data, text },
-        completed: step.completed,
-      }).catch(() => {});
+      updateMuxStep(step.id, text, step.completed).catch(() => {});
       saveTimers.current.delete(step.id);
     }, 500));
   };

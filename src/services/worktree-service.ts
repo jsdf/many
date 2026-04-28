@@ -740,7 +740,7 @@ export async function getGitHubLink(repoPath: string, branch: string): Promise<G
 
 export type LinearLinkResult = { linearId: string; linearUrl: string } | null;
 
-async function getGitHubRepo(repoPath: string): Promise<string | null> {
+export async function getGitHubRepo(repoPath: string): Promise<string | null> {
   try {
     const { simpleGit } = await import("simple-git");
     const git = simpleGit(repoPath);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Worktree, GitStatus } from "../types";
 import type { BranchStackResult } from "../../../shared/protocol";
 import { getRpcClient } from "../rpc-client";
+import { setMuxNotes, getMuxBranchInfo, type MuxBranchInfo } from "../mux-client";
 import BranchChanges from "./BranchChanges";
 
 interface TaskRecord {
@@ -56,6 +57,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   const [sessionsCollapsed, setSessionsCollapsed] = useState(true);
   const [notes, setNotes] = useState("");
   const [notesLoaded, setNotesLoaded] = useState(false);
+  const [muxInfo, setMuxInfo] = useState<MuxBranchInfo | null>(null);
   const [branchStack, setBranchStack] = useState<BranchStackResult | null>(null);
   const [stackCollapsed, setStackCollapsed] = useState(true);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,15 +99,14 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
   }, [worktree.path]);
 
   const loadNotes = useCallback(async () => {
-    if (!worktree.branch) { setNotes(""); setNotesLoaded(true); return; }
+    if (!worktree.branch) { setNotes(""); setNotesLoaded(true); setMuxInfo(null); return; }
     try {
-      const text = await getRpcClient().query("worktree.getNotes", {
-        repoPath,
-        branch: worktree.branch,
-      });
-      setNotes(text);
+      const info = await getMuxBranchInfo(repoPath, worktree.branch);
+      setNotes(info?.notes ?? "");
+      setMuxInfo(info);
     } catch {
       setNotes("");
+      setMuxInfo(null);
     }
     setNotesLoaded(true);
   }, [worktree.branch, repoPath]);
@@ -114,11 +115,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     if (!worktree.branch) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      getRpcClient().query("worktree.setNotes", {
-        repoPath,
-        branch: worktree.branch!,
-        notes: text,
-      }).catch(() => {});
+      setMuxNotes(repoPath, worktree.branch!, text).catch(() => {});
     }, 500);
   }, [worktree.branch, repoPath]);
 
@@ -200,7 +197,18 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
     <div className="p-5 overflow-auto h-full w-full min-w-0">
       {worktree.branch && notesLoaded && (
         <div className="mb-3">
-          <h3 className="text-base font-semibold mb-3">Notes</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-base font-semibold">Notes</h3>
+            {muxInfo?.linearUrl && (
+              <button
+                className="btn btn-xs btn-accent btn-soft"
+                title={`Open Linear: ${muxInfo.linearId}`}
+                onClick={() => window.open(muxInfo.linearUrl, '_blank', 'noopener,noreferrer')}
+              >
+                {muxInfo.linearId || 'Linear'}
+              </button>
+            )}
+          </div>
           <textarea
             className="textarea textarea-bordered w-full bg-base-200 text-sm font-mono leading-relaxed"
             rows={3}

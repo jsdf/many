@@ -4,14 +4,13 @@
  */
 
 import path from "path";
-import crypto from "crypto";
 import { promises as fs } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
 import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
-import { getBranchNotes, setBranchNotes, getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches, getTrackedSteps, addTrackedStep, updateTrackedStep, removeTrackedStep } from "../cli/db.js";
+import { getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
 import {
   registerTask,
   markTaskCompleted,
@@ -40,6 +39,7 @@ import {
   getBranchDiff,
   getGitHubLink,
   getLinearLink,
+  getGitHubRepo,
   assignPrToMe,
   getBranchStack,
   getWorktrees,
@@ -60,6 +60,24 @@ import { ClaudeService } from "../claude-session/server/claude-service.js";
 import { SessionStore } from "../claude-session/server/session-store.js";
 
 const userShell = process.env.SHELL || "/bin/bash";
+
+// ---------------------------------------------------------------------------
+// Mux server URL discovery
+// ---------------------------------------------------------------------------
+
+let _cachedMuxUrl: string | null | undefined;
+
+async function getMuxWsUrl(): Promise<string | null> {
+  if (_cachedMuxUrl !== undefined) return _cachedMuxUrl;
+  try {
+    const result = execSync("mux-url", { encoding: "utf-8", timeout: 3000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+    _cachedMuxUrl = result || null;
+  } catch {
+    _cachedMuxUrl = null;
+  }
+  setTimeout(() => { _cachedMuxUrl = undefined; }, 30_000);
+  return _cachedMuxUrl;
+}
 
 // ---------------------------------------------------------------------------
 // External action helpers (same as server.ts originals)
@@ -300,16 +318,6 @@ export function createQueryHandlers(opts: {
       });
       return { ok: true };
     },
-    "worktree.getNotes": async (input) => {
-      const { repoPath, branch } = input as { repoPath: string; branch: string };
-      return getBranchNotes(repoPath, branch);
-    },
-    "worktree.setNotes": async (input) => {
-      const { repoPath, branch, notes } = input as { repoPath: string; branch: string; notes: string };
-      setBranchNotes(repoPath, branch, notes);
-      return { ok: true };
-    },
-
     // --- Tracked branches ---
     "tracked.list": async (input) => {
       const { repoPath } = input as { repoPath: string };
@@ -347,28 +355,6 @@ export function createQueryHandlers(opts: {
     "tracked.reorder": async (input) => {
       const { repoPath, branches } = input as { repoPath: string; branches: string[] };
       reorderTrackedBranches(repoPath, branches);
-      return { ok: true };
-    },
-
-    // --- Tracked steps ---
-    "tracked.getSteps": async (input) => {
-      const { repoPath, branch } = input as { repoPath: string; branch: string };
-      return getTrackedSteps(repoPath, branch);
-    },
-    "tracked.addStep": async (input) => {
-      const { repoPath, branch, type, data } = input as { repoPath: string; branch: string; type: string; data: Record<string, unknown> };
-      const id = crypto.randomUUID();
-      addTrackedStep(repoPath, branch, id, type, data);
-      return { id };
-    },
-    "tracked.updateStep": async (input) => {
-      const { id, data, completed } = input as { id: string; data: Record<string, unknown>; completed: boolean };
-      updateTrackedStep(id, data, completed);
-      return { ok: true };
-    },
-    "tracked.removeStep": async (input) => {
-      const { id } = input as { id: string };
-      removeTrackedStep(id);
       return { ok: true };
     },
 
@@ -503,6 +489,11 @@ export function createQueryHandlers(opts: {
         appData.globalSettings = input as any;
       });
       return { ok: true };
+    },
+    "settings.muxUrl": async (input) => {
+      const { repoPath } = input as { repoPath: string };
+      const [wsUrl, repo] = await Promise.all([getMuxWsUrl(), getGitHubRepo(repoPath)]);
+      return { wsUrl, repo };
     },
 
     // --- Actions ---

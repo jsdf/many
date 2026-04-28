@@ -20,6 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Worktree } from '../types'
 import { getRpcClient } from '../rpc-client'
+import { getMuxNotes, setMuxNotes } from '../mux-client'
 import BranchTypeahead from './BranchTypeahead'
 import TrackedItem from './TrackedItem'
 
@@ -126,10 +127,7 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
     const results = await Promise.all(
       branches.map(async (branch) => {
         try {
-          const notes = await getRpcClient().query("worktree.getNotes", {
-            repoPath: currentRepo,
-            branch,
-          });
+          const notes = await getMuxNotes(currentRepo, branch);
           return { branch, notes, notesLoaded: true };
         } catch {
           return { branch, notes: '', notesLoaded: true };
@@ -191,11 +189,7 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
     const existing = saveTimers.current.get(branch);
     if (existing) clearTimeout(existing);
     saveTimers.current.set(branch, setTimeout(() => {
-      getRpcClient().query("worktree.setNotes", {
-        repoPath: currentRepo,
-        branch,
-        notes,
-      }).catch(() => {});
+      setMuxNotes(currentRepo, branch, notes).catch(() => {});
       saveTimers.current.delete(branch);
     }, 500));
   };
