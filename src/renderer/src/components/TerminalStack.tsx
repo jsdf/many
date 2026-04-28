@@ -35,6 +35,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
+  const [terminalTitles, setTerminalTitles] = useState<Record<string, string>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,7 +56,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         const sessions = await getRpcClient().query("claude.sessions", { worktreePath }) as any[];
         if (cancelled) return;
         for (const s of sessions) {
-          if (s.isRunning) {
+          // Only auto-reopen sessions that are running, were created as chat sessions, and not explicitly closed
+          if (s.isRunning && s.sessionType === "chat" && !s.closed) {
             tabs.push({ id: `claude-session-${s.sessionId}`, isClaudeSession: true, sessionId: s.sessionId });
           }
         }
@@ -171,15 +173,20 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
-      // Check if this is a task log tab — kill the task when closing (unless it's a saved log)
       const term = terminals.find((t) => t.id === terminalId);
-      if (term?.isTaskLog && term.taskId && !term.isSavedLog) {
+      if (term?.isClaudeSession && term.sessionId) {
+        try {
+          await getRpcClient().query("session.close", { sessionId: term.sessionId });
+        } catch {
+          // Session may already be dead
+        }
+      } else if (term?.isTaskLog && term.taskId && !term.isSavedLog) {
         try {
           await getRpcClient().query("task.kill", { taskId: term.taskId });
         } catch {
           // Task may already be dead
         }
-      } else if (!term?.isTaskLog) {
+      } else if (!term?.isTaskLog && !term?.isSessionHistory) {
         try {
           await getRpcClient().query("terminal.close", { terminalId });
         } catch {
@@ -292,8 +299,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
               }}
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-300 border-b border-base-300 shrink-0">
-                <span className="text-xs text-base-content/60">
-                  {term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : `Terminal ${i + 1}`}
+                <span className="text-xs text-base-content/60 truncate">
+                  {term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
                 </span>
                 <button
                   className="btn btn-ghost btn-xs"
@@ -327,6 +334,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     env={term.env}
                     initialCommand={term.initialCommand}
                     taskId={term.taskId}
+                    onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
                   />
                 )}
               </div>
