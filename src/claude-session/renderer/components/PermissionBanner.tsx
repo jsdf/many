@@ -22,7 +22,7 @@ export function PermissionBanner({
   return (
     <div className="border-t border-warning/30 bg-warning/10 p-3 flex flex-col gap-2">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-warning">⚠</span>
+        <span className="text-amber-600">⚠</span>
         <span className="font-medium">
           {request.displayName ?? request.toolName}
         </span>
