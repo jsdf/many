@@ -1,7 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { PoolConfig } from "../types";
-import { getRpcClient } from "../rpc-client";
-import type { StreamEvent } from "../../../shared/protocol";
+
+export type TaskLaunchLogEntry = { type: "step" | "stdout" | "stderr" | "error"; text: string };
+
+export type TaskLaunchState = {
+  isLaunching: boolean;
+  log: TaskLaunchLogEntry[];
+  error: string | null;
+  done: boolean;
+};
 
 interface NewTaskModalProps {
   pools: PoolConfig[];
@@ -9,10 +16,14 @@ interface NewTaskModalProps {
   defaultTaskPool?: string | null;
   initialBranch?: string | null;
   onClose: () => void;
-  onComplete: (worktreePath: string, pool: PoolConfig, prompt: string, taskId?: string) => void;
+  onLaunch: (params: {
+    repoPath: string;
+    pool: PoolConfig;
+    prompt: string;
+    startingPoint?: string;
+  }) => void;
+  launchState: TaskLaunchState | null;
 }
-
-type LogEntry = { type: "step" | "stdout" | "stderr" | "error"; text: string };
 
 const NewTaskModal: React.FC<NewTaskModalProps> = ({
   pools,
@@ -20,7 +31,8 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
   defaultTaskPool,
   initialBranch,
   onClose,
-  onComplete,
+  onLaunch,
+  launchState,
 }) => {
   const taskPools = pools.filter((p) => p.taskCommand);
   const defaultIndex = defaultTaskPool
@@ -29,13 +41,13 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [selectedPoolIndex, setSelectedPoolIndex] = useState(defaultIndex);
   const [prompt, setPrompt] = useState("");
   const [startingPoint, setStartingPoint] = useState(initialBranch ?? "");
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [log, setLog] = useState<LogEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const selectedPool = taskPools[selectedPoolIndex];
+  const isLaunching = launchState?.isLaunching ?? false;
+  const log = launchState?.log ?? [];
+  const error = launchState?.error ?? null;
+  const done = launchState?.done ?? false;
 
   useEffect(() => {
     if (logRef.current) {
@@ -47,46 +59,16 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
     e.preventDefault();
     if (!selectedPool || !prompt.trim()) return;
 
-    setIsLaunching(true);
-    setError(null);
-    setLog([]);
-    setDone(false);
-
-    const unsubscribe = getRpcClient().subscribe(
-      "stream.launchTask",
-      (event: StreamEvent) => {
-        if (event.type === "step") {
-          setLog((prev) => [...prev, { type: "step", text: event.text }]);
-        } else if (event.type === "stdout") {
-          setLog((prev) => [...prev, { type: "stdout", text: event.text }]);
-        } else if (event.type === "stderr") {
-          setLog((prev) => [...prev, { type: "stderr", text: event.text }]);
-        } else if (event.type === "error") {
-          setLog((prev) => [...prev, { type: "error", text: event.text }]);
-          setError(event.text);
-        } else if (event.type === "done") {
-          setDone(true);
-          setIsLaunching(false);
-          if (event.success && event.worktreePath) {
-            onComplete(event.worktreePath, selectedPool, prompt.trim(), event.taskId);
-          }
-          unsubscribe();
-        }
-      },
-      {
-        repoPath: currentRepo,
-        poolType: selectedPool.type,
-        poolPrefix: selectedPool.prefix,
-        prompt: prompt.trim(),
-        startingPoint: startingPoint.trim() || undefined,
-        maintenanceCommand: selectedPool.maintenanceCommand,
-        taskCommand: selectedPool.taskCommand,
-      }
-    );
+    onLaunch({
+      repoPath: currentRepo,
+      pool: selectedPool,
+      prompt: prompt.trim(),
+      startingPoint: startingPoint.trim() || undefined,
+    });
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isLaunching) onClose();
+    if (e.target === e.currentTarget) onClose();
   };
 
   const showLog = log.length > 0;
@@ -105,7 +87,6 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
           <button
             className="btn btn-ghost btn-sm btn-circle text-base-content/60"
             onClick={onClose}
-            disabled={isLaunching}
           >
             &times;
           </button>
@@ -189,7 +170,7 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
                             : "text-base-content/70"
                     }
                   >
-                    {entry.type === "step" ? `→ ${entry.text}` : entry.text}
+                    {entry.type === "step" ? `-> ${entry.text}` : entry.text}
                   </div>
                 ))}
                 {isLaunching && (
@@ -201,6 +182,12 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
             {error && !showLog && (
               <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>
             )}
+
+            {isLaunching && (
+              <p className="text-xs text-base-content/50 mt-3">
+                You can close this modal - the task will continue starting in the background.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
@@ -208,9 +195,8 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
               type="button"
               className="btn btn-neutral"
               onClick={onClose}
-              disabled={isLaunching}
             >
-              Cancel
+              {isLaunching ? "Close" : "Cancel"}
             </button>
             <button
               type="submit"

@@ -83,7 +83,7 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
     const [open, setOpen] = useState(false);
     return (
       <div className="my-0.5">
-        <button className="btn btn-xs btn-ghost gap-1 text-xs text-warning opacity-70 hover:opacity-100" onClick={() => setOpen((o) => !o)}>
+        <button className="btn btn-xs btn-ghost gap-1 text-xs text-base-content/50 opacity-70 hover:opacity-100" onClick={() => setOpen((o) => !o)}>
           <span>💭</span><span>thinking</span><span className="opacity-40">{open ? "▲" : "▼"}</span>
         </button>
         {open && <pre className="mt-1 p-2 bg-base-300 rounded text-xs overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap opacity-70">{block.thinking}</pre>}
@@ -405,7 +405,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
       {permissionRequest && (
         <div className="border-t border-warning/30 bg-warning/10 p-3 flex flex-col gap-2">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-warning">⚠</span>
+            <span className="text-amber-600">⚠</span>
             <span className="font-medium">{permissionRequest.displayName ?? permissionRequest.toolName}</span>
           </div>
           <div className="flex gap-2">

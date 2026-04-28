@@ -26,6 +26,22 @@ import type {
   PermissionRequest,
 } from "../shared/protocol.js";
 import logger from "../../shared/logger.js";
+import { createRequire } from "module";
+
+function getClaudeCodeExecutablePath(): string | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    const sdkCliPath = require.resolve(
+      "@anthropic-ai/claude-agent-sdk/cli.js"
+    );
+    if (sdkCliPath.includes("app.asar/")) {
+      return sdkCliPath.replace("app.asar/", "app.asar.unpacked/");
+    }
+  } catch {
+    // Not in asar or resolve failed - let SDK use its default
+  }
+  return undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,6 +100,7 @@ export class ClaudeService {
 
     const sessionOpts: SDKSessionOptions = {
       model: "claude-sonnet-4-6",
+      pathToClaudeCodeExecutable: getClaudeCodeExecutablePath(),
       permissionMode: opts.permissionMode ?? "default",
       env: {
         ...process.env,

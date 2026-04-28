@@ -94,7 +94,7 @@ function ThinkingBlock({ text }: { text: string }) {
   return (
     <div className="my-1">
       <button
-        className="btn btn-xs btn-ghost gap-1 text-xs text-warning opacity-70 hover:opacity-100"
+        className="btn btn-xs btn-ghost gap-1 text-xs text-base-content/50 opacity-70 hover:opacity-100"
         onClick={() => setOpen((o) => !o)}
       >
         <span>💭</span>

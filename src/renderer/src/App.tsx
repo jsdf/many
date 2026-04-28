@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
 import Sidebar, { TaskQueueSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
@@ -18,6 +18,8 @@ import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { getRpcClient } from "./rpc-client";
 import { useWorktreeSubscription } from "./rpc-hooks";
+import type { StreamEvent } from "../../shared/protocol";
+import type { TaskLaunchState } from "./components/NewTaskModal";
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -48,6 +50,8 @@ const App: React.FC = () => {
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [newTaskInitialBranch, setNewTaskInitialBranch] = useState<string | null>(null);
+  const [taskLaunchState, setTaskLaunchState] = useState<TaskLaunchState | null>(null);
+  const taskLaunchUnsubRef = useRef<(() => void) | null>(null);
   const { view: mainPaneView, navigate: setMainPaneView } = useHashRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
@@ -486,11 +490,63 @@ const App: React.FC = () => {
     setShowReleaseModal(true);
   };
 
-  // Task launcher: called when the SSE-based launch completes successfully
+  const handleLaunchTask = useCallback((params: {
+    repoPath: string;
+    pool: PoolConfig;
+    prompt: string;
+    startingPoint?: string;
+  }) => {
+    if (taskLaunchUnsubRef.current) {
+      taskLaunchUnsubRef.current();
+      taskLaunchUnsubRef.current = null;
+    }
+
+    setTaskLaunchState({ isLaunching: true, log: [], error: null, done: false });
+
+    const unsubscribe = getRpcClient().subscribe(
+      "stream.launchTask",
+      (event: StreamEvent) => {
+        if (event.type === "step" || event.type === "stdout" || event.type === "stderr") {
+          setTaskLaunchState(prev => prev ? {
+            ...prev,
+            log: [...prev.log, { type: event.type, text: event.text }],
+          } : prev);
+        } else if (event.type === "error") {
+          setTaskLaunchState(prev => prev ? {
+            ...prev,
+            log: [...prev.log, { type: "error", text: event.text }],
+            error: event.text,
+          } : prev);
+        } else if (event.type === "done") {
+          setTaskLaunchState(prev => prev ? {
+            ...prev,
+            done: true,
+            isLaunching: false,
+          } : prev);
+          if (event.success && event.worktreePath) {
+            handleTaskComplete(event.worktreePath, params.pool, params.prompt, event.taskId);
+          }
+          taskLaunchUnsubRef.current = null;
+          unsubscribe();
+        }
+      },
+      {
+        repoPath: params.repoPath,
+        poolType: params.pool.type,
+        poolPrefix: params.pool.prefix,
+        prompt: params.prompt,
+        startingPoint: params.startingPoint,
+        maintenanceCommand: params.pool.maintenanceCommand,
+        taskCommand: params.pool.taskCommand,
+      }
+    );
+
+    taskLaunchUnsubRef.current = unsubscribe;
+  }, []);
+
   const handleTaskComplete = async (worktreePath: string, pool: PoolConfig, prompt: string, taskId?: string) => {
     if (!currentRepo) return;
 
-    // Refresh worktree list and select the target
     const updatedWorktrees = await getRpcClient().query("worktree.list", {
       repoPath: currentRepo,
     });
@@ -502,8 +558,8 @@ const App: React.FC = () => {
     }
 
     setShowNewTaskModal(false);
+    setTaskLaunchState(null);
 
-    // Launch the task command in a terminal after a brief delay for the UI to update
     setTimeout(() => {
       if (pool.taskCommand) {
         mainContentRef.current?.launchTaskTerminal(
@@ -768,8 +824,13 @@ const App: React.FC = () => {
           currentRepo={currentRepo}
           defaultTaskPool={repoConfig.defaultTaskPool}
           initialBranch={newTaskInitialBranch}
-          onClose={() => { setShowNewTaskModal(false); setNewTaskInitialBranch(null); }}
-          onComplete={handleTaskComplete}
+          onClose={() => {
+            setShowNewTaskModal(false);
+            setNewTaskInitialBranch(null);
+            if (!taskLaunchState?.isLaunching) setTaskLaunchState(null);
+          }}
+          onLaunch={handleLaunchTask}
+          launchState={taskLaunchState}
         />
       )}
 
