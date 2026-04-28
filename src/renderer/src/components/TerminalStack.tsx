@@ -41,26 +41,34 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     let cancelled = false;
 
     const loadExisting = async () => {
-      try {
-        const existingIds = await getRpcClient().query("terminal.listSessions", {
-          worktreePath,
-        });
-        if (cancelled) return;
+      const tabs: TerminalInfo[] = [];
 
-        if (existingIds.length > 0) {
-          const terminalInfos = existingIds.map((id) => ({ id }));
-          setTerminals(terminalInfos);
-          setSizes(existingIds.map(() => 1 / existingIds.length));
-        }
+      try {
+        const existingIds = await getRpcClient().query("terminal.listSessions", { worktreePath });
+        if (cancelled) return;
+        for (const id of existingIds) tabs.push({ id });
       } catch (err) {
         console.error("Failed to load terminal sessions:", err);
+      }
+
+      try {
+        const sessions = await getRpcClient().query("claude.sessions", { worktreePath }) as any[];
+        if (cancelled) return;
+        for (const s of sessions) {
+          if (s.isRunning) {
+            tabs.push({ id: `claude-session-${s.sessionId}`, isClaudeSession: true, sessionId: s.sessionId });
+          }
+        }
+      } catch {}
+
+      if (!cancelled && tabs.length > 0) {
+        setTerminals(tabs);
+        setSizes(tabs.map(() => 1 / tabs.length));
       }
     };
 
     loadExisting();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [worktreePath]);
 
   // Check for running tasks without an owning terminal (e.g. CLI-launched tasks)
@@ -246,7 +254,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
           <button className="btn btn-soft btn-neutral btn-xs" onClick={() => openClaudeSession()}>
-            + Claude
+            + Chat
+          </button>
+          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => addTerminal(undefined, 'claude')}>
+            + Claude Code
           </button>
           <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>
             + New
