@@ -3,6 +3,17 @@
   themes: acid --default, forest --prefersdark;
 }
 
+/* Override acid theme colors for better text contrast on white backgrounds.
+   The defaults are designed as background fills with dark -content text on top,
+   but we also use them as text colors (text-primary, text-success, etc.). */
+[data-theme="acid"] {
+  --color-primary: oklch(55% 0.3 330.759);
+  --color-secondary: oklch(55% 0.2 48.25);
+  --color-accent: oklch(55% 0.2 122.962);
+  --color-success: oklch(50% 0.2 158.53);
+  --color-warning: oklch(55% 0.17 100.5);
+}
+
 /* xterm terminal overrides */
 .terminal-wrapper .xterm-viewport,
 .terminal-wrapper .xterm-screen {
