@@ -39,7 +39,7 @@
     "test": "vitest run",
     "electron:rebuild": "electron-rebuild -f -w @lydell/node-pty,better-sqlite3",
     "electron:dev": "npm run build && npm run build:cli && npm run electron:rebuild && electron .",
-    "electron:build": "npm run build && npm run build:cli && npm run electron:rebuild && electron-builder --mac",
+    "electron:build": "npm run build && npm run build:cli && npm run electron:rebuild && electron-builder --mac && npm rebuild better-sqlite3 @lydell/node-pty",
     "electron:install": "npm run electron:build && ./scripts/install-mac.sh",
     "prepublishOnly": "npm run build && npm run build:cli",
     "claude-session:dev": "vite --config vite.claude-session.config.ts",
