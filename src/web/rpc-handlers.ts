@@ -637,11 +637,32 @@ export function createQueryHandlers(opts: {
     // --- Claude sessions (existing read-only discovery) ---
     "claude.sessions": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
-      return getClaudeSessions(worktreePath);
+      const sessions = await getClaudeSessions(worktreePath);
+      const appData = await loadAppData();
+      const meta = appData.sessionMeta || {};
+      for (const s of sessions) {
+        const m = meta[s.sessionId];
+        if (m) {
+          s.sessionType = m.type;
+          s.closed = m.closed;
+        }
+      }
+      return sessions;
     },
     "claude.sessionMessages": async (input) => {
       const { sessionId, worktreePath, offset, limit } = input as any;
       return getSessionMessages(sessionId, worktreePath, offset, limit);
+    },
+    "claude.setSessionMeta": async (input) => {
+      const { sessionId, type, closed } = input as { sessionId: string; type?: "chat" | "claude-code"; closed?: boolean };
+      await withAppData((appData) => {
+        if (!appData.sessionMeta) appData.sessionMeta = {};
+        const existing = appData.sessionMeta[sessionId] || { type: type || "claude-code" };
+        if (type !== undefined) existing.type = type;
+        if (closed !== undefined) existing.closed = closed;
+        appData.sessionMeta[sessionId] = existing;
+      });
+      return { ok: true };
     },
 
     // --- Claude session service (live interactive) ---
@@ -663,6 +684,10 @@ export function createQueryHandlers(opts: {
         sessionId: inp.sessionId,
         permissionMode: (inp.permissionMode ?? "bypassPermissions") as any,
       });
+      await withAppData((appData) => {
+        if (!appData.sessionMeta) appData.sessionMeta = {};
+        appData.sessionMeta[sessionId] = { type: "chat", closed: false };
+      });
       return { sessionId };
     },
     "session.send": async (input) => {
@@ -683,6 +708,15 @@ export function createQueryHandlers(opts: {
     "session.close": async (input) => {
       const { sessionId } = input as { sessionId: string };
       claudeService.close(sessionId);
+      await withAppData((appData) => {
+        if (!appData.sessionMeta) appData.sessionMeta = {};
+        const existing = appData.sessionMeta[sessionId];
+        if (existing) {
+          existing.closed = true;
+        } else {
+          appData.sessionMeta[sessionId] = { type: "chat", closed: true };
+        }
+      });
       return { ok: true };
     },
 
@@ -898,11 +932,12 @@ export function createSubscriptionHandlers(opts: {
       // For now, just send initial. Real-time updates would need a watcher.
     },
 
-    "stream.startAutomation": (input, push) => {
+    "stream.runAutomation": (input, push) => {
       const inp = input as {
         repoPath: string;
         automationId: string;
-        manualWorkItems?: string[];
+        worktreePath: string;
+        prompt?: string;
       };
 
       const runCommand: RunCommand = (command, cwd) =>
@@ -915,23 +950,22 @@ export function createSubscriptionHandlers(opts: {
         });
 
       (async () => {
-        const { startAutomationRun } = await import("../services/automation-service.js");
+        const { runAutomation } = await import("../services/automation-service.js");
         const appData = await loadAppData();
         const repoConfig = getRepoConfig(appData, inp.repoPath);
         const automations = repoConfig.automations ?? [];
         const automation = automations.find((a: any) => a.id === inp.automationId);
         if (!automation) throw new Error(`Automation "${inp.automationId}" not found`);
 
-        await startAutomationRun({
+        await runAutomation({
           repoPath: inp.repoPath,
           automation,
           repoConfig,
+          worktreePath: inp.worktreePath,
+          prompt: inp.prompt,
           onProgress: (event) => push(event),
           runCommand,
-          manualWorkItems: inp.manualWorkItems,
         });
-
-        push({ type: "done", success: true });
       })().catch((err: unknown) => {
         push({ type: "error", text: err instanceof Error ? err.message : String(err) });
         push({ type: "done", success: false });

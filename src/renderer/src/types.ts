@@ -59,13 +59,13 @@ export interface PoolConfig {
 export interface AutomationDefinition {
   id: string;
   name: string;
-  poolPrefix: string;
-  producerPrompt: string;
-  concurrency: number;
+  type: 'custom' | 'skill';
+  prompt?: string;
+  skillName?: string;
 }
 
 export type WorkItemStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type AutomationRunStatus = 'producing' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type AutomationRunStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface WorkItem {
   id: string;
@@ -83,8 +83,6 @@ export interface AutomationRun {
   status: AutomationRunStatus;
   startedAt: string;
   endedAt?: string;
-  producerTaskId?: string;
-  producerWorktreePath?: string;
   workItems: WorkItem[];
 }
 

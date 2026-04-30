@@ -25,7 +25,7 @@ interface WorktreeActivity {
   claudeSessions: number
 }
 
-export type TaskQueueSubView = 'queue' | 'automations';
+export type AutomationsSubView = 'running' | 'definitions';
 
 interface SidebarProps {
   repositories: Repository[]
@@ -36,8 +36,8 @@ interface SidebarProps {
   worktreeActivity?: Record<string, WorktreeActivity>
   starredWorktrees: Set<string>
   worktreeOrder: string[]
-  taskQueueSubView?: TaskQueueSubView | null
-  activeTab: 'worktrees' | 'tracked' | 'taskqueue'
+  automationsSubView?: AutomationsSubView | null
+  activeTab: 'worktrees' | 'tracked' | 'automations'
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
@@ -47,7 +47,7 @@ interface SidebarProps {
   onNewTask?: () => void
   onNavigateWorktrees?: () => void
   onNavigateTracked?: () => void
-  onTaskQueueSubViewChange?: (view: TaskQueueSubView) => void
+  onAutomationsSubViewChange?: (view: AutomationsSubView) => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onToggleStar: (worktreePath: string) => void
   onReorderWorktrees: (orderedPaths: string[]) => void
@@ -496,15 +496,15 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   );
 };
 
-// --- Task Queue Tab ---
+// --- Automations Tab ---
 
-interface TaskQueueTabProps {
+interface AutomationsTabProps {
   currentRepo: string | null
-  subView: TaskQueueSubView
-  onSubViewChange: (view: TaskQueueSubView) => void
+  subView: AutomationsSubView
+  onSubViewChange: (view: AutomationsSubView) => void
 }
 
-const TaskQueueTab: React.FC<TaskQueueTabProps> = ({
+const AutomationsTab: React.FC<AutomationsTabProps> = ({
   currentRepo,
   subView,
   onSubViewChange,
@@ -514,24 +514,24 @@ const TaskQueueTab: React.FC<TaskQueueTabProps> = ({
       <div className="flex-1 overflow-y-auto mb-3">
         <div
           className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-            subView === 'queue'
+            subView === 'running'
               ? 'border-l-primary bg-primary/15'
               : 'border-l-transparent hover:bg-base-content/5'
           }`}
-          onClick={() => onSubViewChange('queue')}
+          onClick={() => onSubViewChange('running')}
         >
-          <div className="text-sm font-semibold leading-tight">Task Queue</div>
-          <div className="text-[11px] text-base-content/50 mt-0.5">Active and recent runs</div>
+          <div className="text-sm font-semibold leading-tight">Running Tasks</div>
+          <div className="text-[11px] text-base-content/50 mt-0.5">Active and recent tasks</div>
         </div>
         <div
           className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-            subView === 'automations'
+            subView === 'definitions'
               ? 'border-l-primary bg-primary/15'
               : 'border-l-transparent hover:bg-base-content/5'
           }`}
-          onClick={() => onSubViewChange('automations')}
+          onClick={() => onSubViewChange('definitions')}
         >
-          <div className="text-sm font-semibold leading-tight">Automations</div>
+          <div className="text-sm font-semibold leading-tight">Definitions</div>
           <div className="text-[11px] text-base-content/50 mt-0.5">Manage automation definitions</div>
         </div>
       </div>
@@ -550,7 +550,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   worktreeActivity,
   starredWorktrees,
   worktreeOrder,
-  taskQueueSubView,
+  automationsSubView,
   onRepoSelect,
   onWorktreeSelect,
   onCreateWorktree,
@@ -561,7 +561,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onNavigateWorktrees,
   onNavigateTracked,
-  onTaskQueueSubViewChange,
+  onAutomationsSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
   onReorderWorktrees,
@@ -630,10 +630,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         </button>
         {hasTaskPools && (
           <button
-            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'taskqueue' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-            onClick={() => onTaskQueueSubViewChange?.('queue')}
+            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'automations' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+            onClick={() => onAutomationsSubViewChange?.('running')}
           >
-            Tasks
+            Automations
           </button>
         )}
       </div>
@@ -644,11 +644,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             Tracked branches are shown in the main panel.
           </p>
         </div>
-      ) : activeTab === 'taskqueue' && hasTaskPools ? (
-        <TaskQueueTab
+      ) : activeTab === 'automations' && hasTaskPools ? (
+        <AutomationsTab
           currentRepo={currentRepo}
-          subView={taskQueueSubView ?? 'queue'}
-          onSubViewChange={onTaskQueueSubViewChange ?? (() => {})}
+          subView={automationsSubView ?? 'running'}
+          onSubViewChange={onAutomationsSubViewChange ?? (() => {})}
         />
       ) : (
         <WorktreesTab

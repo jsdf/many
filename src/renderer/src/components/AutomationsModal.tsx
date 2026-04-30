@@ -1,31 +1,37 @@
 import React, { useState, useEffect } from "react";
-import { AutomationDefinition, PoolConfig } from "../types";
+import { AutomationDefinition } from "../types";
 import { getRpcClient } from "../rpc-client";
 
 interface AutomationsModalProps {
   currentRepo: string;
-  pools: PoolConfig[];
   onClose: () => void;
-  onStartRun: (automationId: string, manualWorkItems?: string[]) => void;
 }
 
 function generateId(): string {
   return `auto-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const CLAUDE_SKILLS = [
+  "rebase",
+  "fix-merge-conflicts",
+  "review",
+  "security-review",
+  "simplify",
+  "pr-ci-failures",
+  "pr-spot-check",
+  "pr-sanity-check",
+  "split-pr",
+  "graphite",
+  "init",
+];
+
 const AutomationsModal: React.FC<AutomationsModalProps> = ({
   currentRepo,
-  pools,
   onClose,
-  onStartRun,
 }) => {
   const [automations, setAutomations] = useState<AutomationDefinition[]>([]);
   const [editing, setEditing] = useState<AutomationDefinition | null>(null);
-  const [manualRunTarget, setManualRunTarget] = useState<AutomationDefinition | null>(null);
-  const [manualPrompts, setManualPrompts] = useState("");
   const [loading, setLoading] = useState(true);
-
-  const taskPools = pools.filter((p) => p.taskCommand || p.backgroundTaskCommand);
 
   useEffect(() => {
     loadAutomations();
@@ -71,9 +77,8 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
     setEditing({
       id: generateId(),
       name: "",
-      poolPrefix: taskPools[0]?.prefix ?? "",
-      producerPrompt: "",
-      concurrency: 2,
+      type: "custom",
+      prompt: "",
     });
   };
 
@@ -93,56 +98,9 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
         {editing ? (
             <AutomationForm
               automation={editing}
-              pools={taskPools}
               onSave={handleSave}
               onCancel={() => setEditing(null)}
             />
-          ) : manualRunTarget ? (
-            <div>
-              <h4 className="font-semibold mb-2">
-                Manual Run: {manualRunTarget.name}
-              </h4>
-              <p className="text-xs text-base-content/50 mb-2">
-                Pool: {manualRunTarget.poolPrefix} &middot; Concurrency: {manualRunTarget.concurrency}
-              </p>
-              <label className="block mb-2 text-sm font-medium">
-                Work items (one prompt per line)
-              </label>
-              <textarea
-                className="textarea textarea-bordered w-full"
-                value={manualPrompts}
-                onChange={(e) => setManualPrompts(e.target.value)}
-                rows={8}
-                placeholder={"implement user auth\nadd search API\nwrite tests for billing"}
-                autoFocus
-              />
-              <div className="flex justify-end gap-3 mt-4">
-                <button
-                  className="btn btn-neutral"
-                  onClick={() => {
-                    setManualRunTarget(null);
-                    setManualPrompts("");
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-success"
-                  disabled={!manualPrompts.trim()}
-                  onClick={() => {
-                    const items = manualPrompts
-                      .split("\n")
-                      .map((l) => l.trim())
-                      .filter((l) => l.length > 0);
-                    if (items.length > 0) {
-                      onStartRun(manualRunTarget.id, items);
-                    }
-                  }}
-                >
-                  Start ({manualPrompts.split("\n").filter((l) => l.trim()).length} items)
-                </button>
-              </div>
-            </div>
           ) : (
             <>
               {loading ? (
@@ -163,27 +121,15 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold">{a.name}</div>
                         <div className="text-xs text-base-content/50 mt-1">
-                          Pool: {a.poolPrefix} &middot; Concurrency: {a.concurrency}
-                        </div>
-                        <div className="text-xs text-base-content/60 mt-1 line-clamp-2">
-                          {a.producerPrompt}
+                          {a.type === "skill" ? (
+                            <span className="badge badge-info badge-xs mr-1">skill</span>
+                          ) : (
+                            <span className="badge badge-neutral badge-xs mr-1">custom</span>
+                          )}
+                          {a.type === "skill" ? `/${a.skillName}` : (a.prompt ?? "").slice(0, 80)}
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={() => onStartRun(a.id)}
-                          title="Run with producer"
-                        >
-                          Run
-                        </button>
-                        <button
-                          className="btn btn-info btn-sm"
-                          onClick={() => setManualRunTarget(a)}
-                          title="Manually enter work items"
-                        >
-                          Manual
-                        </button>
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => setEditing({ ...a })}
@@ -220,31 +166,31 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
 
 interface AutomationFormProps {
   automation: AutomationDefinition;
-  pools: PoolConfig[];
   onSave: (automation: AutomationDefinition) => void;
   onCancel: () => void;
 }
 
 const AutomationForm: React.FC<AutomationFormProps> = ({
   automation,
-  pools,
   onSave,
   onCancel,
 }) => {
   const [name, setName] = useState(automation.name);
-  const [poolPrefix, setPoolPrefix] = useState(automation.poolPrefix);
-  const [producerPrompt, setProducerPrompt] = useState(automation.producerPrompt);
-  const [concurrency, setConcurrency] = useState(automation.concurrency);
+  const [type, setType] = useState<"custom" | "skill">(automation.type);
+  const [prompt, setPrompt] = useState(automation.prompt ?? "");
+  const [skillName, setSkillName] = useState(automation.skillName ?? "");
+
+  const isValid = name.trim() && (type === "skill" ? skillName.trim() : prompt.trim());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !producerPrompt.trim()) return;
+    if (!isValid) return;
     onSave({
       ...automation,
       name: name.trim(),
-      poolPrefix,
-      producerPrompt: producerPrompt.trim(),
-      concurrency: Math.max(1, concurrency),
+      type,
+      prompt: type === "custom" ? prompt.trim() : undefined,
+      skillName: type === "skill" ? skillName.trim() : undefined,
     });
   };
 
@@ -257,54 +203,65 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
           className="input input-bordered w-full"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Implement feature list"
+          placeholder="e.g. Rebase onto main"
           autoFocus
         />
       </div>
 
       <div className="mb-4">
-        <label className="block mb-2 text-sm font-medium">Pool</label>
-        <select
-          className="select select-bordered w-full"
-          value={poolPrefix}
-          onChange={(e) => setPoolPrefix(e.target.value)}
-        >
-          {pools.map((p) => (
-            <option key={p.prefix} value={p.prefix}>
-              {p.name} ({p.type})
-            </option>
-          ))}
-        </select>
+        <label className="block mb-2 text-sm font-medium">Type</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`btn btn-sm ${type === "skill" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setType("skill")}
+          >
+            Claude Code Skill
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${type === "custom" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setType("custom")}
+          >
+            Custom Prompt
+          </button>
+        </div>
       </div>
 
-      <div className="mb-4">
-        <label className="block mb-2 text-sm font-medium">Producer Prompt</label>
-        <textarea
-          className="textarea textarea-bordered w-full"
-          value={producerPrompt}
-          onChange={(e) => setProducerPrompt(e.target.value)}
-          rows={8}
-          placeholder={`The producer task will run with this prompt. It must write a JSON array of work item prompts to .many-work-items.json in the worktree root.\n\nExample output file:\n["implement user auth", "add search API", "write tests for billing"]`}
-        />
-        <p className="text-xs text-base-content/50 mt-1">
-          The producer must write a <code>.many-work-items.json</code> file
-          containing a JSON array of prompt strings.
-        </p>
-      </div>
-
-      <div className="mb-4">
-        <label className="block mb-2 text-sm font-medium">
-          Concurrency (max workers)
-        </label>
-        <input
-          type="number"
-          className="input input-bordered w-24"
-          value={concurrency}
-          onChange={(e) => setConcurrency(parseInt(e.target.value) || 1)}
-          min={1}
-          max={20}
-        />
-      </div>
+      {type === "skill" ? (
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium">Skill</label>
+          <select
+            className="select select-bordered w-full"
+            value={skillName}
+            onChange={(e) => {
+              setSkillName(e.target.value);
+              if (!name.trim()) setName(e.target.value);
+            }}
+          >
+            <option value="">Select a skill...</option>
+            {CLAUDE_SKILLS.map((s) => (
+              <option key={s} value={s}>
+                /{s}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-base-content/50 mt-1">
+            References a Claude Code skill. The skill will be invoked as a slash command.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium">Prompt</label>
+          <textarea
+            className="textarea textarea-bordered w-full"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={6}
+            placeholder="The prompt to send to Claude Code when this automation is invoked."
+          />
+        </div>
+      )}
 
       <div className="flex justify-end gap-3">
         <button type="button" className="btn btn-neutral" onClick={onCancel}>
@@ -313,7 +270,7 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={!name.trim() || !producerPrompt.trim()}
+          disabled={!isValid}
         >
           Save
         </button>

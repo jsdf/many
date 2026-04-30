@@ -153,6 +153,9 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const showRelease = worktreePool ? worktreePool.type === 'recyclable' : true;
   const isBaseWorktree = selectedWorktree?.path === currentRepo;
   const showArchive = !isBaseWorktree && !(worktreePool?.type === 'recyclable');
+  const claudeCommand = worktreePool?.claudeCommand
+    || pools?.map(p => p.claudeCommand).find(Boolean)
+    || undefined;
 
   const handleArchive = () => {
     if (!selectedWorktree) return;
@@ -291,13 +294,13 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             onViewSessionHistory={(sessionId) => {
               terminalStackRef.current?.openSessionHistory(sessionId);
             }}
-            onResumeSession={(sessionId) => {
-              // Use pool's claudeCommand, or extract executable from taskCommand, or check any pool, or default
-              const poolCmd = worktreePool?.claudeCommand
-                || (worktreePool?.taskCommand?.split(/\s/)[0]);
-              const anyPoolCmd = pools?.map(p => p.claudeCommand || p.taskCommand?.split(/\s/)[0]).find(Boolean);
-              const cmd = poolCmd || anyPoolCmd || "claude";
-              terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+            onResumeSession={(sessionId, sessionType) => {
+              if (sessionType === "chat") {
+                terminalStackRef.current?.openClaudeSession(sessionId);
+              } else {
+                const cmd = claudeCommand || "claude";
+                terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+              }
             }}
           />
         </div>
@@ -314,6 +317,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               ref={terminalStackRef}
               worktreePath={selectedWorktree.path}
               repoPath={currentRepo || undefined}
+              claudeCommand={claudeCommand}
             />
           )}
         </div>

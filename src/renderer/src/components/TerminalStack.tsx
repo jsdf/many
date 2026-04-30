@@ -8,6 +8,7 @@ import ClaudeSessionTab from "./ClaudeSessionTab";
 interface TerminalStackProps {
   worktreePath: string;
   repoPath?: string;
+  claudeCommand?: string;
 }
 
 export interface TerminalStackHandle {
@@ -31,7 +32,7 @@ interface TerminalInfo {
 
 let terminalCounter = 0;
 
-const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ worktreePath, repoPath }, ref) => {
+const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ worktreePath, repoPath, claudeCommand }, ref) => {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -263,7 +264,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           <button className="btn btn-soft btn-neutral btn-xs" onClick={() => openClaudeSession()}>
             + Chat
           </button>
-          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => addTerminal(undefined, 'claude')}>
+          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
             + Claude Code
           </button>
           <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>

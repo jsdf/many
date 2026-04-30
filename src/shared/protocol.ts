@@ -115,14 +115,13 @@ export interface LinearLink {
 export interface AutomationDefinition {
   id: string;
   name: string;
-  poolPrefix: string;
-  producerPrompt: string;
-  concurrency: number;
+  type: 'custom' | 'skill';
+  prompt?: string;
+  skillName?: string;
 }
 
 export type WorkItemStatus = "pending" | "running" | "completed" | "failed";
 export type AutomationRunStatus =
-  | "producing"
   | "running"
   | "completed"
   | "failed"
@@ -144,8 +143,6 @@ export interface AutomationRun {
   status: AutomationRunStatus;
   startedAt: string;
   endedAt?: string;
-  producerTaskId?: string;
-  producerWorktreePath?: string;
   workItems: WorkItem[];
 }
 
@@ -534,7 +531,7 @@ export interface QueryProcedures {
   // --- Claude sessions ---
   "claude.sessions": {
     input: { worktreePath: string };
-    output: unknown[]; // ClaudeSession[] from existing code
+    output: unknown[]; // ClaudeSession[] from existing code (merged with sessionMeta)
   };
   "claude.sessionMessages": {
     input: {
@@ -544,6 +541,14 @@ export interface QueryProcedures {
       limit?: number;
     };
     output: unknown; // existing session message format
+  };
+  "claude.setSessionMeta": {
+    input: {
+      sessionId: string;
+      type?: "chat" | "claude-code";
+      closed?: boolean;
+    };
+    output: { ok: boolean };
   };
   "session.list": {
     input: { dir: string; limit?: number; offset?: number };
@@ -670,12 +675,13 @@ export interface SubscriptionProcedures {
     input: { dir: string };
     output: SessionInfo[];
   };
-  /** Streaming automation run progress */
-  "stream.startAutomation": {
+  /** Run a single automation on a worktree */
+  "stream.runAutomation": {
     input: {
       repoPath: string;
       automationId: string;
-      manualWorkItems?: string[];
+      worktreePath: string;
+      prompt?: string;
     };
     output: StreamEvent;
   };

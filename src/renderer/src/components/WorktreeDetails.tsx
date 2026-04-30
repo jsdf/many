@@ -30,13 +30,15 @@ interface ClaudeSession {
   gitBranch: string;
   isRunning: boolean;
   projectPath: string;
+  sessionType?: "chat" | "claude-code";
+  closed?: boolean;
 }
 
 interface WorktreeDetailsProps {
   worktree: Worktree;
   repoPath: string;
   onRetryTask?: (env: Record<string, string>, command: string) => void;
-  onResumeSession?: (sessionId: string) => void;
+  onResumeSession?: (sessionId: string, sessionType?: "chat" | "claude-code") => void;
   onViewSessionHistory?: (sessionId: string) => void;
   onViewTaskLog?: (taskId: string, isSavedLog: boolean) => void;
 }
@@ -366,7 +368,12 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   className="bg-base-200 border border-base-300 rounded-lg p-3"
                 >
                   <div className="flex items-center gap-2 mb-1 min-w-0">
-                    {session.isRunning && (
+                    {session.sessionType === "chat" ? (
+                      <span className="badge badge-info badge-xs shrink-0">chat</span>
+                    ) : session.sessionType === "claude-code" ? (
+                      <span className="badge badge-neutral badge-xs shrink-0">cli</span>
+                    ) : null}
+                    {session.isRunning && !session.closed && (
                       <span className="badge badge-success badge-xs shrink-0">running</span>
                     )}
                     {session.gitBranch && (
@@ -390,7 +397,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                     {onResumeSession && (
                       <button
                         className="btn btn-soft btn-primary btn-xs"
-                        onClick={() => onResumeSession(session.sessionId)}
+                        onClick={() => onResumeSession(session.sessionId, session.sessionType)}
                       >
                         Resume
                       </button>

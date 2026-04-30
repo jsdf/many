@@ -4,9 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 export type MainPaneView =
   | { type: 'worktree' }
   | { type: 'tracked' }
-  | { type: 'taskQueue' }
-  | { type: 'automations' }
-  | { type: 'automationRun'; automationId: string; manualWorkItems?: string[] };
+  | { type: 'runningTasks' }
+  | { type: 'automations' };
 
 function viewToHash(view: MainPaneView): string {
   switch (view.type) {
@@ -14,12 +13,10 @@ function viewToHash(view: MainPaneView): string {
       return '#/worktree';
     case 'tracked':
       return '#/tracked';
-    case 'taskQueue':
-      return '#/tasks';
+    case 'runningTasks':
+      return '#/running';
     case 'automations':
       return '#/automations';
-    case 'automationRun':
-      return `#/automation-run/${view.automationId}`;
   }
 }
 
@@ -27,11 +24,8 @@ function hashToView(hash: string): MainPaneView {
   const path = hash.replace(/^#\/?/, '');
 
   if (path === 'tracked') return { type: 'tracked' };
-  if (path === 'tasks') return { type: 'taskQueue' };
+  if (path === 'running') return { type: 'runningTasks' };
   if (path === 'automations') return { type: 'automations' };
-
-  const runMatch = path.match(/^automation-run\/(.+)$/);
-  if (runMatch) return { type: 'automationRun', automationId: runMatch[1] };
 
   return { type: 'worktree' };
 }

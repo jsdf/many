@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
-import Sidebar, { TaskQueueSubView } from "./components/Sidebar";
+import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
-import AutomationRunModal from "./components/AutomationRunModal";
 import { useHashRouter } from "./router";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
@@ -618,10 +617,10 @@ const App: React.FC = () => {
               worktreeActivity={worktreeActivity}
               starredWorktrees={starredWorktrees}
               worktreeOrder={worktreeOrder}
-              taskQueueSubView={mainPaneView.type === 'taskQueue' ? 'queue' : mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'automations' : null}
+              automationsSubView={mainPaneView.type === 'runningTasks' ? 'running' : mainPaneView.type === 'automations' ? 'definitions' : null}
               activeTab={
                 mainPaneView.type === 'tracked' ? 'tracked'
-                : mainPaneView.type === 'taskQueue' || mainPaneView.type === 'automations' || mainPaneView.type === 'automationRun' ? 'taskqueue'
+                : mainPaneView.type === 'runningTasks' || mainPaneView.type === 'automations' ? 'automations'
                 : 'worktrees'
               }
               onRepoSelect={selectRepo}
@@ -636,9 +635,9 @@ const App: React.FC = () => {
               onNewTask={() => setShowNewTaskModal(true)}
               onNavigateWorktrees={() => setMainPaneView({ type: 'worktree' })}
               onNavigateTracked={() => setMainPaneView({ type: 'tracked' })}
-              onTaskQueueSubViewChange={(view: TaskQueueSubView) => {
-                if (view === 'queue') setMainPaneView({ type: 'taskQueue' });
-                else if (view === 'automations') setMainPaneView({ type: 'automations' });
+              onAutomationsSubViewChange={(view: AutomationsSubView) => {
+                if (view === 'running') setMainPaneView({ type: 'runningTasks' });
+                else if (view === 'definitions') setMainPaneView({ type: 'automations' });
               }}
               onArchiveWorktrees={(wts) => openArchiveModal(wts)}
               onToggleStar={handleToggleStar}
@@ -682,27 +681,14 @@ const App: React.FC = () => {
             }}
           />
         </div>
-      ) : mainPaneView.type === 'automationRun' && currentRepo ? (
-        <div className="flex-1 min-w-0">
-          <AutomationRunModal
-            currentRepo={currentRepo}
-            automationId={mainPaneView.automationId}
-            manualWorkItems={mainPaneView.manualWorkItems}
-            onClose={() => setMainPaneView({ type: 'taskQueue' })}
-          />
-        </div>
-      ) : mainPaneView.type === 'automations' && repoConfig?.pools && currentRepo ? (
+      ) : mainPaneView.type === 'automations' && currentRepo ? (
         <div className="flex-1 min-w-0">
           <AutomationsModal
             currentRepo={currentRepo}
-            pools={repoConfig.pools}
-            onClose={() => setMainPaneView({ type: 'taskQueue' })}
-            onStartRun={(automationId, workItems) => {
-              setMainPaneView({ type: 'automationRun', automationId, manualWorkItems: workItems });
-            }}
+            onClose={() => setMainPaneView({ type: 'runningTasks' })}
           />
         </div>
-      ) : mainPaneView.type === 'taskQueue' && currentRepo ? (
+      ) : mainPaneView.type === 'runningTasks' && currentRepo ? (
         <div className="flex-1 min-w-0">
           <TaskQueuePanel currentRepo={currentRepo} />
         </div>

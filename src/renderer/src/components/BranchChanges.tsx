@@ -38,18 +38,52 @@ function getFilename(patch: string): string {
 
 type DiffStyle = "unified" | "split";
 
-const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultCollapsed?: boolean }> = ({ patch, diffStyle, defaultCollapsed = false }) => {
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="btn btn-xs btn-ghost btn-neutral opacity-0 group-hover/file:opacity-100 transition-opacity"
+      title={`Copy ${label}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "Copied" : label}
+    </button>
+  );
+}
+
+const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultCollapsed?: boolean; worktreePath: string }> = ({ patch, diffStyle, defaultCollapsed = false, worktreePath }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const filename = useMemo(() => getFilename(patch), [patch]);
+  const absPath = `${worktreePath}/${filename}`;
   const isDark = useDarkMode();
 
   return (
-    <div className="border border-base-300 rounded overflow-hidden">
+    <div className="border border-base-300 rounded overflow-hidden group/file">
       <div
-        className="px-2.5 py-1.5 bg-base-300 cursor-pointer select-none font-mono text-sm text-base-content/80 hover:bg-base-300/80"
+        className="px-2.5 py-1.5 bg-base-300 cursor-pointer select-none font-mono text-sm text-base-content/80 hover:bg-base-300/80 flex items-center gap-2"
         onClick={() => setCollapsed(!collapsed)}
       >
-        <span>{collapsed ? "▶" : "▼"} {filename}</span>
+        <span className="flex-1 min-w-0 truncate">{collapsed ? "▶" : "▼"} {filename}</span>
+        <span className="flex-shrink-0 flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <CopyButton text={filename} label="rel" />
+          <CopyButton text={absPath} label="abs" />
+          <button
+            className="btn btn-xs btn-ghost btn-neutral opacity-0 group-hover/file:opacity-100 transition-opacity"
+            title="Open in editor"
+            onClick={() => {
+              getRpcClient().query("action.openEditor", { path: absPath })
+                .catch((err) => console.error("[action] openEditor failed:", err));
+            }}
+          >
+            Open
+          </button>
+        </span>
       </div>
       {!collapsed && (
         <div className="overflow-x-auto">
@@ -136,7 +170,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
     <div className="bg-base-200 border border-base-300 rounded-lg p-4 overflow-hidden w-full max-w-full">
       <div className="text-sm overflow-hidden flex flex-col gap-2">
         {filePatches.map((filePatch, i) => (
-          <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} defaultCollapsed={filePatches.length > 10} />
+          <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} defaultCollapsed={filePatches.length > 10} worktreePath={worktreePath} />
         ))}
       </div>
     </div>

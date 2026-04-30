@@ -23,9 +23,9 @@ export interface PoolConfig {
 export interface AutomationDefinition {
   id: string;
   name: string;
-  poolPrefix: string;
-  producerPrompt: string;
-  concurrency: number;
+  type: 'custom' | 'skill';
+  prompt?: string;
+  skillName?: string;
 }
 
 export interface RepositoryConfig {
@@ -36,6 +36,11 @@ export interface RepositoryConfig {
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
   automations?: AutomationDefinition[];
+}
+
+export interface SessionMeta {
+  type: "chat" | "claude-code";
+  closed?: boolean;
 }
 
 export interface GlobalSettings {
@@ -52,6 +57,7 @@ export interface AppData {
   worktreeOrder: Record<string, string[]>;
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, unknown>;
+  sessionMeta: Record<string, SessionMeta>;
   globalSettings: GlobalSettings;
 }
 
@@ -64,6 +70,7 @@ const defaultAppData: AppData = {
   worktreeOrder: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},
+  sessionMeta: {},
   globalSettings: { defaultEditor: null, defaultTerminal: null },
 };
 

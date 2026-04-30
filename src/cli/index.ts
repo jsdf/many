@@ -1356,9 +1356,9 @@ function formatAge(date: Date): string {
   return `${days}d ago`;
 }
 
-// Validate work items file for automation producer tasks
+// Validate work items file (legacy - used by old producer-based automations)
 async function cmdValidateWorkItems(): Promise<void> {
-  const { WORK_ITEMS_FILENAME } = await import("../services/automation-service.js");
+  const WORK_ITEMS_FILENAME = ".many-work-items.json";
   const filePath = path.join(process.cwd(), WORK_ITEMS_FILENAME);
 
   if (!existsSync(filePath)) {

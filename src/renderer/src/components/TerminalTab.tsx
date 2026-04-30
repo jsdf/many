@@ -13,6 +13,7 @@ interface TerminalTabProps {
   env?: Record<string, string>;
   initialCommand?: string;
   taskId?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 const darkTheme = {
@@ -78,6 +79,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   env,
   initialCommand,
   taskId,
+  onTitleChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -146,12 +148,13 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     });
     const unsubscribe = () => unsubRef.current?.();
 
-    // Translate Shift+Enter into a literal newline so apps like
+    // Translate Shift+Enter into CSI u escape sequence so apps like
     // Claude Code that distinguish Enter vs newline work correctly.
+    // Native terminals (iTerm2, Terminal.app) send this automatically.
     xterm.attachCustomKeyEventHandler((event) => {
       if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
-        getRpcClient().query("terminal.input", { terminalId, data: "\n" });
-        return false; // prevent xterm from also sending \r
+        getRpcClient().query("terminal.input", { terminalId, data: "\x1b[13;2u" });
+        return false;
       }
       return true;
     });
@@ -172,6 +175,11 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     });
     resizeObserver.observe(containerRef.current);
 
+    // Surface terminal title changes (e.g. OSC 0/2 sequences from Claude Code)
+    const titleDisposable = xterm.onTitleChange((title) => {
+      onTitleChange?.(title);
+    });
+
     // Follow OS color scheme changes
     const colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const onColorSchemeChange = () => {
@@ -185,6 +193,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
       resizeObserver.disconnect();
       dataDisposable.dispose();
       resizeDisposable.dispose();
+      titleDisposable.dispose();
       unsubscribe();
       xterm.dispose();
       xtermRef.current = null;

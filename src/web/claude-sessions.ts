@@ -13,6 +13,8 @@ export interface ClaudeSession {
   gitBranch: string;
   isRunning: boolean;
   projectPath: string;
+  sessionType?: "chat" | "claude-code";
+  closed?: boolean;
 }
 
 interface SessionsIndexEntry {

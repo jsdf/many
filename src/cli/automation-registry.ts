@@ -3,7 +3,6 @@ import { getDb } from "./db.js";
 
 export type WorkItemStatus = "pending" | "running" | "completed" | "failed";
 export type AutomationRunStatus =
-  | "producing"
   | "running"
   | "completed"
   | "failed"
@@ -25,8 +24,6 @@ export interface AutomationRun {
   status: AutomationRunStatus;
   startedAt: string;
   endedAt?: string;
-  producerTaskId?: string;
-  producerWorktreePath?: string;
   workItems: WorkItem[];
 }
 
@@ -61,8 +58,6 @@ function rowToRun(row: RunRow, items: WorkItem[]): AutomationRun {
     status: row.status as AutomationRunStatus,
     startedAt: new Date(row.started_at).toISOString(),
     endedAt: row.ended_at != null ? new Date(row.ended_at).toISOString() : undefined,
-    producerTaskId: row.producer_task_id ?? undefined,
-    producerWorktreePath: row.producer_worktree_path ?? undefined,
     workItems: items,
   };
 }
@@ -108,8 +103,8 @@ export async function createRun(
     status: fields.status,
     started_at: now,
     ended_at: null,
-    producer_task_id: fields.producerTaskId ?? null,
-    producer_worktree_path: fields.producerWorktreePath ?? null,
+    producer_task_id: null,
+    producer_worktree_path: null,
   });
 
   return {
@@ -122,7 +117,7 @@ export async function createRun(
 
 export async function updateRun(
   id: string,
-  updates: Partial<Pick<AutomationRun, "status" | "endedAt" | "producerTaskId" | "producerWorktreePath">>
+  updates: Partial<Pick<AutomationRun, "status" | "endedAt">>
 ): Promise<void> {
   const db = getDb();
   const sets: string[] = [];
@@ -132,20 +127,11 @@ export async function updateRun(
     sets.push("status = ?");
     params.push(updates.status);
   }
-  if (updates.producerTaskId !== undefined) {
-    sets.push("producer_task_id = ?");
-    params.push(updates.producerTaskId);
-  }
-  if (updates.producerWorktreePath !== undefined) {
-    sets.push("producer_worktree_path = ?");
-    params.push(updates.producerWorktreePath);
-  }
 
-  // Auto-set endedAt for terminal statuses
   if (updates.endedAt !== undefined) {
     sets.push("ended_at = ?");
     params.push(new Date(updates.endedAt).getTime());
-  } else if (updates.status && updates.status !== "producing" && updates.status !== "running") {
+  } else if (updates.status && updates.status !== "running") {
     sets.push("ended_at = COALESCE(ended_at, ?)");
     params.push(Date.now());
   }
