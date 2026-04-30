@@ -170,7 +170,14 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   };
 
   if (!selectedWorktree) {
-    return <WelcomeScreen />;
+    return (
+      <div className="flex flex-col h-screen w-full min-w-0 flex-1">
+        <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
+          <span />
+        </TopBar>
+        <WelcomeScreen />
+      </div>
+    );
   }
 
   return (

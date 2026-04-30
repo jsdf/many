@@ -313,47 +313,79 @@ export async function getWorktreeStatus(
 ): Promise<GitStatus> {
   await ensureWorktreeExists(worktreePath);
   const git = simpleGit(worktreePath);
-  const status = await git.status();
+
+  // Use raw porcelain output without -u flag. simple-git's status() passes -u
+  // which expands untracked directories into individual files, causing
+  // extremely slow enumeration on large repos with many untracked files.
+  // Without -u, git collapses untracked directories into single entries.
+  const raw = await git.raw(["status", "--porcelain", "-b"]);
+
+  const staged: string[] = [];
+  const modified: string[] = [];
+  const not_added: string[] = [];
+  const deleted: string[] = [];
+  const created: string[] = [];
+
+  for (const line of raw.split("\n")) {
+    if (!line || line.startsWith("##")) continue;
+    const x = line[0]; // index (staged) status
+    const y = line[1]; // worktree status
+    const file = line.slice(3);
+
+    if (x === "?" && y === "?") {
+      not_added.push(file);
+    } else {
+      if (x === "A") staged.push(file);
+      else if (x === "M") staged.push(file);
+      else if (x === "D") staged.push(file);
+      else if (x === "R") staged.push(file);
+
+      if (y === "M") modified.push(file);
+      else if (y === "D") deleted.push(file);
+      else if (y === "A") created.push(file);
+    }
+  }
 
   const totalFiles =
-    status.modified.length +
-    status.not_added.length +
-    status.deleted.length +
-    status.created.length +
-    status.staged.length;
+    modified.length + not_added.length + deleted.length + created.length + staged.length;
   const truncated = totalFiles > GIT_STATUS_MAX_FILES;
 
-  let modified = status.modified;
-  let not_added = status.not_added;
-  let deleted = status.deleted;
-  let created = status.created;
-  let staged = status.staged;
+  const truncate = (arr: string[], remaining: number) => {
+    const sliced = arr.slice(0, remaining);
+    return { result: sliced, used: sliced.length };
+  };
+
+  let finalStaged = staged;
+  let finalModified = modified;
+  let finalNotAdded = not_added;
+  let finalDeleted = deleted;
+  let finalCreated = created;
 
   if (truncated) {
     let remaining = GIT_STATUS_MAX_FILES;
-    staged = staged.slice(0, remaining);
-    remaining -= staged.length;
-    modified = modified.slice(0, remaining);
-    remaining -= modified.length;
-    not_added = not_added.slice(0, remaining);
-    remaining -= not_added.length;
-    deleted = deleted.slice(0, remaining);
-    remaining -= deleted.length;
-    created = created.slice(0, remaining);
+    ({ result: finalStaged } = truncate(staged, remaining));
+    remaining -= finalStaged.length;
+    ({ result: finalModified } = truncate(modified, remaining));
+    remaining -= finalModified.length;
+    ({ result: finalNotAdded } = truncate(not_added, remaining));
+    remaining -= finalNotAdded.length;
+    ({ result: finalDeleted } = truncate(deleted, remaining));
+    remaining -= finalDeleted.length;
+    ({ result: finalCreated } = truncate(created, remaining));
   }
 
   return {
-    modified,
-    not_added,
-    deleted,
-    created,
-    staged,
+    modified: finalModified,
+    not_added: finalNotAdded,
+    deleted: finalDeleted,
+    created: finalCreated,
+    staged: finalStaged,
     hasChanges:
-      status.modified.length > 0 ||
-      status.not_added.length > 0 ||
-      status.deleted.length > 0 ||
-      status.created.length > 0,
-    hasStaged: status.staged.length > 0,
+      modified.length > 0 ||
+      not_added.length > 0 ||
+      deleted.length > 0 ||
+      created.length > 0,
+    hasStaged: staged.length > 0,
     truncated,
     totalFiles,
   };
