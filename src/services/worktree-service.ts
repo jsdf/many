@@ -608,17 +608,64 @@ export async function getCommitLog(worktreePath: string, baseBranch: string): Pr
 
 // --- getBranchDiff ---
 
+const BRANCH_DIFF_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const BRANCH_DIFF_MAX_FILES = 200;
+
+// Find the parent branch by walking first-parent history from HEAD and finding
+// the first commit that another local branch points at.
+export async function findParentBranch(
+  git: import("simple-git").SimpleGit,
+  currentBranch: string,
+  resolvedMain: string
+): Promise<string> {
+  try {
+    // Get all local branch tips as a map of commit -> branch name
+    const branchOutput = await git.raw([
+      "for-each-ref",
+      "--format=%(objectname) %(refname:short)",
+      "refs/heads/",
+    ]);
+    const commitToBranch = new Map<string, string>();
+    for (const line of branchOutput.trim().split("\n")) {
+      const spaceIdx = line.indexOf(" ");
+      if (spaceIdx === -1) continue;
+      const commit = line.slice(0, spaceIdx);
+      const branch = line.slice(spaceIdx + 1);
+      if (branch !== currentBranch) {
+        commitToBranch.set(commit, branch);
+      }
+    }
+
+    // Walk first-parent history from HEAD~1 (skip HEAD itself since current
+    // branch points there). Stop after 1000 commits to avoid walking forever
+    // on long-lived branches.
+    const logOutput = await git.raw([
+      "rev-list",
+      "--first-parent",
+      "--max-count=1000",
+      "HEAD",
+    ]);
+    const commits = logOutput.trim().split("\n");
+    // Skip first commit (HEAD itself, which is the current branch tip)
+    for (let i = 1; i < commits.length; i++) {
+      const branch = commitToBranch.get(commits[i]);
+      if (branch) return branch;
+    }
+  } catch {
+    // Fall through to main
+  }
+  return resolvedMain;
+}
+
 export async function getBranchDiff(
   worktreePath: string,
   repoPath: string,
   mainBranch: string | null
-): Promise<{ diff: string; mainBranch: string }> {
+): Promise<{ diff: string; mainBranch: string; truncated?: boolean }> {
   const { simpleGit } = await import("simple-git");
   const git = simpleGit(worktreePath);
   const resolvedMain = await gitPool.getDefaultBranch(repoPath, { mainBranch, initCommand: null, worktreeDirectory: null });
 
-  // Detect if we're on the main branch itself. If so, only show uncommitted
-  // working tree changes (diff against HEAD), not committed history.
   const currentBranch = (await git.raw(["symbolic-ref", "--short", "HEAD"]).catch(() => "")).trim();
   const onMainBranch = currentBranch === resolvedMain;
 
@@ -627,60 +674,82 @@ export async function getBranchDiff(
     diffBase = "HEAD";
   } else {
     try {
-      diffBase = (await git.raw(["merge-base", resolvedMain, "HEAD"])).trim();
+      const parentBranch = await findParentBranch(git, currentBranch, resolvedMain);
+      diffBase = (await git.raw(["merge-base", parentBranch, "HEAD"])).trim();
     } catch {
       return { diff: "", mainBranch: resolvedMain };
     }
   }
 
-  // Diff from the base to working tree. On feature branches this combines
-  // committed branch changes and uncommitted modifications. On main this
-  // only shows uncommitted modifications.
   const trackedDiff = await git.raw(["diff", diffBase]);
 
-  // Include untracked files (new files not yet staged) so they appear in the
-  // branch changes view alongside everything else.
-  let untrackedDiff = "";
+  let diff = trackedDiff;
+  let truncated = false;
+
+  // Include untracked files, but use --directory so large untracked dirs
+  // collapse to a single entry instead of enumerating every file.
+  const UNTRACKED_MAX_FILES = 50;
   try {
     const untrackedOutput = await git.raw([
       "ls-files",
       "--others",
       "--exclude-standard",
+      "--directory",
     ]);
-    const untrackedFiles = untrackedOutput
-      .trim()
-      .split("\n")
-      .filter(Boolean);
-    if (untrackedFiles.length > 0) {
-      // Generate diffs for untracked files by diffing against empty tree
-      const untrackedPatches: string[] = [];
-      for (const file of untrackedFiles) {
-        try {
-          const patch = await git.raw([
-            "diff",
-            "--no-index",
-            "/dev/null",
-            file,
-          ]);
-          untrackedPatches.push(patch);
-        } catch (err: unknown) {
-          // git diff --no-index exits with code 1 when files differ (which is
-          // always the case here). simple-git throws on non-zero exit, but the
-          // stderr/stdout still contains the patch. Extract it from the error.
-          if (err && typeof err === "object" && "stdout" in err) {
-            const stdout = (err as { stdout: string }).stdout;
-            if (stdout) untrackedPatches.push(stdout);
+    const allEntries = untrackedOutput.trim().split("\n").filter(Boolean);
+    // Skip directory entries (end with /) - can't diff those meaningfully
+    const untrackedFiles = allEntries
+      .filter((f) => !f.endsWith("/"))
+      .slice(0, UNTRACKED_MAX_FILES);
+    if (untrackedFiles.length < allEntries.length) truncated = true;
+    const untrackedPatches: string[] = [];
+    let untrackedBytes = 0;
+    for (const file of untrackedFiles) {
+      if (diff.length + untrackedBytes > BRANCH_DIFF_MAX_BYTES) {
+        truncated = true;
+        break;
+      }
+      try {
+        const patch = await git.raw(["diff", "--no-index", "/dev/null", file]);
+        untrackedPatches.push(patch);
+        untrackedBytes += patch.length;
+      } catch (err: unknown) {
+        // git diff --no-index exits with code 1 when files differ (always
+        // the case here). simple-git throws but stderr/stdout has the patch.
+        if (err && typeof err === "object" && "stdout" in err) {
+          const stdout = (err as { stdout: string }).stdout;
+          if (stdout) {
+            untrackedPatches.push(stdout);
+            untrackedBytes += stdout.length;
           }
         }
       }
-      untrackedDiff = untrackedPatches.filter(Boolean).join("\n");
+    }
+    if (untrackedPatches.length > 0) {
+      diff = [diff, ...untrackedPatches].filter(Boolean).join("\n");
     }
   } catch {
     // If listing untracked files fails, just skip them
   }
 
-  const diff = [trackedDiff, untrackedDiff].filter(Boolean).join("\n");
-  return { diff, mainBranch: resolvedMain };
+  if (diff.length > BRANCH_DIFF_MAX_BYTES) {
+    diff = diff.slice(0, BRANCH_DIFF_MAX_BYTES);
+    truncated = true;
+  }
+
+  const fileDiffPattern = /^diff --git /gm;
+  let fileCount = 0;
+  let match: RegExpExecArray | null;
+  while ((match = fileDiffPattern.exec(diff)) !== null) {
+    fileCount++;
+    if (fileCount > BRANCH_DIFF_MAX_FILES) {
+      diff = diff.slice(0, match.index);
+      truncated = true;
+      break;
+    }
+  }
+
+  return { diff, mainBranch: resolvedMain, truncated };
 }
 
 // --- getGitHubLink ---

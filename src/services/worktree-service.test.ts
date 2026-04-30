@@ -8,6 +8,8 @@ import {
   archiveWorktree,
   createAndSetupWorktree,
   launchTask,
+  findParentBranch,
+  getBranchDiff,
 } from "./worktree-service.js";
 import type { ProgressEvent, RunCommand } from "./types.js";
 import { parseWorktreeList } from "../shared/git-core.js";
@@ -355,5 +357,160 @@ describe("launchTask", () => {
     );
 
     expect(maintenanceCwd).toBe(await fs.realpath(wtPath));
+  });
+});
+
+// --- findParentBranch ---
+
+describe("findParentBranch", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => { tmpDir = await makeTmpDir(); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+
+  it("returns the branch that current branch forked from", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "feature-a"]);
+    await fs.writeFile(path.join(repoPath, "a.txt"), "a");
+    await git.add("a.txt");
+    await git.commit("commit on feature-a");
+
+    await git.checkout(["-b", "feature-b"]);
+    await fs.writeFile(path.join(repoPath, "b.txt"), "b");
+    await git.add("b.txt");
+    await git.commit("commit on feature-b");
+
+    const parent = await findParentBranch(git, "feature-b", "main");
+    expect(parent).toBe("feature-a");
+  });
+
+  it("returns main when branch was created directly from main", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "feature-a"]);
+    await fs.writeFile(path.join(repoPath, "a.txt"), "a");
+    await git.add("a.txt");
+    await git.commit("commit on feature-a");
+
+    const parent = await findParentBranch(git, "feature-a", "main");
+    expect(parent).toBe("main");
+  });
+
+  it("returns the closest branch in a chain", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "branch-1"]);
+    await fs.writeFile(path.join(repoPath, "1.txt"), "1");
+    await git.add("1.txt");
+    await git.commit("commit 1");
+
+    await git.checkout(["-b", "branch-2"]);
+    await fs.writeFile(path.join(repoPath, "2.txt"), "2");
+    await git.add("2.txt");
+    await git.commit("commit 2");
+
+    await git.checkout(["-b", "branch-3"]);
+    await fs.writeFile(path.join(repoPath, "3.txt"), "3");
+    await git.add("3.txt");
+    await git.commit("commit 3");
+
+    const parent = await findParentBranch(git, "branch-3", "main");
+    expect(parent).toBe("branch-2");
+  });
+
+  it("falls back to resolvedMain when no other branch is found", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    // Detach HEAD and make a commit with no branch pointing at the parent
+    const headCommit = (await git.raw(["rev-parse", "HEAD"])).trim();
+    await git.checkout(["-b", "orphan-like"]);
+    await fs.writeFile(path.join(repoPath, "o.txt"), "o");
+    await git.add("o.txt");
+    await git.commit("orphan commit");
+
+    // Delete main so no branch points at headCommit
+    await git.raw(["branch", "-D", "main"]);
+
+    const parent = await findParentBranch(git, "orphan-like", "main");
+    expect(parent).toBe("main");
+  });
+});
+
+// --- getBranchDiff ---
+
+describe("getBranchDiff", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => { tmpDir = await makeTmpDir(); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+
+  it("diffs against parent branch, not main", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    // Create feature-a with a commit
+    await git.checkout(["-b", "feature-a"]);
+    await fs.writeFile(path.join(repoPath, "a.txt"), "a");
+    await git.add("a.txt");
+    await git.commit("commit on feature-a");
+
+    // Create feature-b off feature-a with its own commit
+    await git.checkout(["-b", "feature-b"]);
+    await fs.writeFile(path.join(repoPath, "b.txt"), "b");
+    await git.add("b.txt");
+    await git.commit("commit on feature-b");
+
+    const result = await getBranchDiff(repoPath, repoPath, "main");
+    // Should only contain b.txt (diff against feature-a), not a.txt
+    expect(result.diff).toContain("b.txt");
+    expect(result.diff).not.toContain("a.txt");
+  });
+
+  it("includes untracked files in the diff", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "feature-a"]);
+    await fs.writeFile(path.join(repoPath, "untracked.txt"), "hello");
+
+    const result = await getBranchDiff(repoPath, repoPath, "main");
+    expect(result.diff).toContain("untracked.txt");
+  });
+
+  it("skips untracked directories instead of expanding them", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "feature-a"]);
+    // Create a directory with many untracked files
+    const dirPath = path.join(repoPath, "big-output");
+    await fs.mkdir(dirPath);
+    for (let i = 0; i < 10; i++) {
+      await fs.writeFile(path.join(dirPath, `file-${i}.txt`), `content-${i}`);
+    }
+
+    const result = await getBranchDiff(repoPath, repoPath, "main");
+    // The directory's files should not appear individually in the diff
+    // because --directory collapses them and dirs are skipped
+    expect(result.diff).not.toContain("file-0.txt");
+  });
+
+  it("sets truncated when untracked dirs are skipped", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    const git = simpleGit(repoPath);
+
+    await git.checkout(["-b", "feature-a"]);
+    const dirPath = path.join(repoPath, "output");
+    await fs.mkdir(dirPath);
+    await fs.writeFile(path.join(dirPath, "f.txt"), "x");
+
+    const result = await getBranchDiff(repoPath, repoPath, "main");
+    // Directory entry is skipped, so truncated should be set
+    expect(result.truncated).toBe(true);
   });
 });
