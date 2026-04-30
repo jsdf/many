@@ -22,7 +22,11 @@ export interface GitStatus {
   staged: string[];
   hasChanges: boolean;
   hasStaged: boolean;
+  truncated?: boolean;
+  totalFiles?: number;
 }
+
+export const GIT_STATUS_MAX_FILES = 500;
 
 // --- Constants ---
 
@@ -311,18 +315,47 @@ export async function getWorktreeStatus(
   const git = simpleGit(worktreePath);
   const status = await git.status();
 
+  const totalFiles =
+    status.modified.length +
+    status.not_added.length +
+    status.deleted.length +
+    status.created.length +
+    status.staged.length;
+  const truncated = totalFiles > GIT_STATUS_MAX_FILES;
+
+  let modified = status.modified;
+  let not_added = status.not_added;
+  let deleted = status.deleted;
+  let created = status.created;
+  let staged = status.staged;
+
+  if (truncated) {
+    let remaining = GIT_STATUS_MAX_FILES;
+    staged = staged.slice(0, remaining);
+    remaining -= staged.length;
+    modified = modified.slice(0, remaining);
+    remaining -= modified.length;
+    not_added = not_added.slice(0, remaining);
+    remaining -= not_added.length;
+    deleted = deleted.slice(0, remaining);
+    remaining -= deleted.length;
+    created = created.slice(0, remaining);
+  }
+
   return {
-    modified: status.modified,
-    not_added: status.not_added,
-    deleted: status.deleted,
-    created: status.created,
-    staged: status.staged,
+    modified,
+    not_added,
+    deleted,
+    created,
+    staged,
     hasChanges:
       status.modified.length > 0 ||
       status.not_added.length > 0 ||
       status.deleted.length > 0 ||
       status.created.length > 0,
     hasStaged: status.staged.length > 0,
+    truncated,
+    totalFiles,
   };
 }
 

@@ -57,11 +57,19 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+const FILE_PATCH_MAX_LINES = 5000;
+
 const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultCollapsed?: boolean; worktreePath: string }> = ({ patch, diffStyle, defaultCollapsed = false, worktreePath }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const filename = useMemo(() => getFilename(patch), [patch]);
   const absPath = `${worktreePath}/${filename}`;
   const isDark = useDarkMode();
+
+  const { displayPatch, patchTruncated } = useMemo(() => {
+    const lines = patch.split("\n");
+    if (lines.length <= FILE_PATCH_MAX_LINES) return { displayPatch: patch, patchTruncated: false };
+    return { displayPatch: lines.slice(0, FILE_PATCH_MAX_LINES).join("\n"), patchTruncated: true };
+  }, [patch]);
 
   return (
     <div className="border border-base-300 rounded overflow-hidden group/file">
@@ -88,12 +96,17 @@ const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultColl
       {!collapsed && (
         <div className="overflow-x-auto">
           <PatchDiff
-            patch={patch}
+            patch={displayPatch}
             options={{
               theme: isDark ? "github-dark" : "github-light",
               diffStyle,
             }}
           />
+          {patchTruncated && (
+            <div className="text-warning text-xs p-2 bg-warning/10">
+              Diff truncated - file has too many changed lines to display.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -115,6 +128,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
   diffStyle,
 }) => {
   const [diff, setDiff] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +140,10 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
     setError(null);
     getRpcClient().query("worktree.branchDiff", { worktreePath, repoPath })
       .then((result) => {
-        if (!cancelled) setDiff(result.diff);
+        if (!cancelled) {
+          setDiff(result.diff);
+          setTruncated(result.truncated ?? false);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -172,6 +189,11 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
         {filePatches.map((filePatch, i) => (
           <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} defaultCollapsed={filePatches.length > 10} worktreePath={worktreePath} />
         ))}
+        {truncated && (
+          <div className="text-warning text-xs p-2 bg-warning/10 rounded">
+            Output truncated - diff is too large to display in full.
+          </div>
+        )}
       </div>
     </div>
   );

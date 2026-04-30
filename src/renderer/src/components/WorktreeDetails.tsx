@@ -573,6 +573,11 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   <span key={`created-${file}`} className="text-success">A  {file}{"\n"}</span>
                 )),
               ]}</code></pre>
+              {gitStatus.truncated && (
+                <div className="text-warning text-xs mt-2 p-2 bg-warning/10 rounded">
+                  Showing {gitStatus.staged.length + gitStatus.modified.length + gitStatus.not_added.length + gitStatus.deleted.length + gitStatus.created.length} of {gitStatus.totalFiles} files - too many to display in full.
+                </div>
+              )}
             </div>
           ) : gitStatus ? (
             <p className="text-success m-0">Working tree clean</p>

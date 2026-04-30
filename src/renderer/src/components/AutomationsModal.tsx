@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { AutomationDefinition } from "../types";
 import { getRpcClient } from "../rpc-client";
+import TopBar from "./TopBar";
 
 interface AutomationsModalProps {
   currentRepo: string;
+  sidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
   onClose: () => void;
 }
 
@@ -27,6 +30,8 @@ const CLAUDE_SKILLS = [
 
 const AutomationsModal: React.FC<AutomationsModalProps> = ({
   currentRepo,
+  sidebarCollapsed,
+  onExpandSidebar,
   onClose,
 }) => {
   const [automations, setAutomations] = useState<AutomationDefinition[]>([]);
@@ -84,15 +89,17 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex justify-between items-center px-5 py-3 border-b border-base-300 shrink-0">
+      <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
         <h3 className="text-lg font-semibold m-0">Automations</h3>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={onClose}
-        >
-          &larr; Back
-        </button>
-      </div>
+        <div className="ml-auto">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={onClose}
+          >
+            &larr; Back
+          </button>
+        </div>
+      </TopBar>
 
       <div className="p-5 overflow-y-auto flex-1">
         {editing ? (

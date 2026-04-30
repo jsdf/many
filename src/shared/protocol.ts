@@ -61,6 +61,8 @@ export interface GitStatus {
   staged: string[];
   hasChanges: boolean;
   hasStaged: boolean;
+  truncated?: boolean;
+  totalFiles?: number;
 }
 
 export interface BranchStackEntry {
@@ -266,7 +268,7 @@ export interface QueryProcedures {
   };
   "worktree.branchDiff": {
     input: { worktreePath: string; repoPath: string };
-    output: { diff: string };
+    output: { diff: string; truncated?: boolean };
   };
   "worktree.archive": {
     input: { repoPath: string; worktreePath: string; force?: boolean };

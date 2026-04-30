@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import type { TaskRecord } from "../../../shared/protocol";
 import { getRpcClient } from "../rpc-client";
+import TopBar from "./TopBar";
 
 interface TaskQueuePanelProps {
   currentRepo: string | null;
+  sidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -13,7 +16,7 @@ const statusColors: Record<string, string> = {
   unknown: "badge-neutral",
 };
 
-const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
+const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCollapsed, onExpandSidebar }) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,9 +80,9 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex justify-between items-center px-5 py-3 border-b border-base-300 shrink-0">
+      <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
         <h3 className="text-lg font-semibold m-0">Running Tasks</h3>
-      </div>
+      </TopBar>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Task list */}

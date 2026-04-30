@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import TopBar from './TopBar'
 import {
   DndContext,
   closestCenter,
@@ -29,6 +30,8 @@ interface TrackedPanelProps {
   starredBranches: Set<string>
   worktrees: Worktree[]
   hasTaskPools: boolean
+  sidebarCollapsed?: boolean
+  onExpandSidebar?: () => void
   onGoToWorktree: (worktreePath: string) => void
   onNewTask: (branch: string) => void
 }
@@ -64,7 +67,7 @@ const SortableTrackedItem: React.FC<{ id: string; children: (dragHandleProps: Re
 
 type StatusFilter = 'all' | 'active' | 'idle';
 
-const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranches, worktrees, hasTaskPools, onGoToWorktree, onNewTask }) => {
+const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranches, worktrees, hasTaskPools, sidebarCollapsed, onExpandSidebar, onGoToWorktree, onNewTask }) => {
   const [trackedBranches, setTrackedBranches] = useState<string[]>([]);
   const [itemData, setItemData] = useState<Map<string, TrackedItemData>>(new Map());
   const [adding, setAdding] = useState(false);
@@ -238,8 +241,11 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
   };
 
   return (
-    <div className="p-5 overflow-auto h-full w-full min-w-0">
-      <h2 className="text-lg font-semibold mb-4">Tracked Branches</h2>
+    <div className="flex flex-col h-full w-full min-w-0">
+      <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
+        <h2 className="text-lg font-semibold m-0">Tracked Branches</h2>
+      </TopBar>
+      <div className="p-5 overflow-auto flex-1 min-h-0">
 
       <BranchTypeahead
         repoPath={currentRepo}
@@ -327,6 +333,7 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
           </DragOverlay>
         </DndContext>
       )}
+      </div>
     </div>
   );
 };

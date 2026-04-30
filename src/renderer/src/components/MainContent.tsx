@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Worktree, PoolConfig, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
 import { getRpcClient } from "../rpc-client";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import TopBar from "./TopBar";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
@@ -9,6 +11,8 @@ interface MainContentProps {
   selectedWorktree: Worktree | null;
   currentRepo: string | null;
   pools?: PoolConfig[];
+  sidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
   onArchiveWorktree: (worktree: Worktree) => void;
   onMergeWorktree: (worktree: Worktree) => void;
   onRebaseWorktree: (worktree: Worktree) => void;
@@ -27,12 +31,15 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   selectedWorktree,
   currentRepo,
   pools,
+  sidebarCollapsed,
+  onExpandSidebar,
   onArchiveWorktree,
   onMergeWorktree,
   onRebaseWorktree,
   onReleaseWorktree,
   onClaimWorktree,
 }, ref) => {
+  const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
@@ -130,10 +137,10 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const totalWidth = rect.width;
-      const relX = e.clientX - rect.left;
-      const fraction = relX / totalWidth;
-      const minFraction = MIN_PANE_WIDTH / totalWidth;
+      const total = isNarrow ? rect.height : rect.width;
+      const rel = isNarrow ? (e.clientY - rect.top) : (e.clientX - rect.left);
+      const fraction = rel / total;
+      const minFraction = MIN_PANE_WIDTH / total;
       setSplitFraction(
         Math.max(minFraction, Math.min(1 - minFraction, fraction))
       );
@@ -168,7 +175,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
   return (
     <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
-      <div className="flex items-center gap-3 px-4 py-2 bg-base-200 border-b border-base-300 shrink-0 flex-wrap">
+      <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
         <div className="mr-2">
           <h2 className="m-0 text-base font-semibold leading-tight">{formatBranchName(selectedWorktree.branch)}</h2>
           <span className="block text-xs text-base-content/50 leading-tight" title={selectedWorktree.path}>{selectedWorktree.worktreeName}</span>
@@ -270,15 +277,15 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             </a>
           )}
         </div>
-      </div>
+      </TopBar>
 
       <div
-        className="flex-1 flex overflow-hidden min-h-0"
+        className={`flex-1 flex overflow-hidden min-h-0 ${isNarrow ? 'flex-col' : ''}`}
         ref={containerRef}
         style={{ userSelect: dragging ? "none" : undefined }}
       >
         <div
-          className="overflow-y-auto min-w-[200px]"
+          className={isNarrow ? "overflow-y-auto min-h-[120px]" : "overflow-y-auto min-w-[200px]"}
           style={{ flex: `0 0 ${splitFraction * 100}%` }}
         >
           <WorktreeDetails
@@ -306,11 +313,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         </div>
 
         <div
-          className={`w-1 shrink-0 bg-base-300 cursor-ew-resize transition-colors ${dragging ? 'bg-primary' : 'hover:bg-primary'}`}
+          className={`shrink-0 transition-colors ${dragging ? 'bg-primary' : 'bg-base-300 hover:bg-primary'} ${isNarrow ? 'h-1 cursor-ns-resize' : 'w-1 cursor-ew-resize'}`}
           onMouseDown={handleMouseDown}
         />
 
-        <div className="flex-1 min-w-[200px] flex flex-col overflow-hidden">
+        <div className={`flex-1 flex flex-col overflow-hidden ${isNarrow ? 'min-h-[120px]' : 'min-w-[200px]'}`}>
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}

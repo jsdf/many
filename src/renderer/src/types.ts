@@ -112,4 +112,6 @@ export interface GitStatus {
   staged: string[];
   hasChanges: boolean;
   hasStaged: boolean;
+  truncated?: boolean;
+  totalFiles?: number;
 }

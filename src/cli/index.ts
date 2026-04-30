@@ -1598,6 +1598,7 @@ ${bold("WEB UI:")}
 // Web command - start the web server
 async function cmdWeb(args: string[]): Promise<void> {
   let port = 0; // 0 = auto-select free port
+  let host: string | undefined;
   let open = !process.env.MANY_NO_OPEN;
   let token: string | undefined;
 
@@ -1609,6 +1610,9 @@ async function cmdWeb(args: string[]): Promise<void> {
         console.log(red("Error: Invalid port number"));
         process.exit(1);
       }
+      i++;
+    } else if (args[i] === "--host") {
+      host = args[i + 1];
       i++;
     } else if (args[i] === "--token") {
       token = args[i + 1];
@@ -1624,7 +1628,7 @@ async function cmdWeb(args: string[]): Promise<void> {
 
   // Dynamic import to avoid loading web server dependencies for other commands
   const { startWebServer } = await import("../web/server.js");
-  await startWebServer({ port, open, token });
+  await startWebServer({ port, host, open, token });
 }
 
 function getVersion(): string {

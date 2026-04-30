@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
@@ -52,6 +53,7 @@ const App: React.FC = () => {
   const [taskLaunchState, setTaskLaunchState] = useState<TaskLaunchState | null>(null);
   const taskLaunchUnsubRef = useRef<(() => void) | null>(null);
   const { view: mainPaneView, navigate: setMainPaneView } = useHashRouter();
+  const isNarrow = useMediaQuery('(max-width: 768px)');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [draggingSidebar, setDraggingSidebar] = useState(false);
@@ -60,6 +62,10 @@ const App: React.FC = () => {
   const [worktreeOrder, setWorktreeOrder] = useState<string[]>([]);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
+
+  useEffect(() => {
+    setSidebarCollapsed(isNarrow);
+  }, [isNarrow]);
 
   useEffect(() => {
     if (!draggingSidebar) return;
@@ -596,15 +602,17 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen">
       {sidebarCollapsed ? (
-        <div className="w-10 shrink-0 bg-base-200 border-r border-base-300 flex flex-col items-center pt-2">
-          <button
-            className="btn btn-ghost btn-sm btn-square"
-            onClick={() => setSidebarCollapsed(false)}
-            title="Show sidebar"
-          >
-            &#9776;
-          </button>
-        </div>
+        isNarrow ? null : (
+          <div className="w-10 shrink-0 bg-base-200 border-r border-base-300 flex flex-col items-center pt-2">
+            <button
+              className="btn btn-ghost btn-sm btn-square"
+              onClick={() => setSidebarCollapsed(false)}
+              title="Show sidebar"
+            >
+              &#9776;
+            </button>
+          </div>
+        )
       ) : (
         <>
           <div style={{ width: sidebarWidth, minWidth: 200, maxWidth: 600, flexShrink: 0 }}>
@@ -668,6 +676,8 @@ const App: React.FC = () => {
             )}
             worktrees={worktrees}
             hasTaskPools={repoConfig?.pools?.some(p => p.taskCommand) ?? false}
+            sidebarCollapsed={sidebarCollapsed && isNarrow}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
             onGoToWorktree={(worktreePath) => {
               const wt = worktrees.find((w) => w.path === worktreePath);
               if (wt) {
@@ -685,12 +695,18 @@ const App: React.FC = () => {
         <div className="flex-1 min-w-0">
           <AutomationsModal
             currentRepo={currentRepo}
+            sidebarCollapsed={sidebarCollapsed && isNarrow}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
             onClose={() => setMainPaneView({ type: 'runningTasks' })}
           />
         </div>
       ) : mainPaneView.type === 'runningTasks' && currentRepo ? (
         <div className="flex-1 min-w-0">
-          <TaskQueuePanel currentRepo={currentRepo} />
+          <TaskQueuePanel
+            currentRepo={currentRepo}
+            sidebarCollapsed={sidebarCollapsed && isNarrow}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
+          />
         </div>
       ) : (
         <MainContent
@@ -698,6 +714,8 @@ const App: React.FC = () => {
           selectedWorktree={selectedWorktree}
           currentRepo={currentRepo}
           pools={repoConfig?.pools}
+          sidebarCollapsed={sidebarCollapsed && isNarrow}
+          onExpandSidebar={() => setSidebarCollapsed(false)}
           onArchiveWorktree={(worktree) => openArchiveModal([worktree])}
           onMergeWorktree={openMergeModal}
           onRebaseWorktree={openRebaseModal}
