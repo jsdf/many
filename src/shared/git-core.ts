@@ -2,6 +2,7 @@
 import { simpleGit } from "simple-git";
 import path from "path";
 import { promises as fs } from "fs";
+import logger from "./logger.js";
 
 // --- Types ---
 
@@ -10,6 +11,7 @@ export interface ParsedWorktree {
   commit?: string;
   branch?: string;
   bare?: boolean;
+  locked?: boolean;
 }
 
 export interface GitStatus {
@@ -76,11 +78,19 @@ export async function parseWorktreeList(
 ): Promise<ParsedWorktree[]> {
   const git = simpleGit(repoPath);
 
+  // Unlock stale locked worktrees (directories that no longer exist) so prune can remove them
+  await unlockStaleWorktrees(repoPath);
+
   // Prune stale worktree entries (e.g. directories manually deleted)
   await git.raw(["worktree", "prune"]);
 
   const output = await git.raw(["worktree", "list", "--porcelain"]);
 
+  return parseWorktreeListOutput(output);
+}
+
+/** Parse porcelain output from `git worktree list --porcelain` */
+export function parseWorktreeListOutput(output: string): ParsedWorktree[] {
   const parsed: ParsedWorktree[] = [];
   const lines = output.split("\n");
   let current: Partial<ParsedWorktree> = {};
@@ -95,11 +105,50 @@ export async function parseWorktreeList(
       current.branch = line.substring(7);
     } else if (line.startsWith("bare")) {
       current.bare = true;
+    } else if (line === "locked" || line.startsWith("locked ")) {
+      current.locked = true;
     }
   }
   if (current.path) parsed.push(current as ParsedWorktree);
 
   return parsed;
+}
+
+/**
+ * Find locked worktrees whose directories no longer exist and unlock them
+ * so that `git worktree prune` can clean them up.
+ */
+async function unlockStaleWorktrees(repoPath: string): Promise<void> {
+  const git = simpleGit(repoPath);
+
+  let output: string;
+  try {
+    output = await git.raw(["worktree", "list", "--porcelain"]);
+  } catch {
+    return;
+  }
+
+  const worktrees = parseWorktreeListOutput(output);
+
+  for (const wt of worktrees) {
+    if (!wt.locked || wt.bare) continue;
+
+    let exists = true;
+    try {
+      await fs.access(wt.path);
+    } catch {
+      exists = false;
+    }
+
+    if (!exists) {
+      try {
+        await git.raw(["worktree", "unlock", wt.path]);
+        logger.info(`Auto-unlocked stale worktree: ${wt.path}`);
+      } catch {
+        // May fail if already unlocked or other issue - prune will handle what it can
+      }
+    }
+  }
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   isTmpBranch,
   getLocalBranchName,
   parseWorktreeList,
+  parseWorktreeListOutput,
   branchExists,
   checkBranchMerged,
   getWorktreeStatus,
@@ -505,5 +506,121 @@ describe("releaseWorktree", () => {
     expect(result.tmpBranch).toBe("tmp-wt1");
     const tmpBranchCommit = (await wtGit.raw(["rev-parse", "HEAD"])).trim();
     expect(tmpBranchCommit).toBe(newMainHead);
+  });
+});
+
+describe("parseWorktreeListOutput", () => {
+  it("parses basic porcelain output", () => {
+    const output = [
+      "worktree /home/user/repo",
+      "HEAD abc123",
+      "branch refs/heads/main",
+      "",
+      "worktree /home/user/repo-wt1",
+      "HEAD def456",
+      "branch refs/heads/feature-1",
+      "",
+    ].join("\n");
+
+    const result = parseWorktreeListOutput(output);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      path: "/home/user/repo",
+      commit: "abc123",
+      branch: "refs/heads/main",
+    });
+    expect(result[1]).toEqual({
+      path: "/home/user/repo-wt1",
+      commit: "def456",
+      branch: "refs/heads/feature-1",
+    });
+  });
+
+  it("parses locked worktrees", () => {
+    const output = [
+      "worktree /home/user/repo-wt1",
+      "HEAD abc123",
+      "branch refs/heads/feature-1",
+      "locked",
+      "",
+    ].join("\n");
+
+    const result = parseWorktreeListOutput(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].locked).toBe(true);
+  });
+
+  it("parses locked worktrees with a reason", () => {
+    const output = [
+      "worktree /home/user/repo-wt1",
+      "HEAD abc123",
+      "branch refs/heads/feature-1",
+      "locked reason for locking",
+      "",
+    ].join("\n");
+
+    const result = parseWorktreeListOutput(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].locked).toBe(true);
+  });
+
+  it("parses bare worktrees", () => {
+    const output = [
+      "worktree /home/user/repo.git",
+      "bare",
+      "",
+    ].join("\n");
+
+    const result = parseWorktreeListOutput(output);
+    expect(result).toHaveLength(1);
+    expect(result[0].bare).toBe(true);
+  });
+
+  it("unlocked worktrees do not have locked field", () => {
+    const output = [
+      "worktree /home/user/repo-wt1",
+      "HEAD abc123",
+      "branch refs/heads/feature-1",
+      "",
+    ].join("\n");
+
+    const result = parseWorktreeListOutput(output);
+    expect(result[0].locked).toBeUndefined();
+  });
+});
+
+describe("parseWorktreeList with stale locked worktrees", () => {
+  let tmpDir: string;
+  let repoPath: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+    ({ repoPath } = await initBareOriginAndClone(tmpDir));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("auto-unlocks and prunes a locked worktree whose directory was deleted", async () => {
+    const git = simpleGit(repoPath);
+
+    // Create a worktree
+    const wtPath = path.join(tmpDir, "repo-wt1");
+    await git.raw(["worktree", "add", "-b", "tmp-wt1", wtPath, "main"]);
+
+    // Lock it
+    await git.raw(["worktree", "lock", wtPath]);
+
+    // Manually delete the directory (simulating stale state)
+    await fs.rm(wtPath, { recursive: true, force: true });
+
+    // parseWorktreeList should auto-unlock and prune the stale entry
+    const worktrees = await parseWorktreeList(repoPath);
+
+    // Only the main worktree should remain
+    expect(worktrees).toHaveLength(1);
+    // git resolves symlinks (e.g. /tmp -> /private/tmp on macOS), so just check the basename matches
+    expect(path.basename(worktrees[0].path)).toBe(path.basename(repoPath));
   });
 });

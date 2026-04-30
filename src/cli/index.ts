@@ -402,6 +402,16 @@ interface WorktreeStatInfo {
   headCommit: string | null;
 }
 
+const emptyStatus: GitStatus = {
+  modified: [],
+  not_added: [],
+  deleted: [],
+  created: [],
+  staged: [],
+  hasChanges: false,
+  hasStaged: false,
+};
+
 async function prefetchWorktreeInfo(
   worktrees: WorktreeInfo[],
   showStat: boolean,
@@ -411,20 +421,24 @@ async function prefetchWorktreeInfo(
   const results = new Map<string, WorktreeStatInfo>();
   await Promise.all(
     worktrees.map(async (w) => {
-      const status = await getWorktreeStatus(w.path);
-      let statusShort: string | null = null;
-      let headCommit: string | null = null;
-      if (showStat) {
-        const isDirty = status.hasChanges || status.hasStaged;
-        const isClaimed = claimedPaths.has(w.path);
-        const [s, h] = await Promise.all([
-          isDirty ? getGitStatusShort(w.path) : null,
-          isClaimed ? getHeadCommitIfDiverged(w.path, mainBranch) : null,
-        ]);
-        statusShort = s;
-        headCommit = h;
+      try {
+        const status = await getWorktreeStatus(w.path);
+        let statusShort: string | null = null;
+        let headCommit: string | null = null;
+        if (showStat) {
+          const isDirty = status.hasChanges || status.hasStaged;
+          const isClaimed = claimedPaths.has(w.path);
+          const [s, h] = await Promise.all([
+            isDirty ? getGitStatusShort(w.path) : null,
+            isClaimed ? getHeadCommitIfDiverged(w.path, mainBranch) : null,
+          ]);
+          statusShort = s;
+          headCommit = h;
+        }
+        results.set(w.path, { status, statusShort, headCommit });
+      } catch {
+        results.set(w.path, { status: emptyStatus, statusShort: null, headCommit: null });
       }
-      results.set(w.path, { status, statusShort, headCommit });
     })
   );
   return results;
