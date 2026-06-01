@@ -22,6 +22,7 @@ import {
 import * as gitPool from "../cli/git-pool.js";
 import { TerminalManager } from "./terminal-manager.js";
 import { getClaudeSessions, getSessionMessages } from "./claude-sessions.js";
+import { computeWorktreeActivityTimes } from "./worktree-activity.js";
 import { RepoWatcher } from "./git-watcher.js";
 import {
   resolveStartingPoint,
@@ -802,6 +803,33 @@ export function createSubscriptionHandlers(opts: {
       };
       repoWatcher.on("changed", handler);
       return () => { repoWatcher.removeListener("changed", handler); };
+    },
+
+    "worktree.activityTimes": (input, push) => {
+      const { repoPath } = input as { repoPath: string };
+      let lastJson = "";
+      const recompute = async () => {
+        try {
+          const wts = await getWorktreesFromFS(repoPath);
+          const times = await computeWorktreeActivityTimes(repoPath, wts);
+          const json = JSON.stringify(times);
+          if (json !== lastJson) {
+            lastJson = json;
+            push(times);
+          }
+        } catch {}
+      };
+      // Initial push, then refresh on git changes (instant) and on a slow timer
+      // (catches Claude session writes, which RepoWatcher doesn't observe).
+      recompute();
+      repoWatcher.watchRepo(repoPath).catch(() => {});
+      const handler = (changedRepo: string) => { if (changedRepo === repoPath) recompute(); };
+      repoWatcher.on("changed", handler);
+      const interval = setInterval(recompute, 4000);
+      return () => {
+        clearInterval(interval);
+        repoWatcher.removeListener("changed", handler);
+      };
     },
 
     "terminal.events": (input, push) => {

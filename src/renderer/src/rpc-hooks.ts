@@ -105,3 +105,32 @@ export function useWorktreeSubscription(repoPath: string | null) {
 
   return data;
 }
+
+/**
+ * Subscribe to live per-worktree last-activity timestamps (ms).
+ * Only active while `enabled` is true to avoid server work when not viewing by date.
+ */
+export function useWorktreeActivityTimes(
+  repoPath: string | null,
+  enabled: boolean
+): Record<string, number> {
+  const [data, setData] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!repoPath || !enabled) {
+      setData({});
+      return;
+    }
+
+    const client = getRpcClient();
+    const unsubscribe = client.subscribe(
+      "worktree.activityTimes",
+      (value) => setData(value),
+      { repoPath }
+    );
+
+    return unsubscribe;
+  }, [repoPath, enabled]);
+
+  return data;
+}

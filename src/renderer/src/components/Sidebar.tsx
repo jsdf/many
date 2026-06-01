@@ -19,6 +19,18 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
+import { useWorktreeActivityTimes } from '../rpc-hooks'
+
+function formatRelativeTime(ms: number): string {
+  const diff = Date.now() - ms
+  if (diff < 60_000) return 'just now'
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
 
 interface WorktreeActivity {
   terminals: number
@@ -137,6 +149,9 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
+  const [sortMode, setSortMode] = useState<'pool' | 'date'>('pool');
+
+  const activityTimes = useWorktreeActivityTimes(currentRepo, sortMode === 'date');
 
   const toggleSelected = (path: string) => {
     setSelectedPaths(prev => {
@@ -201,6 +216,22 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
   const hasAnyPoolGroups = poolGroups.length > 0;
 
+  const dateSorted = useMemo(() => {
+    const lowerFilter = filter.toLowerCase();
+    const matchesFilter = (w: Worktree) =>
+      !lowerFilter ||
+      (w.branch && formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
+      w.worktreeName.toLowerCase().includes(lowerFilter);
+    return worktrees
+      .filter(w => !w.bare && matchesFilter(w))
+      .sort((a, b) => {
+        const ta = activityTimes[a.path] ?? 0;
+        const tb = activityTimes[b.path] ?? 0;
+        if (tb !== ta) return tb - ta;
+        return a.worktreeName.localeCompare(b.worktreeName);
+      });
+  }, [worktrees, activityTimes, filter]);
+
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -243,8 +274,8 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     onReorderWorktrees(fullOrder);
   };
 
-  const renderWorktreeItem = (worktree: Worktree, opts: { isBase?: boolean; isAvailable?: boolean; isDragOverlay?: boolean } = {}) => {
-    const { isBase = false, isAvailable = false, isDragOverlay = false } = opts;
+  const renderWorktreeItem = (worktree: Worktree, opts: { isBase?: boolean; isAvailable?: boolean; isDragOverlay?: boolean; activityTime?: number } = {}) => {
+    const { isBase = false, isAvailable = false, isDragOverlay = false, activityTime } = opts;
     const activity = worktreeActivity?.[worktree.path];
     const termCount = activity?.terminals ?? 0;
     const claudeCount = activity?.claudeSessions ?? 0;
@@ -319,8 +350,11 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
             )}
           </div>
         </div>
-        <div className="text-[11px] text-base-content/50 font-mono break-all leading-snug mt-0.5" title={worktree.path}>
-          {worktree.worktreeName}
+        <div className="text-[11px] text-base-content/50 font-mono leading-snug mt-0.5 flex items-center justify-between gap-2" title={worktree.path}>
+          <span className="break-all min-w-0">{worktree.worktreeName}</span>
+          {activityTime ? (
+            <span className="shrink-0 text-base-content/40">{formatRelativeTime(activityTime)}</span>
+          ) : null}
         </div>
       </div>
     );
@@ -367,6 +401,20 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
           </p>
         ) : (
           <>
+            <div className="join w-full mb-2 px-1">
+              <button
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-primary' : 'btn-soft'}`}
+                onClick={() => setSortMode('pool')}
+              >
+                By pool
+              </button>
+              <button
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'date' ? 'btn-primary' : 'btn-soft'}`}
+                onClick={() => setSortMode('date')}
+              >
+                By date
+              </button>
+            </div>
             {worktrees.length > 5 && (
               <div className="px-1 mb-2">
                 <input
@@ -378,6 +426,18 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                 />
               </div>
             )}
+            {sortMode === 'date' ? (
+              dateSorted.length === 0 ? (
+                <p className="text-base-content/50 italic text-center mt-8 text-sm">No matching worktrees</p>
+              ) : (
+                dateSorted.map(w => renderWorktreeItem(w, {
+                  isBase: w.path === currentRepo,
+                  isAvailable: isTmpBranch(w.branch),
+                  activityTime: activityTimes[w.path],
+                }))
+              )
+            ) : (
+            <>
             {baseWorktree && !filter && renderWorktreeItem(baseWorktree, { isBase: true })}
 
             {poolGroups.map(({ pool, claimed, available }) => {
@@ -422,6 +482,8 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                   {renderSortableList(ungroupedClaimed, ungroupedAvailable)}
                 </div>
               )
+            )}
+            </>
             )}
           </>
         )}

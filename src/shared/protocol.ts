@@ -633,6 +633,11 @@ export interface SubscriptionProcedures {
     input: { repoPath: string };
     output: Worktree[];
   };
+  /** Live per-worktree last-activity timestamps (ms): max of last Claude session and last git commit */
+  "worktree.activityTimes": {
+    input: { repoPath: string };
+    output: Record<string, number>;
+  };
   /** Terminal output/exit events */
   "terminal.events": {
     input: { terminalId: string };
