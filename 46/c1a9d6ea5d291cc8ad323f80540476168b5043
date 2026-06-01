@@ -1,0 +1,34 @@
+src/web/rpc-handlers.ts
+  s_70c0b697f58c29::t_b48b97951b1598 808-834
+  s_70c0b697f58c29::t_79a16c21e65b40 25
+src/renderer/src/components/Sidebar.tsx
+  s_70c0b697f58c29::t_18dc4ab25049c0 22-33
+  s_70c0b697f58c29::t_e20565a015c550 353-357
+  s_70c0b697f58c29::t_de262526ed2d09 404-417,429-440
+  s_70c0b697f58c29::t_ac0cd68fead352 486-487
+  s_70c0b697f58c29::t_15f6a2280f7e81 152-154
+  s_70c0b697f58c29::t_15b1c3fb8b2370 277-278
+  s_70c0b697f58c29::t_3dc2fba568aa01 219-234
+src/shared/protocol.ts
+  s_70c0b697f58c29::t_1d2a2393beb19b 636-640
+src/renderer/src/rpc-hooks.ts
+  s_70c0b697f58c29::t_600969e3dde253 108-136
+src/web/worktree-activity.ts
+  s_70c0b697f58c29::t_85d481132a2f04 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "46c1a9d6ea5d291cc8ad323f80540476168b5043",
+  "prompts": {},
+  "sessions": {
+    "s_70c0b697f58c29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10a09458-b783-471f-bb05-662bfaac3ca8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
