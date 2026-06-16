@@ -1,0 +1,19 @@
+src/renderer/src/theme-sharp.css
+  s_ac1c2ad1ef437a::t_47e84c32fd4984 15-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "a35e4dabd23bdf72a5a6818ec34786d208a40670",
+  "prompts": {},
+  "sessions": {
+    "s_ac1c2ad1ef437a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb538c08-961b-454c-a714-9eb66f027a1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
