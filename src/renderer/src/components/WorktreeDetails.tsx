@@ -553,7 +553,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
         </div>
         {!statusCollapsed && <div className="bg-neutral border border-base-content/10 rounded-lg p-4 text-neutral-content">
           {statusLoading && !gitStatus ? (
-            <p className="text-base-content/60 italic m-0">Loading...</p>
+            <p className="text-neutral-content/60 italic m-0">Loading...</p>
           ) : gitStatus && gitStatus.hasChanges ? (
             <div className="flex flex-col gap-3">
               <pre className="text-sm m-0"><code>{[
@@ -564,7 +564,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   <span key={`modified-${file}`} className="text-warning">M  {file}{"\n"}</span>
                 )),
                 ...gitStatus.not_added.map((file) => (
-                  <span key={`untracked-${file}`} className="text-base-content/60">?  {file}{"\n"}</span>
+                  <span key={`untracked-${file}`} className="text-neutral-content/70">?  {file}{"\n"}</span>
                 )),
                 ...gitStatus.deleted.map((file) => (
                   <span key={`deleted-${file}`} className="text-error">D  {file}{"\n"}</span>
@@ -582,7 +582,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           ) : gitStatus ? (
             <p className="text-success m-0">Working tree clean</p>
           ) : (
-            <p className="text-base-content/60 italic m-0">Failed to load status</p>
+            <p className="text-neutral-content/60 italic m-0">Failed to load status</p>
           )}
         </div>}
       </div>

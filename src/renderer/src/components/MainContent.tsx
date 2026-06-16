@@ -286,15 +286,8 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         </div>
       </TopBar>
 
-      <div
-        className={`flex-1 flex overflow-hidden min-h-0 ${isNarrow ? 'flex-col' : ''}`}
-        ref={containerRef}
-        style={{ userSelect: dragging ? "none" : undefined }}
-      >
-        <div
-          className={isNarrow ? "overflow-y-auto min-h-[120px]" : "overflow-y-auto min-w-[200px]"}
-          style={{ flex: `0 0 ${splitFraction * 100}%` }}
-        >
+      {isNarrow ? (
+        <div className="flex-1 overflow-y-auto min-h-0">
           <WorktreeDetails
             key={`worktree-details-${selectedWorktree.path}`}
             worktree={selectedWorktree}
@@ -317,14 +310,6 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               }
             }}
           />
-        </div>
-
-        <div
-          className={`shrink-0 transition-colors ${dragging ? 'bg-primary' : 'bg-base-300 hover:bg-primary'} ${isNarrow ? 'h-1 cursor-ns-resize' : 'w-1 cursor-ew-resize'}`}
-          onMouseDown={handleMouseDown}
-        />
-
-        <div className={`flex-1 flex flex-col overflow-hidden ${isNarrow ? 'min-h-[120px]' : 'min-w-[200px]'}`}>
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}
@@ -332,10 +317,62 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               worktreePath={selectedWorktree.path}
               repoPath={currentRepo || undefined}
               claudeCommand={claudeCommand}
+              fixedTerminalHeight={450}
             />
           )}
         </div>
-      </div>
+      ) : (
+        <div
+          className="flex-1 flex overflow-hidden min-h-0"
+          ref={containerRef}
+          style={{ userSelect: dragging ? "none" : undefined }}
+        >
+          <div
+            className="overflow-y-auto min-w-[200px]"
+            style={{ flex: `0 0 ${splitFraction * 100}%` }}
+          >
+            <WorktreeDetails
+              key={`worktree-details-${selectedWorktree.path}`}
+              worktree={selectedWorktree}
+              repoPath={currentRepo!}
+              onRetryTask={(env, command) => {
+                terminalStackRef.current?.createTerminalWithCommand(env, command);
+              }}
+              onViewTaskLog={(taskId, isSavedLog) => {
+                terminalStackRef.current?.openTaskLog(taskId, isSavedLog);
+              }}
+              onViewSessionHistory={(sessionId) => {
+                terminalStackRef.current?.openSessionHistory(sessionId);
+              }}
+              onResumeSession={(sessionId, sessionType) => {
+                if (sessionType === "chat") {
+                  terminalStackRef.current?.openClaudeSession(sessionId);
+                } else {
+                  const cmd = claudeCommand || "claude";
+                  terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+                }
+              }}
+            />
+          </div>
+
+          <div
+            className={`shrink-0 w-1 cursor-ew-resize transition-colors ${dragging ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
+            onMouseDown={handleMouseDown}
+          />
+
+          <div className="flex-1 flex flex-col overflow-hidden min-w-[200px]">
+            {selectedWorktree.path && (
+              <TerminalStack
+                key={`terminal-stack-${selectedWorktree.path}`}
+                ref={terminalStackRef}
+                worktreePath={selectedWorktree.path}
+                repoPath={currentRepo || undefined}
+                claudeCommand={claudeCommand}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 });

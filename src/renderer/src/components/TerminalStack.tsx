@@ -9,6 +9,7 @@ interface TerminalStackProps {
   worktreePath: string;
   repoPath?: string;
   claudeCommand?: string;
+  fixedTerminalHeight?: number;
 }
 
 export interface TerminalStackHandle {
@@ -32,7 +33,7 @@ interface TerminalInfo {
 
 let terminalCounter = 0;
 
-const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ worktreePath, repoPath, claudeCommand }, ref) => {
+const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ worktreePath, repoPath, claudeCommand, fixedTerminalHeight }, ref) => {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -257,7 +258,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const hasTerminals = terminals.length > 0;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" ref={containerRef}>
+    <div className={`flex flex-col ${fixedTerminalHeight ? '' : 'h-full overflow-hidden'}`} ref={containerRef}>
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-200 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
@@ -273,11 +274,11 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         </div>
       </div>
       <div
-        className="flex-1 flex flex-col overflow-hidden min-h-0"
+        className={`flex-1 flex flex-col ${fixedTerminalHeight ? '' : 'overflow-hidden'} min-h-0`}
         style={{ userSelect: dragging !== null ? "none" : undefined }}
       >
         {!hasTerminals && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60" style={fixedTerminalHeight ? { height: fixedTerminalHeight } : undefined}>
             <p>No terminals open</p>
             <button className="btn btn-soft btn-neutral" onClick={createTerminal}>
               + New Terminal
@@ -286,18 +287,18 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         )}
         {terminals.map((term, i) => (
           <React.Fragment key={term.id}>
-            {i > 0 && (
+            {i > 0 && !fixedTerminalHeight && (
               <div
                 className={`h-1 shrink-0 cursor-ns-resize transition-colors ${dragging === i - 1 ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
                 onMouseDown={(e) => handleMouseDown(i - 1, e)}
               />
             )}
             <div
-              className="flex flex-col overflow-hidden min-h-[60px]"
-              style={{
-                flex: `${sizes[i] ?? 1 / terminals.length} 0 0`,
-                minHeight: 0,
-              }}
+              className={`flex flex-col overflow-hidden ${fixedTerminalHeight ? '' : 'min-h-[60px]'}`}
+              style={fixedTerminalHeight
+                ? { height: fixedTerminalHeight }
+                : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
+              }
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-300 border-b border-base-300 shrink-0">
                 <span className="text-xs text-base-content/60 truncate">

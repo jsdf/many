@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
@@ -495,7 +495,7 @@ const App: React.FC = () => {
     setShowReleaseModal(true);
   };
 
-  const handleLaunchTask = useCallback((params: {
+  const handleLaunchTask = (params: {
     repoPath: string;
     pool: PoolConfig;
     prompt: string;
@@ -547,7 +547,7 @@ const App: React.FC = () => {
     );
 
     taskLaunchUnsubRef.current = unsubscribe;
-  }, []);
+  };
 
   const handleTaskComplete = async (worktreePath: string, pool: PoolConfig, prompt: string, taskId?: string) => {
     if (!currentRepo) return;
