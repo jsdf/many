@@ -573,6 +573,52 @@ export function createQueryHandlers(opts: {
       }
       return { ok: true };
     },
+    "fs.createFile": async (input) => {
+      const { filePath } = input as { filePath: string };
+      try {
+        // wx: fail if the path already exists, so we never clobber a file.
+        const handle = await fs.open(filePath, "wx");
+        await handle.close();
+      } catch (err) {
+        throw new Error(`Cannot create file ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return { ok: true };
+    },
+    "fs.createDir": async (input) => {
+      const { dirPath } = input as { dirPath: string };
+      try {
+        await fs.mkdir(dirPath);
+      } catch (err) {
+        throw new Error(`Cannot create directory ${dirPath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return { ok: true };
+    },
+    "fs.rename": async (input) => {
+      const { oldPath, newPath } = input as { oldPath: string; newPath: string };
+      let destExists = false;
+      try {
+        await fs.access(newPath);
+        destExists = true;
+      } catch {
+        // ENOENT is the expected case: the destination name is free.
+      }
+      if (destExists) throw new Error(`Destination already exists: ${newPath}`);
+      try {
+        await fs.rename(oldPath, newPath);
+      } catch (err) {
+        throw new Error(`Cannot rename ${oldPath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return { ok: true };
+    },
+    "fs.delete": async (input) => {
+      const { path: targetPath } = input as { path: string };
+      try {
+        await fs.rm(targetPath, { recursive: true, force: false });
+      } catch (err) {
+        throw new Error(`Cannot delete ${targetPath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return { ok: true };
+    },
 
     "repo.getSelected": async () => {
       const appData = await loadAppData();

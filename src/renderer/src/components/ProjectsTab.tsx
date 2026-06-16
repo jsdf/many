@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
+import ContextMenu, { ContextMenuItem } from "./ContextMenu";
+import FsActionDialog, { FsAction } from "./FsActionDialog";
 
 interface ProjectsTabProps {
   projects: ProjectEntry[];
@@ -47,6 +49,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [searchChildren, setSearchChildren] = useState<Map<string, FsEntry[]>>(new Map());
   const [searching, setSearching] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
+  // Right-click context menu + the create/rename/delete dialog it opens.
+  const [menu, setMenu] = useState<{ x: number; y: number; row: TreeRow } | null>(null);
+  const [fsAction, setFsAction] = useState<FsAction | null>(null);
 
   // Mirror persisted state back into the module cache on every update.
   const setExpanded = useCallback((updater: (prev: Set<string>) => Set<string>) => {
@@ -137,6 +142,35 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     onSelectNode(node);
     onOpenFile({ path: entry.path, name: entry.name });
   }, [onSelectNode, onOpenFile]);
+
+  // Build context menu items for a row. Directories can spawn children;
+  // non-root entries can be renamed or deleted. Project roots are managed via
+  // the dedicated "× Remove project" control, so they only offer creation.
+  const menuItems = useCallback((row: TreeRow): ContextMenuItem[] => {
+    const { entry, isProject } = row;
+    const items: ContextMenuItem[] = [];
+    if (entry.isDirectory) {
+      items.push({ label: "New File", onClick: () => setFsAction({ mode: "newFile", dirPath: entry.path }) });
+      items.push({ label: "New Folder", onClick: () => setFsAction({ mode: "newFolder", dirPath: entry.path }) });
+    }
+    if (!isProject) {
+      items.push({
+        label: "Rename",
+        onClick: () => setFsAction({ mode: "rename", targetPath: entry.path, currentName: entry.name, isDirectory: entry.isDirectory }),
+      });
+      items.push({
+        label: "Delete",
+        danger: true,
+        onClick: () => setFsAction({ mode: "delete", targetPath: entry.path, name: entry.name, isDirectory: entry.isDirectory }),
+      });
+    }
+    return items;
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, row: TreeRow) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, row });
+  }, []);
 
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
@@ -294,10 +328,12 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               const isExpanded = entry.isDirectory && (filtering || expanded.has(entry.path));
               const isLoading = loading.has(entry.path);
               const isSelected = selectedNode?.path === entry.path;
+              const row = rows[vi.index];
               return (
                 <div
                   key={entry.path}
                   className="group/row"
+                  onContextMenu={(e) => handleContextMenu(e, row)}
                   style={{
                     position: "absolute",
                     top: 0,
@@ -346,6 +382,23 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             })}
           </div>
         </div>
+      )}
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems(menu.row)}
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      {fsAction && (
+        <FsActionDialog
+          action={fsAction}
+          onClose={() => setFsAction(null)}
+          onReveal={expandDir}
+        />
       )}
     </div>
   );

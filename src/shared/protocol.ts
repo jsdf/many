@@ -441,6 +441,26 @@ export interface QueryProcedures {
     input: { filePath: string; content: string };
     output: { ok: boolean };
   };
+  // Create an empty file. Errors if the path already exists.
+  "fs.createFile": {
+    input: { filePath: string };
+    output: { ok: boolean };
+  };
+  // Create a directory. Errors if the path already exists.
+  "fs.createDir": {
+    input: { dirPath: string };
+    output: { ok: boolean };
+  };
+  // Rename/move a file or directory. Errors if the destination exists.
+  "fs.rename": {
+    input: { oldPath: string; newPath: string };
+    output: { ok: boolean };
+  };
+  // Delete a file or directory (recursively).
+  "fs.delete": {
+    input: { path: string };
+    output: { ok: boolean };
+  };
   "repo.getSelected": {
     input: {};
     output: string | null;
