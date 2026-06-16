@@ -11,6 +11,8 @@ import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { nord } from "@milkdown/theme-nord";
+import PropertiesPanel from "./PropertiesPanel";
+import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 
 export interface FileData {
   content: string;
@@ -133,6 +135,14 @@ function MarkdownEditor({
   onChange: (content: string) => void;
   onSave: () => void;
 }) {
+  // Split frontmatter from body once on mount; both editors are uncontrolled
+  // (they read their initial value once), so we recombine via refs on change.
+  const [parsed] = useState(() => parseFrontmatter(initialMarkdown));
+  const propsRef = useRef<Record<string, PropertyValue>>(parsed.properties);
+  const bodyRef = useRef<string>(parsed.body);
+
+  const emit = () => onChange(serializeFrontmatter(propsRef.current, bodyRef.current));
+
   return (
     <div
       className="milkdown-host h-full overflow-auto"
@@ -143,8 +153,21 @@ function MarkdownEditor({
         }
       }}
     >
+      <PropertiesPanel
+        initialProperties={parsed.properties}
+        onChange={(properties) => {
+          propsRef.current = properties;
+          emit();
+        }}
+      />
       <MilkdownProvider>
-        <MilkdownInner initialMarkdown={initialMarkdown} onChange={onChange} />
+        <MilkdownInner
+          initialMarkdown={parsed.body}
+          onChange={(md) => {
+            bodyRef.current = md;
+            emit();
+          }}
+        />
       </MilkdownProvider>
     </div>
   );
