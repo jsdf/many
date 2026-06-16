@@ -729,6 +729,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onOpenFile={(f) => onOpenFile?.(f)}
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}
+          worktreeActivity={worktreeActivity}
         />
       ) : activeTab === 'tracked' ? (
         <div className="flex-1 overflow-y-auto mb-3">

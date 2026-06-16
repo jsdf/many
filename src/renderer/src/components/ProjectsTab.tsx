@@ -12,6 +12,7 @@ interface ProjectsTabProps {
   onOpenFile: (file: OpenFile) => void;
   onAddProject: () => void;
   onRemoveProject: (project: ProjectEntry) => void;
+  worktreeActivity?: Record<string, { terminals: number; claudeSessions: number }>;
 }
 
 interface TreeRow {
@@ -40,6 +41,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   onOpenFile,
   onAddProject,
   onRemoveProject,
+  worktreeActivity,
 }) => {
   const [expanded, setExpandedState] = useState<Set<string>>(() => treeStateCache.expanded);
   const [childrenByDir, setChildrenByDirState] = useState<Map<string, FsEntry[]>>(() => treeStateCache.childrenByDir);
@@ -171,6 +173,18 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, row });
   }, []);
+
+  // Total open terminals for a project: terminals are keyed by the directory
+  // they were launched in, so sum every active path within the project root.
+  const projectTerminalCount = useCallback((projectPath: string): number => {
+    if (!worktreeActivity) return 0;
+    const sep = projectPath.includes("\\") ? "\\" : "/";
+    let total = 0;
+    for (const [p, a] of Object.entries(worktreeActivity)) {
+      if (p === projectPath || p.startsWith(projectPath + sep)) total += a.terminals;
+    }
+    return total;
+  }, [worktreeActivity]);
 
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
@@ -367,6 +381,17 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                       </span>
                       {isLoading && <span className="loading loading-spinner loading-xs ml-1" />}
                     </div>
+                    {isProject && (() => {
+                      const termCount = projectTerminalCount(entry.path);
+                      return termCount > 0 ? (
+                        <span
+                          className="text-[10px] text-base-content/60 shrink-0 px-1"
+                          title={`${termCount} terminal${termCount > 1 ? "s" : ""}`}
+                        >
+                          &gt;_ {termCount}
+                        </span>
+                      ) : null;
+                    })()}
                     {isProject && (
                       <button
                         className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
