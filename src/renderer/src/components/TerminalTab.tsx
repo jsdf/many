@@ -148,12 +148,16 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     });
     const unsubscribe = () => unsubRef.current?.();
 
-    // Translate Shift+Enter into CSI u escape sequence so apps like
-    // Claude Code that distinguish Enter vs newline work correctly.
-    // Native terminals (iTerm2, Terminal.app) send this automatically.
+    // Translate Shift+Enter into ESC+CR (the Alt/Option+Enter sequence), which
+    // Claude Code treats as "insert newline" without submitting. xterm.js 6 does
+    // not advertise the kitty/modifyOtherKeys keyboard protocols, so Claude runs
+    // in legacy mode where ESC+CR is the newline trick that works without them.
+    // preventDefault() is required: returning false alone still lets xterm's
+    // textarea emit a stray \r for the Enter key, which Claude reads as submit.
     xterm.attachCustomKeyEventHandler((event) => {
       if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
-        getRpcClient().query("terminal.input", { terminalId, data: "\x1b[13;2u" });
+        event.preventDefault();
+        getRpcClient().query("terminal.input", { terminalId, data: "\x1b\r" });
         return false;
       }
       return true;
