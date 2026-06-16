@@ -56,42 +56,66 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     setChildrenByDirState((prev) => (treeStateCache.childrenByDir = updater(prev)));
   }, []);
 
-  const loadDir = useCallback(async (dirPath: string) => {
-    setLoading((prev) => new Set(prev).add(dirPath));
-    try {
-      const entries = await getRpcClient().query("fs.listDir", { dirPath });
-      setChildrenByDir((prev) => new Map(prev).set(dirPath, entries));
-    } catch (err) {
-      console.error("Failed to list directory:", err);
-      setChildrenByDir((prev) => new Map(prev).set(dirPath, []));
-    } finally {
-      setLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(dirPath);
-        return next;
-      });
+  // Live directory subscriptions, one per expanded directory. The set of
+  // expanded directories is the source of truth; an effect below reconciles
+  // active subscriptions against it, so toggling only updates `expanded`.
+  const subsRef = useRef<Map<string, () => void>>(new Map());
+
+  useEffect(() => {
+    const client = getRpcClient();
+    const subs = subsRef.current;
+
+    // Subscribe to newly-expanded directories.
+    for (const dirPath of expanded) {
+      if (subs.has(dirPath)) continue;
+      setLoading((prev) => new Set(prev).add(dirPath));
+      const unsubscribe = client.subscribe(
+        "fs.dirUpdates",
+        (entries) => {
+          setChildrenByDir((prev) => new Map(prev).set(dirPath, entries));
+          setLoading((prev) => {
+            if (!prev.has(dirPath)) return prev;
+            const next = new Set(prev);
+            next.delete(dirPath);
+            return next;
+          });
+        },
+        { dirPath }
+      );
+      subs.set(dirPath, unsubscribe);
     }
+
+    // Tear down subscriptions for collapsed directories.
+    for (const [dirPath, unsubscribe] of subs) {
+      if (expanded.has(dirPath)) continue;
+      unsubscribe();
+      subs.delete(dirPath);
+    }
+  }, [expanded, setChildrenByDir]);
+
+  // Tear down all subscriptions on unmount.
+  useEffect(() => {
+    const subs = subsRef.current;
+    return () => {
+      for (const unsubscribe of subs.values()) unsubscribe();
+      subs.clear();
+    };
   }, []);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(dirPath)) {
-        next.delete(dirPath);
-      } else {
-        next.add(dirPath);
-        if (!childrenByDir.has(dirPath)) loadDir(dirPath);
-      }
+      if (next.has(dirPath)) next.delete(dirPath);
+      else next.add(dirPath);
       return next;
     });
-  }, [childrenByDir, loadDir]);
+  }, [setExpanded]);
 
-  // Ensure a directory is expanded (and its children loaded) without toggling
-  // it closed. Used when selecting a directory, so selection also reveals it.
+  // Ensure a directory is expanded without toggling it closed. Used when
+  // selecting a directory, so selection also reveals its contents.
   const expandDir = useCallback((dirPath: string) => {
     setExpanded((prev) => (prev.has(dirPath) ? prev : new Set(prev).add(dirPath)));
-    if (!childrenByDir.has(dirPath)) loadDir(dirPath);
-  }, [childrenByDir, loadDir]);
+  }, [setExpanded]);
 
   // Selecting a node (project root or directory) drives the main pane
   // (terminals + file tabs) and reveals its contents.

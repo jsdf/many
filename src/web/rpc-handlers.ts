@@ -4,7 +4,7 @@
  */
 
 import path from "path";
-import { promises as fs } from "fs";
+import { promises as fs, watch, type FSWatcher } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
@@ -172,6 +172,21 @@ async function openVSCode(dirPath: string): Promise<boolean> {
   const { exec } = await import("child_process");
   await promisify(exec)(cmd);
   return true;
+}
+
+// Read a directory's immediate children, sorted dirs-first then by name.
+async function listDirEntries(dirPath: string): Promise<FsEntry[]> {
+  const dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  const entries = dirents.map((d) => ({
+    name: d.name,
+    path: path.join(dirPath, d.name),
+    isDirectory: d.isDirectory(),
+  }));
+  entries.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -476,22 +491,11 @@ export function createQueryHandlers(opts: {
     // --- Filesystem (read-only browsing for projects) ---
     "fs.listDir": async (input) => {
       const { dirPath } = input as { dirPath: string };
-      let dirents: import("fs").Dirent[];
       try {
-        dirents = await fs.readdir(dirPath, { withFileTypes: true });
+        return await listDirEntries(dirPath);
       } catch (err) {
         throw new Error(`Cannot read directory ${dirPath}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const entries = dirents.map((d) => ({
-        name: d.name,
-        path: path.join(dirPath, d.name),
-        isDirectory: d.isDirectory(),
-      }));
-      entries.sort((a, b) => {
-        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-      return entries;
     },
     "fs.search": async (input) => {
       const { dirPath, query } = input as { dirPath: string; query: string };
@@ -961,6 +965,38 @@ export function createSubscriptionHandlers(opts: {
       return () => {
         clearInterval(interval);
         repoWatcher.removeListener("changed", handler);
+      };
+    },
+
+    "fs.dirUpdates": (input, push) => {
+      const { dirPath } = input as { dirPath: string };
+
+      const readAndPush = async () => {
+        try {
+          push(await listDirEntries(dirPath));
+        } catch {
+          push([]);
+        }
+      };
+
+      // Send initial listing, then re-read whenever the directory changes.
+      readAndPush();
+
+      let debounce: ReturnType<typeof setTimeout> | null = null;
+      const onChange = () => {
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(readAndPush, 200);
+      };
+
+      let watcher: FSWatcher | null = null;
+      try {
+        watcher = watch(dirPath, onChange);
+        watcher.on("error", () => { /* ignore watch errors */ });
+      } catch { /* dir may not exist — initial push already returned [] */ }
+
+      return () => {
+        if (debounce) clearTimeout(debounce);
+        if (watcher) { try { watcher.close(); } catch { /* ignore */ } }
       };
     },
 

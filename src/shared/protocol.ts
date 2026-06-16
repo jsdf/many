@@ -681,6 +681,11 @@ export interface SubscriptionProcedures {
     input: { repoPath: string };
     output: Record<string, number>;
   };
+  /** Live contents of a single directory, re-read whenever the directory changes on disk */
+  "fs.dirUpdates": {
+    input: { dirPath: string };
+    output: FsEntry[];
+  };
   /** Terminal output/exit events */
   "terminal.events": {
     input: { terminalId: string };
