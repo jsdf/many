@@ -32,6 +32,41 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const prevPathRef = useRef<string | null>(null);
+  // Latest fileData, readable from timers/cleanup without stale closures.
+  const fileDataRef = useRef(fileData);
+  fileDataRef.current = fileData;
+  // Pending autosave timers, keyed by file path.
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const AUTOSAVE_DELAY = 600;
+
+  // Persist a file immediately if it has unsaved changes.
+  const writeNow = useCallback((filePath: string) => {
+    const timer = saveTimers.current[filePath];
+    if (timer) {
+      clearTimeout(timer);
+      delete saveTimers.current[filePath];
+    }
+    const cur = fileDataRef.current[filePath];
+    if (!cur || !cur.loaded || cur.content === cur.saved) return;
+    const toSave = cur.content;
+    getRpcClient()
+      .query("fs.writeFile", { filePath, content: toSave })
+      .then(() => {
+        setFileData((p) => (p[filePath] ? { ...p, [filePath]: { ...p[filePath], saved: toSave } } : p));
+      })
+      .catch((err) => console.error("[fs.writeFile] failed:", err));
+  }, []);
+
+  const scheduleSave = useCallback((filePath: string) => {
+    if (saveTimers.current[filePath]) clearTimeout(saveTimers.current[filePath]);
+    saveTimers.current[filePath] = setTimeout(() => writeNow(filePath), AUTOSAVE_DELAY);
+  }, [writeNow]);
+
+  // Flush all pending saves (e.g. before switching nodes or unmounting).
+  const flushSaves = useCallback(() => {
+    for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
+  }, [writeNow]);
 
   // Reset open tabs when switching between nodes. Skip the first selection
   // (null -> a path) so a file opened in the same click isn't wiped.
@@ -40,11 +75,15 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     const current = project?.path ?? null;
     prevPathRef.current = current;
     if (prev !== null && prev !== current) {
+      flushSaves();
       setOpenFiles([]);
       setActiveFile(null);
       setFileData({});
     }
-  }, [project?.path]);
+  }, [project?.path, flushSaves]);
+
+  // Flush any pending saves when the panel unmounts.
+  useEffect(() => () => flushSaves(), [flushSaves]);
 
   const loadFile = useCallback((filePath: string) => {
     setFileData((prev) => ({
@@ -91,26 +130,10 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       if (!cur || cur.content === content) return prev;
       return { ...prev, [filePath]: { ...cur, content } };
     });
-  }, []);
+    scheduleSave(filePath);
+  }, [scheduleSave]);
 
-  const saveFile = useCallback((filePath: string) => {
-    setFileData((prev) => {
-      const cur = prev[filePath];
-      if (!cur || cur.content === cur.saved) return prev;
-      const toSave = cur.content;
-      getRpcClient()
-        .query("fs.writeFile", { filePath, content: toSave })
-        .then(() => {
-          setFileData((p) => {
-            const c = p[filePath];
-            if (!c) return p;
-            return { ...p, [filePath]: { ...c, saved: toSave } };
-          });
-        })
-        .catch((err) => console.error("[fs.writeFile] failed:", err));
-      return prev;
-    });
-  }, []);
+  const saveFile = useCallback((filePath: string) => writeNow(filePath), [writeNow]);
 
   const isDirty = useCallback(
     (filePath: string) => {
@@ -121,9 +144,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   );
 
   const closeFile = useCallback((filePath: string) => {
-    if (isDirty(filePath) && !window.confirm("This file has unsaved changes. Close without saving?")) {
-      return;
-    }
+    // Flush any pending autosave before dropping the file's state.
+    writeNow(filePath);
     setOpenFiles((prev) => {
       const next = prev.filter((f) => f.path !== filePath);
       setActiveFile((current) => {
@@ -137,7 +159,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       delete next[filePath];
       return next;
     });
-  }, [isDirty]);
+  }, [writeNow]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
