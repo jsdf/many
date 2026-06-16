@@ -17,6 +17,18 @@ export interface Repository {
   addedAt?: string;
 }
 
+export interface ProjectEntry {
+  path: string;
+  name: string;
+  addedAt: string;
+}
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+}
+
 export interface Worktree {
   path: string;
   branch: string | null;
@@ -397,6 +409,26 @@ export interface QueryProcedures {
   "repo.add": {
     input: { repoPath: string };
     output: { ok: boolean };
+  };
+  "projects.list": {
+    input: {};
+    output: ProjectEntry[];
+  };
+  "projects.add": {
+    input: { projectPath: string };
+    output: { ok: boolean };
+  };
+  "projects.remove": {
+    input: { projectPath: string };
+    output: { ok: boolean };
+  };
+  "fs.listDir": {
+    input: { dirPath: string };
+    output: FsEntry[];
+  };
+  "fs.readFile": {
+    input: { filePath: string };
+    output: { content: string; size: number; tooLarge: boolean; binary: boolean };
   };
   "repo.getSelected": {
     input: {};

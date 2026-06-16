@@ -10,6 +10,12 @@ export interface Repository {
   addedAt: string;
 }
 
+export interface ProjectEntry {
+  path: string;
+  name: string;
+  addedAt: string;
+}
+
 export interface PoolConfig {
   name: string;
   prefix: string;
@@ -50,6 +56,7 @@ export interface GlobalSettings {
 
 export interface AppData {
   repositories: Repository[];
+  projects: ProjectEntry[];
   repositoryConfigs: Record<string, RepositoryConfig>;
   selectedRepo: string | null;
   recentWorktrees: Record<string, string>;
@@ -63,6 +70,7 @@ export interface AppData {
 
 const defaultAppData: AppData = {
   repositories: [],
+  projects: [],
   repositoryConfigs: {},
   selectedRepo: null,
   recentWorktrees: {},

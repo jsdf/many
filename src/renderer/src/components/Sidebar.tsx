@@ -18,8 +18,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Repository, Worktree, PoolConfig, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
+import { Repository, Worktree, PoolConfig, ProjectEntry, OpenFile, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
 import { useWorktreeActivityTimes } from '../rpc-hooks'
+import ProjectsTab from './ProjectsTab'
 
 function formatRelativeTime(ms: number): string {
   const diff = Date.now() - ms
@@ -49,7 +50,9 @@ interface SidebarProps {
   starredWorktrees: Set<string>
   worktreeOrder: string[]
   automationsSubView?: AutomationsSubView | null
-  activeTab: 'worktrees' | 'tracked' | 'automations'
+  activeTab: 'worktrees' | 'tracked' | 'automations' | 'projects'
+  projects: ProjectEntry[]
+  selectedProject: ProjectEntry | null
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
@@ -59,6 +62,11 @@ interface SidebarProps {
   onNewTask?: () => void
   onNavigateWorktrees?: () => void
   onNavigateTracked?: () => void
+  onNavigateProjects?: () => void
+  onSelectProject?: (project: ProjectEntry) => void
+  onOpenFile?: (file: OpenFile) => void
+  onAddProject?: () => void
+  onRemoveProject?: (project: ProjectEntry) => void
   onAutomationsSubViewChange?: (view: AutomationsSubView) => void
   onArchiveWorktrees?: (worktrees: Worktree[]) => void
   onToggleStar: (worktreePath: string) => void
@@ -621,8 +629,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClaimPool,
   onNewTask,
   activeTab,
+  projects,
+  selectedProject,
   onNavigateWorktrees,
   onNavigateTracked,
+  onNavigateProjects,
+  onSelectProject,
+  onOpenFile,
+  onAddProject,
+  onRemoveProject,
   onAutomationsSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
@@ -698,9 +713,24 @@ const Sidebar: React.FC<SidebarProps> = ({
             Automations
           </button>
         )}
+        <button
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'projects' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          onClick={() => onNavigateProjects?.()}
+        >
+          Projects
+        </button>
       </div>
 
-      {activeTab === 'tracked' ? (
+      {activeTab === 'projects' ? (
+        <ProjectsTab
+          projects={projects}
+          selectedProject={selectedProject}
+          onSelectProject={(p) => onSelectProject?.(p)}
+          onOpenFile={(f) => onOpenFile?.(f)}
+          onAddProject={() => onAddProject?.()}
+          onRemoveProject={(p) => onRemoveProject?.(p)}
+        />
+      ) : activeTab === 'tracked' ? (
         <div className="flex-1 overflow-y-auto mb-3">
           <p className="text-base-content/50 text-xs text-center mt-4 px-2">
             Tracked branches are shown in the main panel.

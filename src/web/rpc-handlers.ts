@@ -438,6 +438,81 @@ export function createQueryHandlers(opts: {
       });
       return { ok: true };
     },
+
+    // --- Projects ---
+    "projects.list": async () => {
+      const appData = await loadAppData();
+      return appData.projects ?? [];
+    },
+    "projects.add": async (input) => {
+      const { projectPath } = input as { projectPath: string };
+      let stat: import("fs").Stats;
+      try {
+        stat = await fs.stat(projectPath);
+      } catch {
+        throw new Error(`Path does not exist: ${projectPath}`);
+      }
+      if (!stat.isDirectory()) {
+        throw new Error(`Not a directory: ${projectPath}`);
+      }
+      await withAppData((appData) => {
+        if (!appData.projects) appData.projects = [];
+        if (!appData.projects.some((p) => p.path === projectPath)) {
+          appData.projects.push({ path: projectPath, name: path.basename(projectPath), addedAt: new Date().toISOString() });
+        }
+      });
+      return { ok: true };
+    },
+    "projects.remove": async (input) => {
+      const { projectPath } = input as { projectPath: string };
+      await withAppData((appData) => {
+        if (!appData.projects) return;
+        const idx = appData.projects.findIndex((p) => p.path === projectPath);
+        if (idx >= 0) appData.projects.splice(idx, 1);
+      });
+      return { ok: true };
+    },
+
+    // --- Filesystem (read-only browsing for projects) ---
+    "fs.listDir": async (input) => {
+      const { dirPath } = input as { dirPath: string };
+      let dirents: import("fs").Dirent[];
+      try {
+        dirents = await fs.readdir(dirPath, { withFileTypes: true });
+      } catch (err) {
+        throw new Error(`Cannot read directory ${dirPath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      const entries = dirents.map((d) => ({
+        name: d.name,
+        path: path.join(dirPath, d.name),
+        isDirectory: d.isDirectory(),
+      }));
+      entries.sort((a, b) => {
+        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      return entries;
+    },
+    "fs.readFile": async (input) => {
+      const { filePath } = input as { filePath: string };
+      const MAX_BYTES = 512 * 1024;
+      let stat: import("fs").Stats;
+      try {
+        stat = await fs.stat(filePath);
+      } catch (err) {
+        throw new Error(`Cannot read file ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (stat.size > MAX_BYTES) {
+        return { content: "", size: stat.size, tooLarge: true, binary: false };
+      }
+      const buf = await fs.readFile(filePath);
+      const binary = buf.subarray(0, 8192).includes(0);
+      if (binary) {
+        return { content: "", size: stat.size, tooLarge: false, binary: true };
+      }
+      return { content: buf.toString("utf-8"), size: stat.size, tooLarge: false, binary: false };
+    },
+
     "repo.getSelected": async () => {
       const appData = await loadAppData();
       return appData.selectedRepo;
