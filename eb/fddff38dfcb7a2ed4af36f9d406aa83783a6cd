@@ -1,0 +1,58 @@
+src/renderer/src/App.tsx
+  s_083e8f83c3314f::t_8de5bbdd6d7144 2,5
+  s_083e8f83c3314f::t_4e56d655864db8 66-68
+  s_083e8f83c3314f::t_06fa7abae7949d 766-774
+  s_083e8f83c3314f::t_a21eb26f656a75 676,679-680
+  s_083e8f83c3314f::t_f8edfd51e701c8 693-700
+  s_083e8f83c3314f::t_f538ac02775030 93,96-133
+package.json
+  s_083e8f83c3314f::t_155772c3564002 52-57,71,100-104
+src/web/rpc-handlers.test.ts
+  s_083e8f83c3314f::t_2396f891a273e6 1-88
+src/renderer/src/router.ts
+  s_083e8f83c3314f::t_55f59c116dbdfa 32
+  s_083e8f83c3314f::t_424d747983685f 21-22
+  s_083e8f83c3314f::t_a8336162a17537 8-9
+src/shared/protocol.ts
+  s_083e8f83c3314f::t_a3ff512684f869 413-432
+  s_083e8f83c3314f::t_bc3e239409ff23 20-31
+src/renderer/src/types.ts
+  s_083e8f83c3314f::t_2ad8cd72b16a71 16-32
+src/renderer/src/components/ProjectsTab.tsx
+  s_083e8f83c3314f::t_afb132a694aa21 1-188
+src/renderer/src/components/ProjectsPanel.tsx
+  s_083e8f83c3314f::t_c87e313080841a 1-181
+src/renderer/src/components/Sidebar.tsx
+  s_083e8f83c3314f::t_ba91a39fc4ac6a 21,23
+  s_083e8f83c3314f::t_4d25406c637516 65-69
+  s_083e8f83c3314f::t_97926eed0736a3 724-733
+  s_083e8f83c3314f::t_73e6679ee859ea 632-633,636-640
+  s_083e8f83c3314f::t_e07b04e42c6715 716-721
+  s_083e8f83c3314f::t_d9e3611cafa835 53-55
+src/web/rpc-handlers.ts
+  s_083e8f83c3314f::t_9a6641adb6d6a9 441-515
+src/cli/config.ts
+  s_083e8f83c3314f::t_43b8537a04db46 13-18
+  s_083e8f83c3314f::t_6d88ca6d7bee3c 73
+  s_083e8f83c3314f::t_cafd633d3aab62 59
+src/renderer/src/components/FileViewerTab.tsx
+  s_083e8f83c3314f::t_72e8dbebe11afa 1,3-50,52-57,59-76,78-112
+  s_083e8f83c3314f::t_4bbaba8573d794 2
+  s_083e8f83c3314f::t_a6cf2132625122 51,58,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "ebfddff38dfcb7a2ed4af36f9d406aa83783a6cd",
+  "prompts": {},
+  "sessions": {
+    "s_083e8f83c3314f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "015a56b8-ed55-42de-9673-b49dae6b950d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
