@@ -60,7 +60,7 @@ manually web ui test changes in the browser
 don't forget to run and update tests, write new ones if new behaviors are specified
 
 ### after completing a task
-dont forget to commit and  `npm run electron:install`
+dont forget to commit. then run `npm run electron:install` - but ONLY when working in the main checkout, NOT when on a worktree (it would install an in-progress branch over the main app). Skip it on worktrees.
 
 ## Architecture Overview
 
