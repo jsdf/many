@@ -1,0 +1,20 @@
+src/renderer/src/components/TerminalTab.tsx
+  s_9ec97a5a437ad7::t_343722bbd54707 159
+  s_9ec97a5a437ad7::t_672ab1250324fe 151-156,160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "326d617549380892f8d42feaefd02572f55e0ddc",
+  "prompts": {},
+  "sessions": {
+    "s_9ec97a5a437ad7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "caa88c75-8428-4019-a49e-c1245beb772c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
