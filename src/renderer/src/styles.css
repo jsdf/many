@@ -2,6 +2,7 @@
 @plugin "daisyui" {
   themes: acid --default, forest --prefersdark;
 }
+@import "./theme-sharp.css";
 
 /* TipTap WYSIWYG markdown editor (Projects file editor).
    Tailwind's preflight strips default heading/list styling, so restore the
