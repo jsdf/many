@@ -1,0 +1,19 @@
+src/renderer/src/components/WorktreeDetails.tsx
+  s_367245f45f86b6::t_ad9fe45d9315c1 556,567,585
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "9420f69c1bd11906d719074163d18642df549cf2",
+  "prompts": {},
+  "sessions": {
+    "s_367245f45f86b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6a556a2-edbc-4a37-8015-78d34eb8d6ea",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
