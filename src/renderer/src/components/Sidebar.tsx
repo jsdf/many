@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Repository, Worktree, PoolConfig, ProjectEntry, OpenFile, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
+import { Repository, Worktree, PoolConfig, ProjectEntry, ProjectNode, OpenFile, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
 import { useWorktreeActivityTimes } from '../rpc-hooks'
 import ProjectsTab from './ProjectsTab'
 
@@ -52,7 +52,7 @@ interface SidebarProps {
   automationsSubView?: AutomationsSubView | null
   activeTab: 'worktrees' | 'tracked' | 'automations' | 'projects'
   projects: ProjectEntry[]
-  selectedProject: ProjectEntry | null
+  selectedNode: ProjectNode | null
   onRepoSelect: (repoPath: string | null) => void
   onWorktreeSelect: (worktree: Worktree | null) => void
   onCreateWorktree: () => void
@@ -63,7 +63,7 @@ interface SidebarProps {
   onNavigateWorktrees?: () => void
   onNavigateTracked?: () => void
   onNavigateProjects?: () => void
-  onSelectProject?: (project: ProjectEntry) => void
+  onSelectNode?: (node: ProjectNode) => void
   onOpenFile?: (file: OpenFile) => void
   onAddProject?: () => void
   onRemoveProject?: (project: ProjectEntry) => void
@@ -630,11 +630,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNewTask,
   activeTab,
   projects,
-  selectedProject,
+  selectedNode,
   onNavigateWorktrees,
   onNavigateTracked,
   onNavigateProjects,
-  onSelectProject,
+  onSelectNode,
   onOpenFile,
   onAddProject,
   onRemoveProject,
@@ -700,6 +700,12 @@ const Sidebar: React.FC<SidebarProps> = ({
           Worktrees
         </button>
         <button
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'projects' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          onClick={() => onNavigateProjects?.()}
+        >
+          Projects
+        </button>
+        <button
           className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'tracked' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
           onClick={() => onNavigateTracked?.()}
         >
@@ -713,19 +719,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             Automations
           </button>
         )}
-        <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'projects' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-          onClick={() => onNavigateProjects?.()}
-        >
-          Projects
-        </button>
       </div>
 
       {activeTab === 'projects' ? (
         <ProjectsTab
           projects={projects}
-          selectedProject={selectedProject}
-          onSelectProject={(p) => onSelectProject?.(p)}
+          selectedNode={selectedNode}
+          onSelectNode={(n) => onSelectNode?.(n)}
           onOpenFile={(f) => onOpenFile?.(f)}
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}

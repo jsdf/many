@@ -1,12 +1,12 @@
 import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ProjectEntry, FsEntry, OpenFile } from "../types";
+import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 
 interface ProjectsTabProps {
   projects: ProjectEntry[];
-  selectedProject: ProjectEntry | null;
-  onSelectProject: (project: ProjectEntry) => void;
+  selectedNode: ProjectNode | null;
+  onSelectNode: (node: ProjectNode) => void;
   onOpenFile: (file: OpenFile) => void;
   onAddProject: () => void;
   onRemoveProject: (project: ProjectEntry) => void;
@@ -21,18 +21,36 @@ interface TreeRow {
 
 const ROW_HEIGHT = 24;
 
+// Tree state is cached at module scope so it survives this component
+// unmounting (tab switches, sidebar collapse) for the life of the page.
+const treeStateCache: {
+  expanded: Set<string>;
+  childrenByDir: Map<string, FsEntry[]>;
+} = {
+  expanded: new Set(),
+  childrenByDir: new Map(),
+};
+
 const ProjectsTab: React.FC<ProjectsTabProps> = ({
   projects,
-  selectedProject,
-  onSelectProject,
+  selectedNode,
+  onSelectNode,
   onOpenFile,
   onAddProject,
   onRemoveProject,
 }) => {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [childrenByDir, setChildrenByDir] = useState<Map<string, FsEntry[]>>(new Map());
+  const [expanded, setExpandedState] = useState<Set<string>>(() => treeStateCache.expanded);
+  const [childrenByDir, setChildrenByDirState] = useState<Map<string, FsEntry[]>>(() => treeStateCache.childrenByDir);
   const [loading, setLoading] = useState<Set<string>>(new Set());
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Mirror persisted state back into the module cache on every update.
+  const setExpanded = useCallback((updater: (prev: Set<string>) => Set<string>) => {
+    setExpandedState((prev) => (treeStateCache.expanded = updater(prev)));
+  }, []);
+  const setChildrenByDir = useCallback((updater: (prev: Map<string, FsEntry[]>) => Map<string, FsEntry[]>) => {
+    setChildrenByDirState((prev) => (treeStateCache.childrenByDir = updater(prev)));
+  }, []);
 
   const loadDir = useCallback(async (dirPath: string) => {
     setLoading((prev) => new Set(prev).add(dirPath));
@@ -64,11 +82,19 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     });
   }, [childrenByDir, loadDir]);
 
-  // Selecting a project also drives the main pane (terminals + open files).
-  const handleProjectClick = useCallback((project: ProjectEntry) => {
-    onSelectProject(project);
-    toggleDir(project.path);
-  }, [onSelectProject, toggleDir]);
+  // Ensure a directory is expanded (and its children loaded) without toggling
+  // it closed. Used when selecting a directory, so selection also reveals it.
+  const expandDir = useCallback((dirPath: string) => {
+    setExpanded((prev) => (prev.has(dirPath) ? prev : new Set(prev).add(dirPath)));
+    if (!childrenByDir.has(dirPath)) loadDir(dirPath);
+  }, [childrenByDir, loadDir]);
+
+  // Selecting a node (project root or directory) drives the main pane
+  // (terminals + file tabs) and reveals its contents.
+  const handleSelectNode = useCallback((node: ProjectNode) => {
+    onSelectNode(node);
+    expandDir(node.path);
+  }, [onSelectNode, expandDir]);
 
   // Flatten the expanded forest into a single ordered list. Projects are the
   // top level of the hierarchy; their directory contents nest beneath them.
@@ -123,7 +149,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               const { entry, depth, project, isProject } = rows[vi.index];
               const isExpanded = entry.isDirectory && expanded.has(entry.path);
               const isLoading = loading.has(entry.path);
-              const isSelectedProject = isProject && selectedProject?.path === project.path;
+              const isSelected = selectedNode?.path === entry.path;
               return (
                 <div
                   key={entry.path}
@@ -137,20 +163,22 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <div className={`flex items-center w-full h-full rounded ${isSelectedProject ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
-                    <button
-                      className={`flex items-center flex-1 min-w-0 h-full text-left whitespace-nowrap px-1 ${isProject ? "text-xs font-semibold" : "text-xs"} ${isSelectedProject ? "text-primary" : ""}`}
+                  <div className={`flex items-center w-full h-full rounded ${isSelected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+                    <div
+                      role="button"
+                      className={`flex items-center flex-1 min-w-0 h-full text-left whitespace-nowrap px-1 cursor-pointer ${isProject ? "text-xs font-semibold" : "text-xs"} ${isSelected ? "text-primary" : ""}`}
                       style={{ paddingLeft: `${depth * 12 + 4}px` }}
                       title={entry.path}
                       onClick={() =>
-                        isProject
-                          ? handleProjectClick(project)
-                          : entry.isDirectory
-                            ? toggleDir(entry.path)
-                            : (onSelectProject(project), onOpenFile({ path: entry.path, name: entry.name }))
+                        entry.isDirectory
+                          ? handleSelectNode({ name: entry.name, path: entry.path })
+                          : (selectedNode || onSelectNode({ name: project.name, path: project.path }), onOpenFile({ path: entry.path, name: entry.name }))
                       }
                     >
-                      <span className="inline-block w-3 shrink-0 text-base-content/50">
+                      <span
+                        className="inline-block w-3 shrink-0 text-base-content/50"
+                        onClick={entry.isDirectory ? (e) => { e.stopPropagation(); toggleDir(entry.path); } : undefined}
+                      >
                         {entry.isDirectory ? (isExpanded ? "▾" : "▸") : ""}
                       </span>
                       <span className="shrink-0">{entry.isDirectory ? "📁" : "📄"}</span>
@@ -158,7 +186,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                         {entry.name}
                       </span>
                       {isLoading && <span className="loading loading-spinner loading-xs ml-1" />}
-                    </button>
+                    </div>
                     {isProject && (
                       <button
                         className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { ProjectEntry, OpenFile } from "../types";
+import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import TopBar from "./TopBar";
@@ -7,7 +7,7 @@ import TerminalStack from "./TerminalStack";
 import FileEditorTab, { FileData } from "./FileEditorTab";
 
 interface ProjectsPanelProps {
-  project: ProjectEntry | null;
+  project: ProjectNode | null;
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
 }
@@ -31,12 +31,19 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevPathRef = useRef<string | null>(null);
 
-  // Reset open tabs when switching projects
+  // Reset open tabs when switching between nodes. Skip the first selection
+  // (null -> a path) so a file opened in the same click isn't wiped.
   useEffect(() => {
-    setOpenFiles([]);
-    setActiveFile(null);
-    setFileData({});
+    const prev = prevPathRef.current;
+    const current = project?.path ?? null;
+    prevPathRef.current = current;
+    if (prev !== null && prev !== current) {
+      setOpenFiles([]);
+      setActiveFile(null);
+      setFileData({});
+    }
   }, [project?.path]);
 
   const loadFile = useCallback((filePath: string) => {

@@ -25,6 +25,13 @@ export interface FsEntry {
   isDirectory: boolean;
 }
 
+// A selectable node in the projects tree: a project root or any directory
+// within it. Drives the projects panel (terminals + file tabs).
+export interface ProjectNode {
+  name: string;
+  path: string;
+}
+
 export interface OpenFile {
   path: string;
   name: string;

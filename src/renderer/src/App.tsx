@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, OpenFile, isTmpBranch } from "./types";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, ProjectNode, OpenFile, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
@@ -66,7 +66,7 @@ const App: React.FC = () => {
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
-  const [selectedProject, setSelectedProject] = useState<ProjectEntry | null>(null);
+  const [selectedNode, setSelectedNode] = useState<ProjectNode | null>(null);
   const projectsPanelRef = useRef<ProjectsPanelHandle>(null);
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const App: React.FC = () => {
     if (!window.confirm(`Remove "${project.name}" from projects? (the directory is not deleted)`)) return;
     try {
       await getRpcClient().query("projects.remove", { projectPath: project.path });
-      if (selectedProject?.path === project.path) setSelectedProject(null);
+      if (selectedNode && (selectedNode.path === project.path || selectedNode.path.startsWith(project.path + "/"))) setSelectedNode(null);
       await loadProjects();
     } catch (err) {
       console.error("Failed to remove project:", err);
@@ -666,7 +666,7 @@ const App: React.FC = () => {
                 : 'worktrees'
               }
               projects={projects}
-              selectedProject={selectedProject}
+              selectedNode={selectedNode}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);
@@ -680,8 +680,8 @@ const App: React.FC = () => {
               onNavigateWorktrees={() => setMainPaneView({ type: 'worktree' })}
               onNavigateTracked={() => setMainPaneView({ type: 'tracked' })}
               onNavigateProjects={() => setMainPaneView({ type: 'projects' })}
-              onSelectProject={(project) => {
-                setSelectedProject(project);
+              onSelectNode={(node) => {
+                setSelectedNode(node);
                 setMainPaneView({ type: 'projects' });
               }}
               onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
@@ -756,7 +756,7 @@ const App: React.FC = () => {
         <div className="flex-1 min-w-0">
           <ProjectsPanel
             ref={projectsPanelRef}
-            project={selectedProject}
+            project={selectedNode}
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
           />
