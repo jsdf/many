@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, isTmpBranch } from "./types";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, OpenFile, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
+import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
@@ -10,6 +11,7 @@ import AutomationsModal from "./components/AutomationsModal";
 import { useHashRouter } from "./router";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
+import AddProjectModal from "./components/AddProjectModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
@@ -30,6 +32,7 @@ const App: React.FC = () => {
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddRepoModal, setShowAddRepoModal] = useState(false);
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showRepoConfigModal, setShowRepoConfigModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null);
@@ -62,6 +65,9 @@ const App: React.FC = () => {
   const [worktreeOrder, setWorktreeOrder] = useState<string[]>([]);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
+  const [projects, setProjects] = useState<ProjectEntry[]>([]);
+  const [selectedProject, setSelectedProject] = useState<ProjectEntry | null>(null);
+  const projectsPanelRef = useRef<ProjectsPanelHandle>(null);
 
   useEffect(() => {
     setSidebarCollapsed(isNarrow);
@@ -86,7 +92,34 @@ const App: React.FC = () => {
   useEffect(() => {
     loadSavedRepos();
     restoreSelectedRepo();
+    loadProjects();
   }, []);
+
+  const loadProjects = async () => {
+    try {
+      const list = await getRpcClient().query("projects.list", {});
+      setProjects(list);
+    } catch (err) {
+      console.error("Failed to load projects:", err);
+    }
+  };
+
+  const addProject = async (projectPath: string) => {
+    await getRpcClient().query("projects.add", { projectPath });
+    await loadProjects();
+    setShowAddProjectModal(false);
+  };
+
+  const handleRemoveProject = async (project: ProjectEntry) => {
+    if (!window.confirm(`Remove "${project.name}" from projects? (the directory is not deleted)`)) return;
+    try {
+      await getRpcClient().query("projects.remove", { projectPath: project.path });
+      if (selectedProject?.path === project.path) setSelectedProject(null);
+      await loadProjects();
+    } catch (err) {
+      console.error("Failed to remove project:", err);
+    }
+  };
 
   useEffect(() => {
     const repo = repositories.find(r => r.path === currentRepo);
@@ -629,8 +662,11 @@ const App: React.FC = () => {
               activeTab={
                 mainPaneView.type === 'tracked' ? 'tracked'
                 : mainPaneView.type === 'runningTasks' || mainPaneView.type === 'automations' ? 'automations'
+                : mainPaneView.type === 'projects' ? 'projects'
                 : 'worktrees'
               }
+              projects={projects}
+              selectedProject={selectedProject}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);
@@ -643,6 +679,14 @@ const App: React.FC = () => {
               onNewTask={() => setShowNewTaskModal(true)}
               onNavigateWorktrees={() => setMainPaneView({ type: 'worktree' })}
               onNavigateTracked={() => setMainPaneView({ type: 'tracked' })}
+              onNavigateProjects={() => setMainPaneView({ type: 'projects' })}
+              onSelectProject={(project) => {
+                setSelectedProject(project);
+                setMainPaneView({ type: 'projects' });
+              }}
+              onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
+              onAddProject={() => setShowAddProjectModal(true)}
+              onRemoveProject={handleRemoveProject}
               onAutomationsSubViewChange={(view: AutomationsSubView) => {
                 if (view === 'running') setMainPaneView({ type: 'runningTasks' });
                 else if (view === 'definitions') setMainPaneView({ type: 'automations' });
@@ -708,6 +752,15 @@ const App: React.FC = () => {
             onExpandSidebar={() => setSidebarCollapsed(false)}
           />
         </div>
+      ) : mainPaneView.type === 'projects' ? (
+        <div className="flex-1 min-w-0">
+          <ProjectsPanel
+            ref={projectsPanelRef}
+            project={selectedProject}
+            sidebarCollapsed={sidebarCollapsed && isNarrow}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
+          />
+        </div>
       ) : (
         <MainContent
           ref={mainContentRef}
@@ -745,6 +798,13 @@ const App: React.FC = () => {
           mode="add"
           onClose={() => setShowAddRepoModal(false)}
           onAdd={addRepository}
+        />
+      )}
+
+      {showAddProjectModal && (
+        <AddProjectModal
+          onClose={() => setShowAddProjectModal(false)}
+          onAdd={addProject}
         />
       )}
 

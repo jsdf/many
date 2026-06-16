@@ -5,7 +5,8 @@ export type MainPaneView =
   | { type: 'worktree' }
   | { type: 'tracked' }
   | { type: 'runningTasks' }
-  | { type: 'automations' };
+  | { type: 'automations' }
+  | { type: 'projects' };
 
 function viewToHash(view: MainPaneView): string {
   switch (view.type) {
@@ -17,6 +18,8 @@ function viewToHash(view: MainPaneView): string {
       return '#/running';
     case 'automations':
       return '#/automations';
+    case 'projects':
+      return '#/projects';
   }
 }
 
@@ -26,6 +29,7 @@ function hashToView(hash: string): MainPaneView {
   if (path === 'tracked') return { type: 'tracked' };
   if (path === 'running') return { type: 'runningTasks' };
   if (path === 'automations') return { type: 'automations' };
+  if (path === 'projects') return { type: 'projects' };
 
   return { type: 'worktree' };
 }

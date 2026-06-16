@@ -13,6 +13,23 @@ export interface Worktree {
   worktreeName: string;
 }
 
+export interface ProjectEntry {
+  path: string;
+  name: string;
+  addedAt: string;
+}
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+}
+
+export interface OpenFile {
+  path: string;
+  name: string;
+}
+
 // Helper to strip refs/heads/ prefix from branch names
 export const formatBranchName = (branch?: string | null) => {
   if (!branch) return 'detached HEAD'
