@@ -462,7 +462,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
             <button
               type="button"
               data-testid="add-repo-cancel"
-              className="btn btn-neutral"
+              className="btn btn-outline btn-neutral"
               onClick={onClose}
               disabled={isLoading}
             >
@@ -471,7 +471,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
             <button
               type="submit"
               data-testid="add-repo-submit"
-              className="btn btn-primary"
+              className="btn btn-outline btn-primary"
               disabled={
                 isLoading ||
                 (isConfigMode

@@ -159,12 +159,12 @@ const RebaseWorktreeModal: React.FC<RebaseWorktreeModalProps> = ({
             {error && <div className="text-error text-sm mt-2 p-2 bg-error/10 rounded mb-4">{error}</div>}
 
             <div className="flex justify-end gap-3">
-              <button type="button" className="btn btn-neutral" onClick={onClose} disabled={isRebasing}>
+              <button type="button" className="btn btn-outline btn-neutral" onClick={onClose} disabled={isRebasing}>
                 Cancel
               </button>
               <button
                 type="submit"
-                className="btn btn-primary"
+                className="btn btn-outline btn-primary"
                 disabled={isRebasing || isLoadingBranches || !ontoBranch}
               >
                 {isRebasing ? "Rebasing..." : "Rebase"}

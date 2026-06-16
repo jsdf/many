@@ -193,14 +193,14 @@ const NewTaskModal: React.FC<NewTaskModalProps> = ({
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
-              className="btn btn-neutral"
+              className="btn btn-outline btn-neutral"
               onClick={onClose}
             >
               {isLaunching ? "Close" : "Cancel"}
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-outline btn-primary"
               disabled={isLaunching || !prompt.trim() || !selectedPool || (done && !error)}
             >
               {isLaunching ? "Launching..." : done && !error ? "Done" : "Launch Task"}

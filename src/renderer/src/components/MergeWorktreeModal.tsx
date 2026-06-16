@@ -264,7 +264,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
-              className="btn btn-neutral"
+              className="btn btn-outline btn-neutral"
               onClick={onClose}
               disabled={isMerging}
             >
@@ -272,7 +272,7 @@ const MergeWorktreeModal: React.FC<MergeWorktreeModalProps> = ({
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-outline btn-primary"
               disabled={isMerging || !toBranch.trim() || !message.trim() || isLoadingBranches || (gitStatus?.hasChanges === true)}
             >
               {isMerging ? 'Merging...' : 'Merge'}

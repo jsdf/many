@@ -357,7 +357,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
               }}
             />
             <div className="flex items-center gap-2">
-              <button className="btn btn-primary btn-sm" onClick={handleStart} disabled={starting}>
+              <button className="btn btn-outline btn-primary btn-sm" onClick={handleStart} disabled={starting}>
                 {starting ? <span className="loading loading-spinner loading-xs" /> : "Start"}
               </button>
               <span className="text-xs text-base-content/40">{currentModeLabel} · Shift+Tab</span>
@@ -380,7 +380,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
         <span className="text-xs text-base-content/40">{currentModeLabel}</span>
         <div className="flex-1" />
         {!isActive && !result && (
-          <button className="btn btn-xs btn-primary" onClick={handleActivate} disabled={starting}>
+          <button className="btn btn-xs btn-outline btn-primary" onClick={handleActivate} disabled={starting}>
             {starting ? <span className="loading loading-spinner loading-xs" /> : "Activate"}
           </button>
         )}
@@ -409,7 +409,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
             <span className="font-medium">{permissionRequest.displayName ?? permissionRequest.toolName}</span>
           </div>
           <div className="flex gap-2">
-            <button className="btn btn-sm btn-success" onClick={() => handlePermission(true)}>Allow</button>
+            <button className="btn btn-sm btn-outline btn-success" onClick={() => handlePermission(true)}>Allow</button>
             <button className="btn btn-sm btn-error btn-outline" onClick={() => handlePermission(false)}>Deny</button>
           </div>
         </div>
@@ -446,7 +446,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
               }
             }}
           />
-          <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={!inputText.trim()}>
+          <button className="btn btn-outline btn-primary btn-sm" onClick={handleSend} disabled={!inputText.trim()}>
             Send
           </button>
         </div>

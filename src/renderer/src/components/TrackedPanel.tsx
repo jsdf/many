@@ -267,7 +267,7 @@ const TrackedPanel: React.FC<TrackedPanelProps> = ({ currentRepo, starredBranche
             {(['all', 'active', 'idle'] as const).map((f) => (
               <button
                 key={f}
-                className={`btn btn-xs ${statusFilter === f ? 'btn-primary' : 'btn-ghost text-base-content/50'}`}
+                className={`btn btn-xs ${statusFilter === f ? 'btn-outline btn-primary' : 'btn-ghost text-base-content/50'}`}
                 onClick={() => setStatusFilter(f)}
               >
                 {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Idle'}

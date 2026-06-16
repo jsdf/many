@@ -504,10 +504,10 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   )}
                   {switchError && <p className="text-error text-xs mb-2 p-2 bg-error/10 rounded">{switchError}</p>}
                   <div className="flex gap-2">
-                    <button className="btn btn-primary btn-xs" onClick={handleSwitchWithChanges} disabled={switchBusy || (switchHandling === "commit" && !switchCommitMsg.trim())}>
+                    <button className="btn btn-outline btn-primary btn-xs" onClick={handleSwitchWithChanges} disabled={switchBusy || (switchHandling === "commit" && !switchCommitMsg.trim())}>
                       {switchBusy ? "Switching..." : "Switch"}
                     </button>
-                    <button className="btn btn-neutral btn-xs" onClick={() => { setSwitchTarget(null); setSwitchError(null); }} disabled={switchBusy}>
+                    <button className="btn btn-outline btn-neutral btn-xs" onClick={() => { setSwitchTarget(null); setSwitchError(null); }} disabled={switchBusy}>
                       Cancel
                     </button>
                   </div>

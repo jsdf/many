@@ -504,14 +504,14 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
           <>
             <div className="join w-full mb-2 px-1">
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === "pool" ? "btn-primary" : "btn-soft"}`}
-                onClick={() => setSortMode("pool")}
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-outline btn-primary' : 'btn-soft'}`}
+                onClick={() => setSortMode('pool')}
               >
                 By pool
               </button>
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === "date" ? "btn-primary" : "btn-soft"}`}
-                onClick={() => setSortMode("date")}
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'date' ? 'btn-outline btn-primary' : 'btn-soft'}`}
+                onClick={() => setSortMode('date')}
               >
                 By date
               </button>
@@ -632,7 +632,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               <button
                 onClick={onNewTask}
                 disabled={!currentRepo}
-                className="btn btn-success w-full"
+                className="btn btn-outline btn-success w-full"
               >
                 New Task
               </button>

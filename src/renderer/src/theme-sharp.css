@@ -80,23 +80,9 @@
 
 /* 2. Outline style -------------------------------------------------------- */
 
-/* Solid-filled buttons -> outline. Exclude variants that are already
-   non-filled, and the hover/active/disabled states so buttons still fill in
-   on interaction (daisyUI's own outline buttons behave this way). */
-.btn:not(
-  .btn-ghost,
-  .btn-link,
-  .btn-soft,
-  .btn-outline,
-  .btn-dash,
-  .btn-active
-):not(:hover):not(:active):not(:disabled):not([disabled]):not(.btn-disabled) {
-  --btn-shadow: "";
-  --btn-noise: none;
-  --btn-bg: #0000;
-  --btn-fg: var(--btn-color, var(--color-base-content));
-  --btn-border: var(--btn-color, var(--color-base-content));
-}
+/* Buttons opt into the outline look explicitly via btn-outline in the markup;
+   no global conversion here. Destructive buttons (btn-error/btn-warning) stay
+   filled for emphasis. */
 
 /* Solid-filled badges -> outline, mirroring .badge-outline. */
 .badge:not(.badge-outline, .badge-dash, .badge-soft, .badge-ghost) {

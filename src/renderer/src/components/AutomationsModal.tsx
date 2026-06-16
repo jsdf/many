@@ -158,7 +158,7 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
               )}
 
               <div className="mt-4">
-                <button className="btn btn-primary w-full" onClick={handleNew}>
+                <button className="btn btn-outline btn-primary w-full" onClick={handleNew}>
                   New Automation
                 </button>
               </div>
@@ -220,14 +220,14 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
         <div className="flex gap-2">
           <button
             type="button"
-            className={`btn btn-sm ${type === "skill" ? "btn-primary" : "btn-ghost"}`}
+            className={`btn btn-sm ${type === "skill" ? "btn-outline btn-primary" : "btn-ghost"}`}
             onClick={() => setType("skill")}
           >
             Claude Code Skill
           </button>
           <button
             type="button"
-            className={`btn btn-sm ${type === "custom" ? "btn-primary" : "btn-ghost"}`}
+            className={`btn btn-sm ${type === "custom" ? "btn-outline btn-primary" : "btn-ghost"}`}
             onClick={() => setType("custom")}
           >
             Custom Prompt
@@ -271,12 +271,12 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
       )}
 
       <div className="flex justify-end gap-3">
-        <button type="button" className="btn btn-neutral" onClick={onCancel}>
+        <button type="button" className="btn btn-outline btn-neutral" onClick={onCancel}>
           Cancel
         </button>
         <button
           type="submit"
-          className="btn btn-primary"
+          className="btn btn-outline btn-primary"
           disabled={!isValid}
         >
           Save

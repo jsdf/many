@@ -262,7 +262,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
           {!isTmpBranch(selectedWorktree.branch) && linearLink?.linearUrl && (
             <a
-              className="btn btn-sm btn-accent"
+              className="btn btn-sm btn-outline btn-accent"
               href={linearLink.linearUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -272,7 +272,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           )}
           {!isTmpBranch(selectedWorktree.branch) && (
             <a
-              className={`btn btn-sm ${ghLink?.type === "pr" ? "btn-primary" : "btn-neutral"}`}
+              className={`btn btn-sm btn-outline ${ghLink?.type === "pr" ? "btn-primary" : "btn-neutral"}`}
               href={ghLink?.url}
               target="_blank"
               rel="noopener noreferrer"

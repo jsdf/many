@@ -181,7 +181,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
             <button
               type="button"
-              className="btn btn-neutral"
+              className="btn btn-outline btn-neutral"
               onClick={onClose}
               disabled={isLoading}
             >
@@ -189,7 +189,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-outline btn-primary"
               disabled={isLoading || !branchName.trim() || !selectedWorktree}
             >
               {isLoading ? 'Switching...' : 'Switch'}

@@ -54,7 +54,7 @@ const BranchTypeahead: React.FC<{
           />
         </div>
         <button
-          className="btn btn-sm btn-primary"
+          className="btn btn-sm btn-outline btn-primary"
           onClick={() => submit()}
           disabled={!inputValue.trim() || disabled}
         >
