@@ -5,6 +5,9 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import TopBar from "./TopBar";
 import TerminalStack from "./TerminalStack";
 import FileEditorTab, { FileData } from "./FileEditorTab";
+import ProjectSessionsTab from "./ProjectSessionsTab";
+
+const SESSIONS_TAB = "__sessions__";
 
 interface ProjectsPanelProps {
   project: ProjectNode | null;
@@ -28,7 +31,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
-  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [activeFile, setActiveFile] = useState<string>(SESSIONS_TAB);
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const prevPathRef = useRef<string | null>(null);
@@ -77,7 +80,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     if (prev !== null && prev !== current) {
       flushSaves();
       setOpenFiles([]);
-      setActiveFile(null);
+      setActiveFile(SESSIONS_TAB);
       setFileData({});
     }
   }, [project?.path, flushSaves]);
@@ -150,7 +153,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       const next = prev.filter((f) => f.path !== filePath);
       setActiveFile((current) => {
         if (current !== filePath) return current;
-        return next.length > 0 ? next[next.length - 1].path : null;
+        return next.length > 0 ? next[next.length - 1].path : SESSIONS_TAB;
       });
       return next;
     });
@@ -237,54 +240,54 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           className={`flex flex-col overflow-hidden ${isNarrow ? "min-h-[120px]" : "min-w-[200px]"}`}
           style={{ flex: `0 0 ${splitFraction * 100}%` }}
         >
-          {openFiles.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-base-content/40 text-sm">
-              Open a file from the tree to view it here.
+          <div className="flex items-stretch overflow-x-auto bg-base-200 border-b border-base-300 shrink-0">
+            <div
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${activeFile === SESSIONS_TAB ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+              onClick={() => setActiveFile(SESSIONS_TAB)}
+            >
+              <span>Sessions</span>
             </div>
-          ) : (
-            <>
-              <div className="flex items-stretch overflow-x-auto bg-base-200 border-b border-base-300 shrink-0">
-                {openFiles.map((f) => {
-                  const dirty = isDirty(f.path);
-                  return (
-                    <div
-                      key={f.path}
-                      className={`group flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
-                      onClick={() => setActiveFile(f.path)}
-                      title={f.path}
-                    >
-                      <span className="truncate max-w-[160px]">{f.name}</span>
-                      <button
-                        className={`w-3 text-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
-                        title="Unsaved changes"
-                        onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
-                      >
-                        •
-                      </button>
-                      <button
-                        className={`w-3 text-center text-base-content/40 hover:text-error ${dirty ? "hidden group-hover:inline" : ""}`}
-                        title="Close"
-                        onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex-1 overflow-hidden min-h-0">
-                {active && fileData[active.path] && (
-                  <FileEditorTab
-                    key={active.path}
-                    fileName={active.name}
-                    data={fileData[active.path]}
-                    onChange={(content) => updateContent(active.path, content)}
-                    onSave={() => saveFile(active.path)}
-                  />
-                )}
-              </div>
-            </>
-          )}
+            {openFiles.map((f) => {
+              const dirty = isDirty(f.path);
+              return (
+                <div
+                  key={f.path}
+                  className={`group flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+                  onClick={() => setActiveFile(f.path)}
+                  title={f.path}
+                >
+                  <span className="truncate max-w-[160px]">{f.name}</span>
+                  <button
+                    className={`w-3 text-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
+                    title="Unsaved changes"
+                    onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+                  >
+                    •
+                  </button>
+                  <button
+                    className={`w-3 text-center text-base-content/40 hover:text-error ${dirty ? "hidden group-hover:inline" : ""}`}
+                    title="Close"
+                    onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex-1 overflow-hidden min-h-0">
+            {activeFile === SESSIONS_TAB ? (
+              <ProjectSessionsTab key={`sessions-${project.path}`} worktreePath={project.path} />
+            ) : active && fileData[active.path] ? (
+              <FileEditorTab
+                key={active.path}
+                fileName={active.name}
+                data={fileData[active.path]}
+                onChange={(content) => updateContent(active.path, content)}
+                onSave={() => saveFile(active.path)}
+              />
+            ) : null}
+          </div>
         </div>
 
         <div
