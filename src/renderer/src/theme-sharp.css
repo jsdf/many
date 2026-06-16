@@ -12,6 +12,52 @@
    These rules are intentionally unlayered so they win over daisyUI's
    layered component styles without needing !important. */
 
+/* 0. Monochrome palette ---------------------------------------------------
+   Default action colors (primary + neutral) become the opposite of the
+   background - black on light, white on dark - and the base backgrounds are
+   pushed toward pure white / pure black. Semantic colors (success, warning,
+   error, accent, secondary, info) are left untouched.
+
+   The app sets no data-theme attribute: light is daisyUI's default theme on
+   :root, dark activates via prefers-color-scheme. We override both. */
+
+/* Light (default / acid). */
+:root,
+[data-theme="acid"] {
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(96% 0 0);
+  --color-base-300: oklch(90% 0 0);
+  --color-base-content: oklch(18% 0 0);
+  --color-primary: oklch(18% 0 0);
+  --color-primary-content: oklch(100% 0 0);
+  --color-neutral: oklch(18% 0 0);
+  --color-neutral-content: oklch(100% 0 0);
+}
+
+/* Dark (forest, via prefers-color-scheme since no data-theme is set). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-base-100: oklch(14% 0 0);
+    --color-base-200: oklch(18% 0 0);
+    --color-base-300: oklch(24% 0 0);
+    --color-base-content: oklch(96% 0 0);
+    --color-primary: oklch(96% 0 0);
+    --color-primary-content: oklch(14% 0 0);
+    --color-neutral: oklch(96% 0 0);
+    --color-neutral-content: oklch(14% 0 0);
+  }
+}
+[data-theme="forest"] {
+  --color-base-100: oklch(14% 0 0);
+  --color-base-200: oklch(18% 0 0);
+  --color-base-300: oklch(24% 0 0);
+  --color-base-content: oklch(96% 0 0);
+  --color-primary: oklch(96% 0 0);
+  --color-primary-content: oklch(14% 0 0);
+  --color-neutral: oklch(96% 0 0);
+  --color-neutral-content: oklch(14% 0 0);
+}
+
 /* 1. Sharp corners -------------------------------------------------------- */
 
 /* daisyUI radius tokens drive most component corners. */
