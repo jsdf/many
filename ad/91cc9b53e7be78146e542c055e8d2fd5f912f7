@@ -1,0 +1,30 @@
+src/web/rpc-handlers.ts
+  s_98e6551fe7b195::t_f831ae610f6753 496-502,504-543
+  s_98e6551fe7b195::t_5f39dec81263eb 503
+  s_98e6551fe7b195::t_f93e57b6d6add4 11
+src/renderer/src/components/ProjectsTab.tsx
+  s_98e6551fe7b195::t_dbb5d43f36d702 106-141
+  s_98e6551fe7b195::t_66300295da8c85 151
+  s_98e6551fe7b195::t_007466296eb4ad 202
+  s_98e6551fe7b195::t_38f94f39849898 1
+  s_98e6551fe7b195::t_fe79e2173494cb 229-231,239,247-249
+  s_98e6551fe7b195::t_96d65e868ef083 46-48
+src/shared/protocol.ts
+  s_98e6551fe7b195::t_e6e731562f4098 429-435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "ad91cc9b53e7be78146e542c055e8d2fd5f912f7",
+  "prompts": {},
+  "sessions": {
+    "s_98e6551fe7b195": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "078b4e0e-fbe8-4495-b868-468b395bf8be",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
