@@ -42,6 +42,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [expanded, setExpandedState] = useState<Set<string>>(() => treeStateCache.expanded);
   const [childrenByDir, setChildrenByDirState] = useState<Map<string, FsEntry[]>>(() => treeStateCache.childrenByDir);
   const [loading, setLoading] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState("");
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Mirror persisted state back into the module cache on every update.
@@ -96,10 +97,49 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     expandDir(node.path);
   }, [onSelectNode, expandDir]);
 
+  const query = filter.trim().toLowerCase();
+  const filtering = query.length > 0;
+
   // Flatten the expanded forest into a single ordered list. Projects are the
   // top level of the hierarchy; their directory contents nest beneath them.
+  // When filtering, walk all loaded entries (ignoring the expanded set) and
+  // keep a node if its name matches or it has a matching descendant.
   const rows = useMemo<TreeRow[]>(() => {
     const result: TreeRow[] = [];
+
+    if (filtering) {
+      const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): TreeRow[] => {
+        const entries = childrenByDir.get(dirPath);
+        if (!entries) return [];
+        const out: TreeRow[] = [];
+        for (const entry of entries) {
+          if (entry.isDirectory) {
+            const childRows = matchedRows(entry.path, depth + 1, project);
+            if (childRows.length > 0 || entry.name.toLowerCase().includes(query)) {
+              out.push({ entry, depth, project, isProject: false });
+              out.push(...childRows);
+            }
+          } else if (entry.name.toLowerCase().includes(query)) {
+            out.push({ entry, depth, project, isProject: false });
+          }
+        }
+        return out;
+      };
+      for (const project of projects) {
+        const childRows = matchedRows(project.path, 1, project);
+        if (childRows.length > 0 || project.name.toLowerCase().includes(query)) {
+          result.push({
+            entry: { name: project.name, path: project.path, isDirectory: true },
+            depth: 0,
+            project,
+            isProject: true,
+          });
+          result.push(...childRows);
+        }
+      }
+      return result;
+    }
+
     const walk = (dirPath: string, depth: number, project: ProjectEntry) => {
       const entries = childrenByDir.get(dirPath);
       if (!entries) return;
@@ -120,7 +160,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       if (expanded.has(project.path)) walk(project.path, 1, project);
     }
     return result;
-  }, [projects, childrenByDir, expanded]);
+  }, [projects, childrenByDir, expanded, filtering, query]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -138,6 +178,27 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
         </button>
       </div>
 
+      {projects.length > 0 && (
+        <div className="relative mb-2 px-0.5">
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter files..."
+            className="input input-xs w-full pr-6"
+          />
+          {filter && (
+            <button
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content"
+              title="Clear filter"
+              onClick={() => setFilter("")}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
       {projects.length === 0 ? (
         <p className="text-base-content/50 text-xs text-center mt-4 px-2">
           No projects yet. Click "+ Add Project" to add a local directory.
@@ -147,7 +208,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
             {virtualizer.getVirtualItems().map((vi) => {
               const { entry, depth, project, isProject } = rows[vi.index];
-              const isExpanded = entry.isDirectory && expanded.has(entry.path);
+              const isExpanded = entry.isDirectory && (filtering || expanded.has(entry.path));
               const isLoading = loading.has(entry.path);
               const isSelected = selectedNode?.path === entry.path;
               return (
