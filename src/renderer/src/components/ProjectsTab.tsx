@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
@@ -43,6 +43,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [childrenByDir, setChildrenByDirState] = useState<Map<string, FsEntry[]>>(() => treeStateCache.childrenByDir);
   const [loading, setLoading] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
+  // Server-side search results, keyed by parent dir, used while filtering.
+  const [searchChildren, setSearchChildren] = useState<Map<string, FsEntry[]>>(new Map());
+  const [searching, setSearching] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Mirror persisted state back into the module cache on every update.
@@ -100,6 +103,42 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
 
+  // Run a server-side recursive search (debounced) when filtering, and store
+  // the matched subtree separately so the browse cache stays intact.
+  useEffect(() => {
+    if (!filtering) {
+      setSearchChildren(new Map());
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const perProject = await Promise.all(
+          projects.map((p) => getRpcClient().query("fs.search", { dirPath: p.path, query }))
+        );
+        if (cancelled) return;
+        const merged = new Map<string, FsEntry[]>();
+        for (const record of perProject) {
+          for (const [dir, entries] of Object.entries(record)) merged.set(dir, entries);
+        }
+        setSearchChildren(merged);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to search:", err);
+          setSearchChildren(new Map());
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filtering, query, projects]);
+
   // Flatten the expanded forest into a single ordered list. Projects are the
   // top level of the hierarchy; their directory contents nest beneath them.
   // When filtering, walk all loaded entries (ignoring the expanded set) and
@@ -109,7 +148,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
     if (filtering) {
       const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): TreeRow[] => {
-        const entries = childrenByDir.get(dirPath);
+        const entries = searchChildren.get(dirPath);
         if (!entries) return [];
         const out: TreeRow[] = [];
         for (const entry of entries) {
@@ -160,7 +199,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       if (expanded.has(project.path)) walk(project.path, 1, project);
     }
     return result;
-  }, [projects, childrenByDir, expanded, filtering, query]);
+  }, [projects, childrenByDir, searchChildren, expanded, filtering, query]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -187,7 +226,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             placeholder="Filter files..."
             className="input input-xs w-full pr-6"
           />
-          {filter && (
+          {searching ? (
+            <span className="loading loading-spinner loading-xs absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40" />
+          ) : filter ? (
             <button
               className="absolute right-1.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content"
               title="Clear filter"
@@ -195,13 +236,17 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             >
               ×
             </button>
-          )}
+          ) : null}
         </div>
       )}
 
       {projects.length === 0 ? (
         <p className="text-base-content/50 text-xs text-center mt-4 px-2">
           No projects yet. Click "+ Add Project" to add a local directory.
+        </p>
+      ) : filtering && !searching && rows.length === 0 ? (
+        <p className="text-base-content/50 text-xs text-center mt-4 px-2">
+          No matches.
         </p>
       ) : (
         <div ref={parentRef} className="flex-1 overflow-auto">

@@ -8,7 +8,7 @@ import { promises as fs } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
-import type { QueryProcedure, SubscriptionProcedure, StreamEvent } from "../shared/protocol.js";
+import type { QueryProcedure, SubscriptionProcedure, StreamEvent, FsEntry } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import { getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
 import {
@@ -492,6 +492,54 @@ export function createQueryHandlers(opts: {
         return a.name.localeCompare(b.name);
       });
       return entries;
+    },
+    "fs.search": async (input) => {
+      const { dirPath, query } = input as { dirPath: string; query: string };
+      const q = query.trim().toLowerCase();
+      if (!q) return {};
+      const SKIP = new Set([".git", "node_modules"]);
+      const MAX_RESULTS = 1000;
+      const MAX_DEPTH = 24;
+      const result: Record<string, FsEntry[]> = {};
+      let count = 0;
+
+      const walk = async (dir: string, depth: number): Promise<boolean> => {
+        if (depth > MAX_DEPTH || count >= MAX_RESULTS) return false;
+        let dirents: import("fs").Dirent[];
+        try {
+          dirents = await fs.readdir(dir, { withFileTypes: true });
+        } catch {
+          return false;
+        }
+        let matched = false;
+        for (const d of dirents) {
+          if (count >= MAX_RESULTS) break;
+          if (SKIP.has(d.name)) continue;
+          const full = path.join(dir, d.name);
+          const entry = { name: d.name, path: full, isDirectory: d.isDirectory() };
+          if (d.isDirectory()) {
+            const childMatched = await walk(full, depth + 1);
+            if (childMatched || d.name.toLowerCase().includes(q)) {
+              (result[dir] ??= []).push(entry);
+              matched = true;
+            }
+          } else if (d.name.toLowerCase().includes(q)) {
+            (result[dir] ??= []).push(entry);
+            matched = true;
+            count++;
+          }
+        }
+        return matched;
+      };
+
+      await walk(dirPath, 0);
+      for (const key of Object.keys(result)) {
+        result[key].sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      }
+      return result;
     },
     "fs.readFile": async (input) => {
       const { filePath } = input as { filePath: string };

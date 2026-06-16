@@ -426,6 +426,13 @@ export interface QueryProcedures {
     input: { dirPath: string };
     output: FsEntry[];
   };
+  // Recursively search a directory for entries whose name matches the query.
+  // Returns, keyed by parent directory, the matching entries plus the ancestor
+  // directories needed to render them as a tree.
+  "fs.search": {
+    input: { dirPath: string; query: string };
+    output: Record<string, FsEntry[]>;
+  };
   "fs.readFile": {
     input: { filePath: string };
     output: { content: string; size: number; tooLarge: boolean; binary: boolean };
