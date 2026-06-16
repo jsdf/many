@@ -1,0 +1,73 @@
+src/renderer/src/components/AddProjectModal.tsx
+  s_083e8f83c3314f::t_34dbb9effccfcd 1-106
+src/renderer/src/components/ProjectsPanel.tsx
+  s_083e8f83c3314f::t_9cb88fae3ea01b 218-225,227-244,247-255
+  s_083e8f83c3314f::t_63ded9e98c0f76 7
+  s_083e8f83c3314f::t_35a8d2745e1c13 32,39,42-68,73-111,113-114,117-119,128-133
+  s_083e8f83c3314f::t_c87e313080841a 1-6,8-31,33-38,40-41,69-72,112,115-116,120-127,134-217,226,245-246,256-277
+src/renderer/src/router.ts
+  s_083e8f83c3314f::t_55f59c116dbdfa 32
+  s_083e8f83c3314f::t_a8336162a17537 8-9
+  s_083e8f83c3314f::t_424d747983685f 21-22
+src/renderer/src/App.tsx
+  s_083e8f83c3314f::t_f8edfd51e701c8 682-687,689
+  s_083e8f83c3314f::t_660272c141220f 35
+  s_083e8f83c3314f::t_aa26814e45cfc5 688
+  s_083e8f83c3314f::t_f538ac02775030 95,98-106,111-122
+  s_083e8f83c3314f::t_aad70485c88b76 107-110
+  s_083e8f83c3314f::t_06fa7abae7949d 755-763
+  s_083e8f83c3314f::t_8de5bbdd6d7144 2,5
+  s_083e8f83c3314f::t_460f546e5b3a37 804-810
+  s_083e8f83c3314f::t_ac8bb9ca8b4231 14
+  s_083e8f83c3314f::t_a21eb26f656a75 665,668-669
+  s_083e8f83c3314f::t_4e56d655864db8 68-70
+package.json
+  s_083e8f83c3314f::t_155772c3564002 52-57,62-67,77,106-110
+src/cli/config.ts
+  s_083e8f83c3314f::t_43b8537a04db46 13-18
+  s_083e8f83c3314f::t_6d88ca6d7bee3c 73
+  s_083e8f83c3314f::t_cafd633d3aab62 59
+src/renderer/src/components/Sidebar.tsx
+  s_083e8f83c3314f::t_97926eed0736a3 724-733
+  s_083e8f83c3314f::t_ba91a39fc4ac6a 21,23
+  s_083e8f83c3314f::t_73e6679ee859ea 632-633,636-640
+  s_083e8f83c3314f::t_d9e3611cafa835 53-55
+  s_083e8f83c3314f::t_e07b04e42c6715 716-721
+  s_083e8f83c3314f::t_4d25406c637516 65-69
+src/renderer/src/types.ts
+  s_083e8f83c3314f::t_2ad8cd72b16a71 16-32
+src/renderer/src/styles.css
+  s_083e8f83c3314f::t_33031a4afe6e68 2,7-23
+src/renderer/src/components/ProjectsTab.tsx
+  s_083e8f83c3314f::t_e5fcd806821a96 1,18-19,67-74,77,81,83,87-95,97,120,123,126,130,140-171
+  s_083e8f83c3314f::t_afb132a694aa21 2-17,20-66,75-76,78-80,82,84-86,96,98-119,121-122,124-125,127-129,131-139,172-182
+src/web/rpc-handlers.test.ts
+  s_083e8f83c3314f::t_2396f891a273e6 1-23,26-90
+  s_083e8f83c3314f::t_5d7e338d774927 24-25
+  s_083e8f83c3314f::t_f1c21fedeecb66 91-115
+src/web/rpc-handlers.ts
+  s_083e8f83c3314f::t_9a6641adb6d6a9 441-514,524
+  s_083e8f83c3314f::t_ade0a8e659f950 515-523
+src/shared/protocol.ts
+  s_083e8f83c3314f::t_bc3e239409ff23 20-31
+  s_083e8f83c3314f::t_a3ff512684f869 413-432
+  s_083e8f83c3314f::t_3cf957b69e500b 433-436
+src/renderer/src/components/FileEditorTab.tsx
+  s_083e8f83c3314f::t_043a9521961c2f 1-217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "4c7b39154f056e63211634bb9b2b8fbb3a9d3014",
+  "prompts": {},
+  "sessions": {
+    "s_083e8f83c3314f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "015a56b8-ed55-42de-9673-b49dae6b950d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
