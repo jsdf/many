@@ -100,6 +100,20 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     expandDir(node.path);
   }, [onSelectNode, expandDir]);
 
+  // Opening a file first switches the panel to its containing directory, then
+  // opens the file there.
+  const handleOpenFile = useCallback((entry: FsEntry, project: ProjectEntry) => {
+    const sep = entry.path.includes("\\") ? "\\" : "/";
+    const i = entry.path.lastIndexOf(sep);
+    const parentPath = i >= 0 ? entry.path.slice(0, i) : project.path;
+    const node: ProjectNode =
+      parentPath === project.path
+        ? { name: project.name, path: project.path }
+        : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
+    onSelectNode(node);
+    onOpenFile({ path: entry.path, name: entry.name });
+  }, [onSelectNode, onOpenFile]);
+
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
 
@@ -278,7 +292,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                       onClick={() =>
                         entry.isDirectory
                           ? handleSelectNode({ name: entry.name, path: entry.path })
-                          : (selectedNode || onSelectNode({ name: project.name, path: project.path }), onOpenFile({ path: entry.path, name: entry.name }))
+                          : handleOpenFile(entry, project)
                       }
                     >
                       <span

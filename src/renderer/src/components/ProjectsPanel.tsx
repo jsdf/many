@@ -71,18 +71,30 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
   }, [writeNow]);
 
-  // Reset open tabs when switching between nodes. Skip the first selection
-  // (null -> a path) so a file opened in the same click isn't wiped.
+  // When switching nodes, drop tabs that fall outside the newly selected
+  // directory but keep those within it. This also lets a file opened in the
+  // same click that switched directories survive (it lives under the new dir).
   useEffect(() => {
     const prev = prevPathRef.current;
     const current = project?.path ?? null;
     prevPathRef.current = current;
-    if (prev !== null && prev !== current) {
-      flushSaves();
+    if (prev === null || prev === current) return;
+    flushSaves();
+    if (current === null) {
       setOpenFiles([]);
       setActiveFile(SESSIONS_TAB);
       setFileData({});
+      return;
     }
+    const underCurrent = (p: string) =>
+      p === current || p.startsWith(current + "/") || p.startsWith(current + "\\");
+    setOpenFiles((prev) => prev.filter((f) => underCurrent(f.path)));
+    setFileData((prev) => {
+      const next: Record<string, FileData> = {};
+      for (const k of Object.keys(prev)) if (underCurrent(k)) next[k] = prev[k];
+      return next;
+    });
+    setActiveFile((cur) => (cur !== SESSIONS_TAB && !underCurrent(cur) ? SESSIONS_TAB : cur));
   }, [project?.path, flushSaves]);
 
   // Flush any pending saves when the panel unmounts.
