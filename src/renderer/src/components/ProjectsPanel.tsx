@@ -4,7 +4,7 @@ import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import TopBar from "./TopBar";
 import TerminalStack from "./TerminalStack";
-import FileViewerTab from "./FileViewerTab";
+import FileEditorTab, { FileData } from "./FileEditorTab";
 
 interface ProjectsPanelProps {
   project: ProjectEntry | null;
@@ -29,22 +29,94 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [dragging, setDragging] = useState(false);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [fileData, setFileData] = useState<Record<string, FileData>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset open tabs when switching projects
   useEffect(() => {
     setOpenFiles([]);
     setActiveFile(null);
+    setFileData({});
   }, [project?.path]);
+
+  const loadFile = useCallback((filePath: string) => {
+    setFileData((prev) => ({
+      ...prev,
+      [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: false },
+    }));
+    getRpcClient()
+      .query("fs.readFile", { filePath })
+      .then((res) => {
+        setFileData((prev) => ({
+          ...prev,
+          [filePath]: {
+            content: res.content,
+            saved: res.content,
+            tooLarge: res.tooLarge,
+            binary: res.binary,
+            loaded: true,
+          },
+        }));
+      })
+      .catch((err) => {
+        setFileData((prev) => ({
+          ...prev,
+          [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: true, error: err instanceof Error ? err.message : String(err) },
+        }));
+      });
+  }, []);
 
   useImperativeHandle(ref, () => ({
     openFile: (file: OpenFile) => {
       setOpenFiles((prev) => (prev.some((f) => f.path === file.path) ? prev : [...prev, file]));
       setActiveFile(file.path);
+      setFileData((prev) => {
+        if (prev[file.path]) return prev;
+        loadFile(file.path);
+        return prev;
+      });
     },
-  }), []);
+  }), [loadFile]);
+
+  const updateContent = useCallback((filePath: string, content: string) => {
+    setFileData((prev) => {
+      const cur = prev[filePath];
+      if (!cur || cur.content === content) return prev;
+      return { ...prev, [filePath]: { ...cur, content } };
+    });
+  }, []);
+
+  const saveFile = useCallback((filePath: string) => {
+    setFileData((prev) => {
+      const cur = prev[filePath];
+      if (!cur || cur.content === cur.saved) return prev;
+      const toSave = cur.content;
+      getRpcClient()
+        .query("fs.writeFile", { filePath, content: toSave })
+        .then(() => {
+          setFileData((p) => {
+            const c = p[filePath];
+            if (!c) return p;
+            return { ...p, [filePath]: { ...c, saved: toSave } };
+          });
+        })
+        .catch((err) => console.error("[fs.writeFile] failed:", err));
+      return prev;
+    });
+  }, []);
+
+  const isDirty = useCallback(
+    (filePath: string) => {
+      const d = fileData[filePath];
+      return !!d && d.loaded && d.content !== d.saved;
+    },
+    [fileData]
+  );
 
   const closeFile = useCallback((filePath: string) => {
+    if (isDirty(filePath) && !window.confirm("This file has unsaved changes. Close without saving?")) {
+      return;
+    }
     setOpenFiles((prev) => {
       const next = prev.filter((f) => f.path !== filePath);
       setActiveFile((current) => {
@@ -53,7 +125,12 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       });
       return next;
     });
-  }, []);
+    setFileData((prev) => {
+      const next = { ...prev };
+      delete next[filePath];
+      return next;
+    });
+  }, [isDirty]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -138,25 +215,44 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           ) : (
             <>
               <div className="flex items-stretch overflow-x-auto bg-base-200 border-b border-base-300 shrink-0">
-                {openFiles.map((f) => (
-                  <div
-                    key={f.path}
-                    className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
-                    onClick={() => setActiveFile(f.path)}
-                    title={f.path}
-                  >
-                    <span className="truncate max-w-[160px]">{f.name}</span>
-                    <button
-                      className="text-base-content/40 hover:text-error"
-                      onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+                {openFiles.map((f) => {
+                  const dirty = isDirty(f.path);
+                  return (
+                    <div
+                      key={f.path}
+                      className={`group flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+                      onClick={() => setActiveFile(f.path)}
+                      title={f.path}
                     >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                      <span className="truncate max-w-[160px]">{f.name}</span>
+                      <button
+                        className={`w-3 text-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
+                        title="Unsaved changes"
+                        onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+                      >
+                        •
+                      </button>
+                      <button
+                        className={`w-3 text-center text-base-content/40 hover:text-error ${dirty ? "hidden group-hover:inline" : ""}`}
+                        title="Close"
+                        onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
-                {active && <FileViewerTab key={active.path} filePath={active.path} fileName={active.name} />}
+                {active && fileData[active.path] && (
+                  <FileEditorTab
+                    key={active.path}
+                    fileName={active.name}
+                    data={fileData[active.path]}
+                    onChange={(content) => updateContent(active.path, content)}
+                    onSave={() => saveFile(active.path)}
+                  />
+                )}
               </div>
             </>
           )}

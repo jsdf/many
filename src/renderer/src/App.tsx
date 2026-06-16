@@ -11,6 +11,7 @@ import AutomationsModal from "./components/AutomationsModal";
 import { useHashRouter } from "./router";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
+import AddProjectModal from "./components/AddProjectModal";
 import MergeWorktreeModal from "./components/MergeWorktreeModal";
 import RebaseWorktreeModal from "./components/RebaseWorktreeModal";
 import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
@@ -31,6 +32,7 @@ const App: React.FC = () => {
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddRepoModal, setShowAddRepoModal] = useState(false);
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [showRepoConfigModal, setShowRepoConfigModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [worktreeToMerge, setWorktreeToMerge] = useState<Worktree | null>(null);
@@ -102,23 +104,10 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddProject = async () => {
-    let projectPath: string | null = null;
-    try {
-      const result = await getRpcClient().query("action.selectFolder", {});
-      projectPath = result.path;
-    } catch {
-      // Folder picker unavailable (web) - fall back to manual path entry
-      projectPath = window.prompt("Enter the absolute path of the project directory:");
-    }
-    if (!projectPath) return;
-    try {
-      await getRpcClient().query("projects.add", { projectPath });
-      await loadProjects();
-    } catch (err) {
-      console.error("Failed to add project:", err);
-      window.alert(err instanceof Error ? err.message : "Failed to add project");
-    }
+  const addProject = async (projectPath: string) => {
+    await getRpcClient().query("projects.add", { projectPath });
+    await loadProjects();
+    setShowAddProjectModal(false);
   };
 
   const handleRemoveProject = async (project: ProjectEntry) => {
@@ -696,7 +685,7 @@ const App: React.FC = () => {
                 setMainPaneView({ type: 'projects' });
               }}
               onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
-              onAddProject={handleAddProject}
+              onAddProject={() => setShowAddProjectModal(true)}
               onRemoveProject={handleRemoveProject}
               onAutomationsSubViewChange={(view: AutomationsSubView) => {
                 if (view === 'running') setMainPaneView({ type: 'runningTasks' });
@@ -809,6 +798,13 @@ const App: React.FC = () => {
           mode="add"
           onClose={() => setShowAddRepoModal(false)}
           onAdd={addRepository}
+        />
+      )}
+
+      {showAddProjectModal && (
+        <AddProjectModal
+          onClose={() => setShowAddProjectModal(false)}
+          onAdd={addProject}
         />
       )}
 

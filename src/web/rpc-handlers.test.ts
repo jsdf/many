@@ -21,6 +21,8 @@ const readFile = (filePath: string) =>
     tooLarge: boolean;
     binary: boolean;
   }>;
+const writeFile = (filePath: string, content: string) =>
+  handlers["fs.writeFile"]!({ filePath, content }) as Promise<{ ok: boolean }>;
 
 describe("fs.listDir", () => {
   let tmpDir: string;
@@ -84,5 +86,30 @@ describe("fs.readFile", () => {
     const res = await readFile(file);
     expect(res.binary).toBe(true);
     expect(res.content).toBe("");
+  });
+});
+
+describe("fs.writeFile", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "many-fs-test-"));
+  });
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes new content that round-trips through readFile", async () => {
+    const file = path.join(tmpDir, "note.md");
+    const res = await writeFile(file, "# Title\n\nbody\n");
+    expect(res).toEqual({ ok: true });
+    expect((await readFile(file)).content).toBe("# Title\n\nbody\n");
+  });
+
+  it("overwrites existing content", async () => {
+    const file = path.join(tmpDir, "existing.txt");
+    await fs.writeFile(file, "old");
+    await writeFile(file, "new");
+    expect((await readFile(file)).content).toBe("new");
   });
 });

@@ -1,6 +1,26 @@
 @import "tailwindcss";
+@import "@milkdown/theme-nord/style.css";
 @plugin "daisyui" {
   themes: acid --default, forest --prefersdark;
+}
+
+/* Milkdown WYSIWYG markdown editor (Projects file editor) */
+.milkdown-host {
+  background: var(--color-base-100);
+}
+.milkdown-host .milkdown {
+  height: 100%;
+  background: transparent;
+}
+.milkdown-host .milkdown .ProseMirror {
+  padding: 1rem 1.25rem 4rem;
+  min-height: 100%;
+  outline: none;
+}
+@media (prefers-color-scheme: dark) {
+  .milkdown-host .milkdown {
+    color: var(--color-base-content);
+  }
 }
 
 /* Override acid theme colors for better text contrast on white backgrounds.

@@ -430,6 +430,10 @@ export interface QueryProcedures {
     input: { filePath: string };
     output: { content: string; size: number; tooLarge: boolean; binary: boolean };
   };
+  "fs.writeFile": {
+    input: { filePath: string; content: string };
+    output: { ok: boolean };
+  };
   "repo.getSelected": {
     input: {};
     output: string | null;

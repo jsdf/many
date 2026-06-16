@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ProjectEntry, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
@@ -15,6 +15,8 @@ interface ProjectsTabProps {
 interface TreeRow {
   entry: FsEntry;
   depth: number;
+  project: ProjectEntry;
+  isProject: boolean;
 }
 
 const ROW_HEIGHT = 24;
@@ -49,16 +51,6 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     }
   }, []);
 
-  // Reset and load root when the selected project changes
-  useEffect(() => {
-    setExpanded(new Set());
-    setChildrenByDir(new Map());
-    setLoading(new Set());
-    if (selectedProject) {
-      loadDir(selectedProject.path);
-    }
-  }, [selectedProject, loadDir]);
-
   const toggleDir = useCallback((dirPath: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -72,23 +64,37 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     });
   }, [childrenByDir, loadDir]);
 
-  // Flatten the expanded tree into a single ordered list of visible rows.
+  // Selecting a project also drives the main pane (terminals + open files).
+  const handleProjectClick = useCallback((project: ProjectEntry) => {
+    onSelectProject(project);
+    toggleDir(project.path);
+  }, [onSelectProject, toggleDir]);
+
+  // Flatten the expanded forest into a single ordered list. Projects are the
+  // top level of the hierarchy; their directory contents nest beneath them.
   const rows = useMemo<TreeRow[]>(() => {
-    if (!selectedProject) return [];
     const result: TreeRow[] = [];
-    const walk = (dirPath: string, depth: number) => {
+    const walk = (dirPath: string, depth: number, project: ProjectEntry) => {
       const entries = childrenByDir.get(dirPath);
       if (!entries) return;
       for (const entry of entries) {
-        result.push({ entry, depth });
+        result.push({ entry, depth, project, isProject: false });
         if (entry.isDirectory && expanded.has(entry.path)) {
-          walk(entry.path, depth + 1);
+          walk(entry.path, depth + 1, project);
         }
       }
     };
-    walk(selectedProject.path, 0);
+    for (const project of projects) {
+      result.push({
+        entry: { name: project.name, path: project.path, isDirectory: true },
+        depth: 0,
+        project,
+        isProject: true,
+      });
+      if (expanded.has(project.path)) walk(project.path, 1, project);
+    }
     return result;
-  }, [selectedProject, childrenByDir, expanded]);
+  }, [projects, childrenByDir, expanded]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -111,42 +117,17 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           No projects yet. Click "+ Add Project" to add a local directory.
         </p>
       ) : (
-        <ul className="menu menu-sm p-0 gap-0.5 mb-2">
-          {projects.map((project) => (
-            <li key={project.path}>
-              <div
-                className={`flex items-center justify-between group rounded ${selectedProject?.path === project.path ? "bg-primary/15 text-primary" : ""}`}
-              >
-                <button
-                  className="flex-1 text-left truncate px-2 py-1"
-                  title={project.path}
-                  onClick={() => onSelectProject(project)}
-                >
-                  📁 {project.name}
-                </button>
-                <button
-                  className="opacity-0 group-hover:opacity-100 px-1.5 text-base-content/50 hover:text-error"
-                  title="Remove project"
-                  onClick={() => onRemoveProject(project)}
-                >
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {selectedProject && (
-        <div ref={parentRef} className="flex-1 overflow-auto border-t border-base-300 pt-1">
+        <div ref={parentRef} className="flex-1 overflow-auto">
           <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
             {virtualizer.getVirtualItems().map((vi) => {
-              const { entry, depth } = rows[vi.index];
+              const { entry, depth, project, isProject } = rows[vi.index];
               const isExpanded = entry.isDirectory && expanded.has(entry.path);
               const isLoading = loading.has(entry.path);
+              const isSelectedProject = isProject && selectedProject?.path === project.path;
               return (
                 <div
                   key={entry.path}
+                  className="group/row"
                   style={{
                     position: "absolute",
                     top: 0,
@@ -156,25 +137,38 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <button
-                    className="flex items-center w-full h-full text-left text-xs hover:bg-base-300/60 rounded px-1 whitespace-nowrap"
-                    style={{ paddingLeft: `${depth * 12 + 4}px` }}
-                    title={entry.name}
-                    onClick={() =>
-                      entry.isDirectory
-                        ? toggleDir(entry.path)
-                        : onOpenFile({ path: entry.path, name: entry.name })
-                    }
-                  >
-                    <span className="inline-block w-3 shrink-0 text-base-content/50">
-                      {entry.isDirectory ? (isExpanded ? "▾" : "▸") : ""}
-                    </span>
-                    <span className="shrink-0">{entry.isDirectory ? "📁" : "📄"}</span>
-                    <span className={`ml-1 truncate ${entry.name.startsWith(".") ? "text-base-content/50" : ""}`}>
-                      {entry.name}
-                    </span>
-                    {isLoading && <span className="loading loading-spinner loading-xs ml-1" />}
-                  </button>
+                  <div className={`flex items-center w-full h-full rounded ${isSelectedProject ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+                    <button
+                      className={`flex items-center flex-1 min-w-0 h-full text-left whitespace-nowrap px-1 ${isProject ? "text-xs font-semibold" : "text-xs"} ${isSelectedProject ? "text-primary" : ""}`}
+                      style={{ paddingLeft: `${depth * 12 + 4}px` }}
+                      title={entry.path}
+                      onClick={() =>
+                        isProject
+                          ? handleProjectClick(project)
+                          : entry.isDirectory
+                            ? toggleDir(entry.path)
+                            : (onSelectProject(project), onOpenFile({ path: entry.path, name: entry.name }))
+                      }
+                    >
+                      <span className="inline-block w-3 shrink-0 text-base-content/50">
+                        {entry.isDirectory ? (isExpanded ? "▾" : "▸") : ""}
+                      </span>
+                      <span className="shrink-0">{entry.isDirectory ? "📁" : "📄"}</span>
+                      <span className={`ml-1 truncate ${!isProject && entry.name.startsWith(".") ? "text-base-content/50" : ""}`}>
+                        {entry.name}
+                      </span>
+                      {isLoading && <span className="loading loading-spinner loading-xs ml-1" />}
+                    </button>
+                    {isProject && (
+                      <button
+                        className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
+                        title="Remove project"
+                        onClick={(e) => { e.stopPropagation(); onRemoveProject(project); }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

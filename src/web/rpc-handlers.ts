@@ -512,6 +512,15 @@ export function createQueryHandlers(opts: {
       }
       return { content: buf.toString("utf-8"), size: stat.size, tooLarge: false, binary: false };
     },
+    "fs.writeFile": async (input) => {
+      const { filePath, content } = input as { filePath: string; content: string };
+      try {
+        await fs.writeFile(filePath, content, "utf-8");
+      } catch (err) {
+        throw new Error(`Cannot write file ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return { ok: true };
+    },
 
     "repo.getSelected": async () => {
       const appData = await loadAppData();
