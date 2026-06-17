@@ -1,0 +1,75 @@
+src/renderer/src/components/FileEditorTab.tsx
+  s_86ec30885fb5f2::t_c5872140343772 24-26
+src/web/rpc-handlers.test.ts
+  s_86ec30885fb5f2::t_904d0c883b8281 141-347
+  s_86ec30885fb5f2::t_f2f174a59d1206 5,15-21,33-50
+src/renderer/src/components/ActiveSessionsTree.tsx
+  s_98cfaf1daf58d2::t_4dc65a25855620 1-55,57-70,72-124
+src/renderer/src/components/ProjectsTab.tsx
+  s_98cfaf1daf58d2::t_9ee8aff0e8000b 392-418,420-424
+  s_14a90d096d7222::t_025043389d0468 157-158
+  s_98cfaf1daf58d2::t_3e84b946a25fe1 7-9
+  s_98cfaf1daf58d2::t_c8ad84f820849f 208-212
+  s_98cfaf1daf58d2::t_ea4164733cc151 324-330
+  s_14a90d096d7222::t_82d0e8597ba005 130-156,159,161-162,175,177
+src/renderer/src/components/FileConflictModal.tsx
+  s_86ec30885fb5f2::t_fd46aef814f6bf 1-49
+src/renderer/src/components/TreeRowItem.tsx
+  s_98cfaf1daf58d2::t_47877858a65a1a 1-68
+src/shared/protocol.ts
+  s_86ec30885fb5f2::t_8379958a360932 709-713
+src/web/rpc-handlers.ts
+  s_86ec30885fb5f2::t_daae0bd9671487 1056-1091
+  s_86ec30885fb5f2::t_0dade95eda78c8 569
+  s_86ec30885fb5f2::t_e8630572114f41 177-194
+src/renderer/src/components/ProjectsPanel.tsx
+  s_98cfaf1daf58d2::t_e5ab7013b7d194 416
+  s_98cfaf1daf58d2::t_05e28bfde9f588 43
+  s_86ec30885fb5f2::t_7e182b48d6cc40 113,126,133
+  s_86ec30885fb5f2::t_3bc68245221cbb 422-424,426-430
+  s_86ec30885fb5f2::t_107b941ecd9452 37-41
+  s_86ec30885fb5f2::t_8ccf4b76b623ba 399
+  s_98cfaf1daf58d2::t_51de5bd3fb2337 6
+  s_86ec30885fb5f2::t_19cc285c42e835 425
+  s_86ec30885fb5f2::t_1572ba2192cbc9 187-272
+  s_86ec30885fb5f2::t_2b335c69240aa6 9
+  s_98cfaf1daf58d2::t_93fa3047877852 386-396
+src/renderer/src/components/ProjectSessionsTab.tsx
+  s_98cfaf1daf58d2::t_1e5991dd4cf2d3 21
+  s_98cfaf1daf58d2::t_7da809ab13d201 34
+  s_98cfaf1daf58d2::t_9718cb8ea475e3 98,100,123-136
+src/renderer/src/treeActivity.ts
+  s_98cfaf1daf58d2::t_6d1bc531abee4e 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6c32ea954ac7cb156a69067dc4c90abcb69942d0",
+  "prompts": {},
+  "sessions": {
+    "s_14a90d096d7222": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "985b90d4-aa8d-48a2-8cc6-7b22c3fa416c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_86ec30885fb5f2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a3496f8-ad1d-4a26-a2d6-4083ed03525e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_98cfaf1daf58d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "257640f0-e166-4470-8fd8-8a8ccabb0fd0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
