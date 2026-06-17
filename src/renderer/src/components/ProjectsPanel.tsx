@@ -3,9 +3,10 @@ import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import TopBar from "./TopBar";
-import TerminalStack from "./TerminalStack";
+import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import FileEditorTab, { FileData } from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
+import FileConflictModal from "./FileConflictModal";
 
 const SESSIONS_TAB = "__sessions__";
 
@@ -33,7 +34,13 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFile, setActiveFile] = useState<string>(SESSIONS_TAB);
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
+  // An unresolved on-disk conflict: the file changed externally while it had
+  // unsaved edits. diskContent holds the new on-disk version.
+  const [conflict, setConflict] = useState<{ path: string; diskContent: string } | null>(null);
+  // Live file-content subscriptions, one per open file.
+  const fileSubsRef = useRef<Map<string, () => void>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalStackRef = useRef<TerminalStackHandle>(null);
   const prevPathRef = useRef<string | null>(null);
   // Latest fileData, readable from timers/cleanup without stale closures.
   const fileDataRef = useRef(fileData);
@@ -103,7 +110,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const loadFile = useCallback((filePath: string) => {
     setFileData((prev) => ({
       ...prev,
-      [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: false },
+      [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: false, version: 0 },
     }));
     getRpcClient()
       .query("fs.readFile", { filePath })
@@ -116,13 +123,14 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
             tooLarge: res.tooLarge,
             binary: res.binary,
             loaded: true,
+            version: (prev[filePath]?.version ?? 0) + 1,
           },
         }));
       })
       .catch((err) => {
         setFileData((prev) => ({
           ...prev,
-          [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: true, error: err instanceof Error ? err.message : String(err) },
+          [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: true, version: 0, error: err instanceof Error ? err.message : String(err) },
         }));
       });
   }, []);
@@ -175,6 +183,92 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       return next;
     });
   }, [writeNow]);
+
+  // Handle a file's on-disk content changing while it's open in the editor.
+  const handleDiskUpdate = useCallback((filePath: string, res: { content: string; tooLarge: boolean; binary: boolean }) => {
+    const cur = fileDataRef.current[filePath];
+    if (!cur || !cur.loaded || res.tooLarge || res.binary) return;
+    const incoming = res.content;
+    // Matches our last persisted baseline (incl. our own writes echoing back).
+    if (incoming === cur.saved) return;
+    const dirty = cur.content !== cur.saved;
+    if (!dirty) {
+      // No unsaved edits: adopt the on-disk content and remount the editor.
+      setFileData((prev) => {
+        const c = prev[filePath];
+        if (!c) return prev;
+        return { ...prev, [filePath]: { ...c, content: incoming, saved: incoming, version: c.version + 1 } };
+      });
+    } else {
+      // Unsaved edits would be lost: cancel pending autosave (so we don't
+      // clobber the disk version before the user decides) and prompt.
+      if (saveTimers.current[filePath]) {
+        clearTimeout(saveTimers.current[filePath]);
+        delete saveTimers.current[filePath];
+      }
+      setConflict((c) => (c && c.path !== filePath ? c : { path: filePath, diskContent: incoming }));
+    }
+  }, []);
+
+  // Subscribe to live content for each open file; unsubscribe when closed.
+  useEffect(() => {
+    const client = getRpcClient();
+    const subs = fileSubsRef.current;
+    const want = new Set(openFiles.map((f) => f.path));
+    for (const f of openFiles) {
+      if (subs.has(f.path)) continue;
+      const unsubscribe = client.subscribe("fs.fileUpdates", (res) => handleDiskUpdate(f.path, res), { filePath: f.path });
+      subs.set(f.path, unsubscribe);
+    }
+    for (const [p, unsubscribe] of subs) {
+      if (want.has(p)) continue;
+      unsubscribe();
+      subs.delete(p);
+    }
+  }, [openFiles, handleDiskUpdate]);
+
+  useEffect(() => {
+    const subs = fileSubsRef.current;
+    return () => {
+      for (const unsubscribe of subs.values()) unsubscribe();
+      subs.clear();
+    };
+  }, []);
+
+  // Conflict resolution: discard the editor's edits and load the disk version.
+  const resolveReloadDisk = useCallback(() => {
+    setConflict((c) => {
+      if (!c) return null;
+      const { path: p, diskContent } = c;
+      if (saveTimers.current[p]) {
+        clearTimeout(saveTimers.current[p]);
+        delete saveTimers.current[p];
+      }
+      setFileData((prev) => {
+        const cur = prev[p];
+        if (!cur) return prev;
+        return { ...prev, [p]: { ...cur, content: diskContent, saved: diskContent, version: cur.version + 1 } };
+      });
+      return null;
+    });
+  }, []);
+
+  // Conflict resolution: keep the editor's edits and write them over disk.
+  const resolveKeepMine = useCallback(() => {
+    setConflict((c) => {
+      if (!c) return null;
+      const p = c.path;
+      const cur = fileDataRef.current[p];
+      if (cur) {
+        const mine = cur.content;
+        getRpcClient()
+          .query("fs.writeFile", { filePath: p, content: mine })
+          .then(() => setFileData((prev) => (prev[p] ? { ...prev, [p]: { ...prev[p], saved: mine } } : prev)))
+          .catch((err) => console.error("[fs.writeFile] failed:", err));
+      }
+      return null;
+    });
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -289,10 +383,20 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           </div>
           <div className="flex-1 overflow-hidden min-h-0">
             {activeFile === SESSIONS_TAB ? (
-              <ProjectSessionsTab key={`sessions-${project.path}`} worktreePath={project.path} />
+              <ProjectSessionsTab
+                key={`sessions-${project.path}`}
+                worktreePath={project.path}
+                onResumeSession={(sessionId, sessionType) => {
+                  if (sessionType === "chat") {
+                    terminalStackRef.current?.openClaudeSession(sessionId);
+                  } else {
+                    terminalStackRef.current?.createTerminalWithCommand({}, `claude --resume ${sessionId}`);
+                  }
+                }}
+              />
             ) : active && fileData[active.path] ? (
               <FileEditorTab
-                key={active.path}
+                key={`${active.path}:${fileData[active.path].version}`}
                 fileName={active.name}
                 data={fileData[active.path]}
                 onChange={(content) => updateContent(active.path, content)}
@@ -309,11 +413,21 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
 
         <div className={`flex-1 flex flex-col overflow-hidden ${isNarrow ? 'min-h-[120px]' : 'min-w-[200px]'}`}>
           <TerminalStack
+            ref={terminalStackRef}
             key={`project-terminals-${project.path}`}
             worktreePath={project.path}
           />
         </div>
       </div>
+
+      {conflict && (
+        <FileConflictModal
+          fileName={openFiles.find((f) => f.path === conflict.path)?.name ?? conflict.path}
+          onKeepMine={resolveKeepMine}
+          onReloadDisk={resolveReloadDisk}
+          onClose={() => setConflict(null)}
+        />
+      )}
     </div>
   );
 });

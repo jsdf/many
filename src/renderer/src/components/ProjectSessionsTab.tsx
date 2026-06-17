@@ -18,6 +18,7 @@ interface ClaudeSession {
 
 interface ProjectSessionsTabProps {
   worktreePath: string;
+  onResumeSession?: (sessionId: string, sessionType?: "chat" | "claude-code") => void;
 }
 
 function formatAge(iso: string): string {
@@ -30,7 +31,7 @@ function formatAge(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath }) => {
+const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath, onResumeSession }) => {
   const [sessions, setSessions] = useState<ClaudeSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
@@ -94,9 +95,9 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath })
         ) : (
           <div className="flex flex-col gap-2">
             {sessions.map((session) => (
-              <button
+              <div
                 key={session.sessionId}
-                className="text-left bg-base-200 border border-base-300 rounded-lg p-3 hover:border-primary/50"
+                className="text-left bg-base-200 border border-base-300 rounded-lg p-3 hover:border-primary/50 cursor-pointer"
                 onClick={() => setOpenSessionId(session.sessionId)}
               >
                 <div className="flex items-center gap-2 mb-1 min-w-0">
@@ -119,7 +120,20 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath })
                     <span className="italic text-base-content/40">No prompt</span>
                   )}
                 </p>
-              </button>
+                {onResumeSession && (
+                  <div className="flex justify-end mt-2">
+                    <button
+                      className="btn btn-soft btn-primary btn-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onResumeSession(session.sessionId, session.sessionType);
+                      }}
+                    >
+                      Resume
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

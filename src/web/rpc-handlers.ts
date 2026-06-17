@@ -174,6 +174,24 @@ async function openVSCode(dirPath: string): Promise<boolean> {
   return true;
 }
 
+// Read a file's contents for the editor, flagging files too large to edit or
+// containing binary data.
+async function readFileForEditor(
+  filePath: string
+): Promise<{ content: string; size: number; tooLarge: boolean; binary: boolean }> {
+  const MAX_BYTES = 512 * 1024;
+  const stat = await fs.stat(filePath);
+  if (stat.size > MAX_BYTES) {
+    return { content: "", size: stat.size, tooLarge: true, binary: false };
+  }
+  const buf = await fs.readFile(filePath);
+  const binary = buf.subarray(0, 8192).includes(0);
+  if (binary) {
+    return { content: "", size: stat.size, tooLarge: false, binary: true };
+  }
+  return { content: buf.toString("utf-8"), size: stat.size, tooLarge: false, binary: false };
+}
+
 // Read a directory's immediate children, sorted dirs-first then by name.
 async function listDirEntries(dirPath: string): Promise<FsEntry[]> {
   const dirents = await fs.readdir(dirPath, { withFileTypes: true });
@@ -547,22 +565,11 @@ export function createQueryHandlers(opts: {
     },
     "fs.readFile": async (input) => {
       const { filePath } = input as { filePath: string };
-      const MAX_BYTES = 512 * 1024;
-      let stat: import("fs").Stats;
       try {
-        stat = await fs.stat(filePath);
+        return await readFileForEditor(filePath);
       } catch (err) {
         throw new Error(`Cannot read file ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      if (stat.size > MAX_BYTES) {
-        return { content: "", size: stat.size, tooLarge: true, binary: false };
-      }
-      const buf = await fs.readFile(filePath);
-      const binary = buf.subarray(0, 8192).includes(0);
-      if (binary) {
-        return { content: "", size: stat.size, tooLarge: false, binary: true };
-      }
-      return { content: buf.toString("utf-8"), size: stat.size, tooLarge: false, binary: false };
     },
     "fs.writeFile": async (input) => {
       const { filePath, content } = input as { filePath: string; content: string };
@@ -1039,6 +1046,42 @@ export function createSubscriptionHandlers(opts: {
         watcher = watch(dirPath, onChange);
         watcher.on("error", () => { /* ignore watch errors */ });
       } catch { /* dir may not exist — initial push already returned [] */ }
+
+      return () => {
+        if (debounce) clearTimeout(debounce);
+        if (watcher) { try { watcher.close(); } catch { /* ignore */ } }
+      };
+    },
+
+    "fs.fileUpdates": (input, push) => {
+      const { filePath } = input as { filePath: string };
+      // Watch the parent directory and filter by filename: this survives the
+      // atomic save (write-temp + rename) that many editors perform, which
+      // would otherwise detach a watcher bound directly to the file.
+      const dir = path.dirname(filePath);
+      const base = path.basename(filePath);
+
+      const readAndPush = async () => {
+        try {
+          push(await readFileForEditor(filePath));
+        } catch { /* file may have been removed; ignore */ }
+      };
+
+      // Send initial content, then re-read on change.
+      readAndPush();
+
+      let debounce: ReturnType<typeof setTimeout> | null = null;
+      const onChange = (_event: string, changed: string | Buffer | null) => {
+        if (changed && changed.toString() !== base) return;
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(readAndPush, 150);
+      };
+
+      let watcher: FSWatcher | null = null;
+      try {
+        watcher = watch(dir, onChange);
+        watcher.on("error", () => { /* ignore watch errors */ });
+      } catch { /* dir may not exist — initial push already returned content */ }
 
       return () => {
         if (debounce) clearTimeout(debounce);

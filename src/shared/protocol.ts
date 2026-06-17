@@ -706,6 +706,11 @@ export interface SubscriptionProcedures {
     input: { dirPath: string };
     output: FsEntry[];
   };
+  /** Live contents of a single file, re-read whenever the file changes on disk */
+  "fs.fileUpdates": {
+    input: { filePath: string };
+    output: { content: string; size: number; tooLarge: boolean; binary: boolean };
+  };
   /** Terminal output/exit events */
   "terminal.events": {
     input: { terminalId: string };

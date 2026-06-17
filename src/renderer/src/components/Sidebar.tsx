@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -9,70 +9,80 @@ import {
   DragEndEvent,
   DragStartEvent,
   DragOverlay,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { Repository, Worktree, PoolConfig, ProjectEntry, ProjectNode, OpenFile, isTmpBranch, formatBranchName, findWorktreePool } from '../types'
-import { useWorktreeActivityTimes } from '../rpc-hooks'
-import ProjectsTab from './ProjectsTab'
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  Repository,
+  Worktree,
+  PoolConfig,
+  ProjectEntry,
+  ProjectNode,
+  OpenFile,
+  isTmpBranch,
+  formatBranchName,
+  findWorktreePool,
+} from "../types";
+import { useWorktreeActivityTimes } from "../rpc-hooks";
+import ProjectsTab from "./ProjectsTab";
 
 function formatRelativeTime(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) return 'just now'
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return "just now";
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 interface WorktreeActivity {
-  terminals: number
-  claudeSessions: number
+  terminals: number;
+  claudeSessions: number;
 }
 
-export type AutomationsSubView = 'running' | 'definitions';
+export type AutomationsSubView = "running" | "definitions";
 
 interface SidebarProps {
-  repositories: Repository[]
-  currentRepo: string | null
-  worktrees: Worktree[]
-  selectedWorktree: Worktree | null
-  pools?: PoolConfig[]
-  worktreeActivity?: Record<string, WorktreeActivity>
-  starredWorktrees: Set<string>
-  worktreeOrder: string[]
-  automationsSubView?: AutomationsSubView | null
-  activeTab: 'worktrees' | 'tracked' | 'automations' | 'projects'
-  projects: ProjectEntry[]
-  selectedNode: ProjectNode | null
-  onRepoSelect: (repoPath: string | null) => void
-  onWorktreeSelect: (worktree: Worktree | null) => void
-  onCreateWorktree: () => void
-  onConfigRepo: () => void
-  onSwitchWorktree?: () => void
-  onClaimPool?: (pool: PoolConfig) => void
-  onNewTask?: () => void
-  onNavigateWorktrees?: () => void
-  onNavigateTracked?: () => void
-  onNavigateProjects?: () => void
-  onSelectNode?: (node: ProjectNode) => void
-  onOpenFile?: (file: OpenFile) => void
-  onAddProject?: () => void
-  onRemoveProject?: (project: ProjectEntry) => void
-  onAutomationsSubViewChange?: (view: AutomationsSubView) => void
-  onArchiveWorktrees?: (worktrees: Worktree[]) => void
-  onToggleStar: (worktreePath: string) => void
-  onReorderWorktrees: (orderedPaths: string[]) => void
-  onGlobalSettings: () => void
-  onCollapse?: () => void
+  repositories: Repository[];
+  currentRepo: string | null;
+  worktrees: Worktree[];
+  selectedWorktree: Worktree | null;
+  pools?: PoolConfig[];
+  worktreeActivity?: Record<string, WorktreeActivity>;
+  starredWorktrees: Set<string>;
+  worktreeOrder: string[];
+  automationsSubView?: AutomationsSubView | null;
+  activeTab: "worktrees" | "tracked" | "automations" | "projects";
+  projects: ProjectEntry[];
+  selectedNode: ProjectNode | null;
+  onRepoSelect: (repoPath: string | null) => void;
+  onWorktreeSelect: (worktree: Worktree | null) => void;
+  onCreateWorktree: () => void;
+  onConfigRepo: () => void;
+  onSwitchWorktree?: () => void;
+  onClaimPool?: (pool: PoolConfig) => void;
+  onNewTask?: () => void;
+  onNavigateWorktrees?: () => void;
+  onNavigateTracked?: () => void;
+  onNavigateProjects?: () => void;
+  onSelectNode?: (node: ProjectNode) => void;
+  onOpenFile?: (file: OpenFile) => void;
+  onAddProject?: () => void;
+  onRemoveProject?: (project: ProjectEntry) => void;
+  onAutomationsSubViewChange?: (view: AutomationsSubView) => void;
+  onArchiveWorktrees?: (worktrees: Worktree[]) => void;
+  onToggleStar: (worktreePath: string) => void;
+  onReorderWorktrees: (orderedPaths: string[]) => void;
+  onGlobalSettings: () => void;
+  onCollapse?: () => void;
 }
 
 interface PoolGroup {
@@ -84,24 +94,28 @@ interface PoolGroup {
 // --- Worktrees Tab ---
 
 interface WorktreesTabProps {
-  worktrees: Worktree[]
-  currentRepo: string | null
-  selectedWorktree: Worktree | null
-  pools?: PoolConfig[]
-  worktreeActivity?: Record<string, WorktreeActivity>
-  starredWorktrees: Set<string>
-  worktreeOrder: string[]
-  hasTaskPools: boolean
-  onWorktreeSelect: (worktree: Worktree | null) => void
-  onCreateWorktree: () => void
-  onSwitchWorktree?: () => void
-  onNewTask?: () => void
-  onArchiveWorktrees?: (worktrees: Worktree[]) => void
-  onToggleStar: (worktreePath: string) => void
-  onReorderWorktrees: (orderedPaths: string[]) => void
+  worktrees: Worktree[];
+  currentRepo: string | null;
+  selectedWorktree: Worktree | null;
+  pools?: PoolConfig[];
+  worktreeActivity?: Record<string, WorktreeActivity>;
+  starredWorktrees: Set<string>;
+  worktreeOrder: string[];
+  hasTaskPools: boolean;
+  onWorktreeSelect: (worktree: Worktree | null) => void;
+  onCreateWorktree: () => void;
+  onSwitchWorktree?: () => void;
+  onNewTask?: () => void;
+  onArchiveWorktrees?: (worktrees: Worktree[]) => void;
+  onToggleStar: (worktreePath: string) => void;
+  onReorderWorktrees: (orderedPaths: string[]) => void;
 }
 
-function sortWorktreeList(worktrees: Worktree[], starred: Set<string>, order: string[]): Worktree[] {
+function sortWorktreeList(
+  worktrees: Worktree[],
+  starred: Set<string>,
+  order: string[],
+): Worktree[] {
   const orderMap = new Map(order.map((p, i) => [p, i]));
   const maxOrder = order.length;
   return [...worktrees].sort((a, b) => {
@@ -114,7 +128,10 @@ function sortWorktreeList(worktrees: Worktree[], starred: Set<string>, order: st
   });
 }
 
-const SortableWorktreeItem: React.FC<{ worktree: Worktree; children: React.ReactNode }> = ({ worktree, children }) => {
+const SortableWorktreeItem: React.FC<{
+  worktree: Worktree;
+  children: React.ReactNode;
+}> = ({ worktree, children }) => {
   const {
     attributes,
     listeners,
@@ -127,7 +144,7 @@ const SortableWorktreeItem: React.FC<{ worktree: Worktree; children: React.React
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    position: 'relative',
+    position: "relative",
   };
 
   return (
@@ -156,13 +173,16 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 }) => {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState('');
-  const [sortMode, setSortMode] = useState<'pool' | 'date'>('pool');
+  const [filter, setFilter] = useState("");
+  const [sortMode, setSortMode] = useState<"pool" | "date">("pool");
 
-  const activityTimes = useWorktreeActivityTimes(currentRepo, sortMode === 'date');
+  const activityTimes = useWorktreeActivityTimes(
+    currentRepo,
+    sortMode === "date",
+  );
 
   const toggleSelected = (path: string) => {
-    setSelectedPaths(prev => {
+    setSelectedPaths((prev) => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
       else next.add(path);
@@ -178,49 +198,74 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   const isArchivable = (worktree: Worktree) => {
     if (worktree.path === currentRepo) return false; // base worktree
     const pool = findWorktreePool(worktree, pools);
-    if (pool?.type === 'recyclable') return false;
+    if (pool?.type === "recyclable") return false;
     return true;
   };
-  const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } = useMemo(() => {
-    const base = worktrees.find(w => w.path === currentRepo);
-    const lowerFilter = filter.toLowerCase();
-    const matchesFilter = (w: Worktree) =>
-      !lowerFilter ||
-      (w.branch && formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
-      w.worktreeName.toLowerCase().includes(lowerFilter);
-    const others = worktrees.filter(w => w.path !== currentRepo && !w.bare && matchesFilter(w));
+  const { baseWorktree, poolGroups, ungroupedClaimed, ungroupedAvailable } =
+    useMemo(() => {
+      const base = worktrees.find((w) => w.path === currentRepo);
+      const lowerFilter = filter.toLowerCase();
+      const matchesFilter = (w: Worktree) =>
+        !lowerFilter ||
+        (w.branch &&
+          formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
+        w.worktreeName.toLowerCase().includes(lowerFilter);
+      const others = worktrees.filter(
+        (w) => w.path !== currentRepo && !w.bare && matchesFilter(w),
+      );
 
-    if (!pools || pools.length === 0) {
-      const claimed = sortWorktreeList(others.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder);
-      const available = others.filter(w => isTmpBranch(w.branch));
+      if (!pools || pools.length === 0) {
+        const claimed = sortWorktreeList(
+          others.filter((w) => !isTmpBranch(w.branch)),
+          starredWorktrees,
+          worktreeOrder,
+        );
+        const available = others.filter((w) => isTmpBranch(w.branch));
+        return {
+          baseWorktree: base,
+          poolGroups: [] as PoolGroup[],
+          ungroupedClaimed: claimed,
+          ungroupedAvailable: available,
+        };
+      }
+
+      const grouped = new Set<string>();
+      const groups: PoolGroup[] = pools.map((pool) => {
+        const poolWorktrees = others.filter((w) =>
+          w.worktreeName.startsWith(pool.prefix),
+        );
+        poolWorktrees.forEach((w) => grouped.add(w.path));
+        return {
+          pool,
+          claimed: sortWorktreeList(
+            poolWorktrees.filter((w) => !isTmpBranch(w.branch)),
+            starredWorktrees,
+            worktreeOrder,
+          ),
+          available: poolWorktrees.filter((w) => isTmpBranch(w.branch)),
+        };
+      });
+
+      const ungrouped = others.filter((w) => !grouped.has(w.path));
+
       return {
         baseWorktree: base,
-        poolGroups: [] as PoolGroup[],
-        ungroupedClaimed: claimed,
-        ungroupedAvailable: available
+        poolGroups: groups,
+        ungroupedClaimed: sortWorktreeList(
+          ungrouped.filter((w) => !isTmpBranch(w.branch)),
+          starredWorktrees,
+          worktreeOrder,
+        ),
+        ungroupedAvailable: ungrouped.filter((w) => isTmpBranch(w.branch)),
       };
-    }
-
-    const grouped = new Set<string>();
-    const groups: PoolGroup[] = pools.map(pool => {
-      const poolWorktrees = others.filter(w => w.worktreeName.startsWith(pool.prefix));
-      poolWorktrees.forEach(w => grouped.add(w.path));
-      return {
-        pool,
-        claimed: sortWorktreeList(poolWorktrees.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder),
-        available: poolWorktrees.filter(w => isTmpBranch(w.branch))
-      };
-    });
-
-    const ungrouped = others.filter(w => !grouped.has(w.path));
-
-    return {
-      baseWorktree: base,
-      poolGroups: groups,
-      ungroupedClaimed: sortWorktreeList(ungrouped.filter(w => !isTmpBranch(w.branch)), starredWorktrees, worktreeOrder),
-      ungroupedAvailable: ungrouped.filter(w => isTmpBranch(w.branch))
-    };
-  }, [worktrees, currentRepo, pools, starredWorktrees, worktreeOrder, filter]);
+    }, [
+      worktrees,
+      currentRepo,
+      pools,
+      starredWorktrees,
+      worktreeOrder,
+      filter,
+    ]);
 
   const hasAnyPoolGroups = poolGroups.length > 0;
 
@@ -228,10 +273,11 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     const lowerFilter = filter.toLowerCase();
     const matchesFilter = (w: Worktree) =>
       !lowerFilter ||
-      (w.branch && formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
+      (w.branch &&
+        formatBranchName(w.branch).toLowerCase().includes(lowerFilter)) ||
       w.worktreeName.toLowerCase().includes(lowerFilter);
     return worktrees
-      .filter(w => !w.bare && matchesFilter(w))
+      .filter((w) => !w.bare && matchesFilter(w))
       .sort((a, b) => {
         const ta = activityTimes[a.path] ?? 0;
         const tb = activityTimes[b.path] ?? 0;
@@ -244,7 +290,9 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   // Collect all claimed worktrees across all groups in display order for the reorder callback
@@ -259,31 +307,44 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
     setDraggingId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = claimedList.findIndex(w => w.path === active.id);
-    const newIndex = claimedList.findIndex(w => w.path === over.id);
+    const oldIndex = claimedList.findIndex((w) => w.path === active.id);
+    const newIndex = claimedList.findIndex((w) => w.path === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     // Build the new full order: start from allClaimedInOrder, apply the swap within this group
     const reordered = arrayMove(claimedList, oldIndex, newIndex);
     // Rebuild full order: replace the group's portion with the reordered version
-    const groupPaths = new Set(claimedList.map(w => w.path));
+    const groupPaths = new Set(claimedList.map((w) => w.path));
     const fullOrder: string[] = [];
     let groupInserted = false;
     for (const w of allClaimedInOrder) {
       if (groupPaths.has(w.path)) {
         if (!groupInserted) {
-          fullOrder.push(...reordered.map(rw => rw.path));
+          fullOrder.push(...reordered.map((rw) => rw.path));
           groupInserted = true;
         }
       } else {
         fullOrder.push(w.path);
       }
     }
-    if (!groupInserted) fullOrder.push(...reordered.map(rw => rw.path));
+    if (!groupInserted) fullOrder.push(...reordered.map((rw) => rw.path));
     onReorderWorktrees(fullOrder);
   };
 
-  const renderWorktreeItem = (worktree: Worktree, opts: { isBase?: boolean; isAvailable?: boolean; isDragOverlay?: boolean; activityTime?: number } = {}) => {
-    const { isBase = false, isAvailable = false, isDragOverlay = false, activityTime } = opts;
+  const renderWorktreeItem = (
+    worktree: Worktree,
+    opts: {
+      isBase?: boolean;
+      isAvailable?: boolean;
+      isDragOverlay?: boolean;
+      activityTime?: number;
+    } = {},
+  ) => {
+    const {
+      isBase = false,
+      isAvailable = false,
+      isDragOverlay = false,
+      activityTime,
+    } = opts;
     const activity = worktreeActivity?.[worktree.path];
     const termCount = activity?.terminals ?? 0;
     const claudeCount = activity?.claudeSessions ?? 0;
@@ -294,16 +355,16 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
     return (
       <div
-        data-testid={`worktree-item-${worktree.branch || 'main'}`}
+        data-testid={`worktree-item-${worktree.branch || "main"}`}
         className={`group px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
           isDragOverlay
-            ? 'border-l-primary bg-base-200 shadow-lg opacity-95'
+            ? "border-l-primary bg-base-200 shadow-lg opacity-95"
             : !multiSelect && selectedWorktree?.path === worktree.path
-            ? 'border-l-primary bg-primary/15'
-            : multiSelect && isChecked
-            ? 'border-l-warning bg-warning/15'
-            : 'border-l-transparent hover:bg-base-content/5'
-        } ${isAvailable ? 'opacity-70 hover:opacity-100' : ''} ${draggingId === worktree.path && !isDragOverlay ? 'opacity-30' : ''}`}
+              ? "border-l-primary bg-primary/15"
+              : multiSelect && isChecked
+                ? "border-l-warning bg-warning/15"
+                : "border-l-transparent hover:bg-base-content/5"
+        } ${isAvailable ? "opacity-70 hover:opacity-100" : ""} ${draggingId === worktree.path && !isDragOverlay ? "opacity-30" : ""}`}
         onClick={() => {
           if (multiSelect && canArchive) {
             toggleSelected(worktree.path);
@@ -319,38 +380,54 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               className="checkbox checkbox-xs checkbox-warning"
               checked={isChecked}
               onChange={() => toggleSelected(worktree.path)}
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             />
           )}
           {(!multiSelect || !canArchive) && (
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? 'bg-warning' : 'bg-success'}`}
-              title={isAvailable ? 'Available' : 'Claimed'}
+              className={`w-2 h-2 rounded-full shrink-0 ${isAvailable ? "bg-warning" : "bg-success"}`}
+              title={isAvailable ? "Available" : "Claimed"}
             />
           )}
-          <div className="text-sm font-semibold leading-tight flex-1 min-w-0" title={formatBranchName(worktree.branch)}>
+          <div
+            className="text-sm font-semibold leading-tight flex-1 min-w-0"
+            title={formatBranchName(worktree.branch)}
+          >
             {formatBranchName(worktree.branch)}
-            {isBase && <span className="badge badge-primary badge-xs ml-2 align-middle">base</span>}
+            {isBase && (
+              <span className="badge badge-primary badge-xs ml-2 align-middle">
+                base
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {canStar && !multiSelect && (
               <button
-                className={`text-xs leading-none px-0.5 transition-opacity ${isStarred ? 'text-warning opacity-100' : 'opacity-0 group-hover:opacity-60 text-base-content/40 hover:!opacity-100'}`}
-                title={isStarred ? 'Unstar' : 'Star'}
-                onClick={e => { e.stopPropagation(); onToggleStar(worktree.path); }}
+                className={`text-xs leading-none px-0.5 transition-opacity ${isStarred ? "text-warning opacity-100" : "opacity-0 group-hover:opacity-60 text-base-content/40 hover:!opacity-100"}`}
+                title={isStarred ? "Unstar" : "Star"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStar(worktree.path);
+                }}
               >
-                {isStarred ? '\u2605' : '\u2606'}
+                {isStarred ? "\u2605" : "\u2606"}
               </button>
             )}
             {(termCount > 0 || claudeCount > 0) && (
               <div className="flex items-center gap-1.5">
                 {termCount > 0 && (
-                  <span className="text-[10px] text-base-content/60 flex items-center gap-0.5" title={`${termCount} terminal${termCount > 1 ? 's' : ''}`}>
+                  <span
+                    className="text-[10px] text-base-content/60 flex items-center gap-0.5"
+                    title={`${termCount} terminal${termCount > 1 ? "s" : ""}`}
+                  >
                     &gt;_ {termCount}
                   </span>
                 )}
                 {claudeCount > 0 && (
-                  <span className="text-[10px] text-accent flex items-center gap-0.5" title={`${claudeCount} Claude session${claudeCount > 1 ? 's' : ''}`}>
+                  <span
+                    className="text-[10px] text-accent flex items-center gap-0.5"
+                    title={`${claudeCount} Claude session${claudeCount > 1 ? "s" : ""}`}
+                  >
                     &#9679; {claudeCount}
                   </span>
                 )}
@@ -358,10 +435,15 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
             )}
           </div>
         </div>
-        <div className="text-[11px] text-base-content/50 font-mono leading-snug mt-0.5 flex items-center justify-between gap-2" title={worktree.path}>
+        <div
+          className="text-[11px] text-base-content/50 font-mono leading-snug mt-0.5 flex items-center justify-between gap-2"
+          title={worktree.path}
+        >
           <span className="break-all min-w-0">{worktree.worktreeName}</span>
           {activityTime ? (
-            <span className="shrink-0 text-base-content/40">{formatRelativeTime(activityTime)}</span>
+            <span className="shrink-0 text-base-content/40">
+              {formatRelativeTime(activityTime)}
+            </span>
           ) : null}
         </div>
       </div>
@@ -379,12 +461,17 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={(e: DragStartEvent) => setDraggingId(e.active.id as string)}
+        onDragStart={(e: DragStartEvent) =>
+          setDraggingId(e.active.id as string)
+        }
         onDragEnd={(e) => handleDragEnd(e, claimed)}
         onDragCancel={() => setDraggingId(null)}
       >
-        <SortableContext items={claimed.map(w => w.path)} strategy={verticalListSortingStrategy}>
-          {claimed.map(w => (
+        <SortableContext
+          items={claimed.map((w) => w.path)}
+          strategy={verticalListSortingStrategy}
+        >
+          {claimed.map((w) => (
             <SortableWorktreeItem key={w.path} worktree={w}>
               {renderWorktreeItem(w)}
             </SortableWorktreeItem>
@@ -392,11 +479,13 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
         </SortableContext>
         <DragOverlay>
           {draggingId && worktreeMap.get(draggingId)
-            ? renderWorktreeItem(worktreeMap.get(draggingId)!, { isDragOverlay: true })
+            ? renderWorktreeItem(worktreeMap.get(draggingId)!, {
+                isDragOverlay: true,
+              })
             : null}
         </DragOverlay>
       </DndContext>
-      {available.map(w => renderWorktreeItem(w, { isAvailable: true }))}
+      {available.map((w) => renderWorktreeItem(w, { isAvailable: true }))}
     </>
   );
 
@@ -405,20 +494,22 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       <div className="flex-1 overflow-y-auto mb-3">
         {worktrees.length === 0 ? (
           <p className="text-base-content/50 italic text-center mt-12">
-            {currentRepo ? 'No worktrees found' : 'Select a repository to view worktrees'}
+            {currentRepo
+              ? "No worktrees found"
+              : "Select a repository to view worktrees"}
           </p>
         ) : (
           <>
             <div className="join w-full mb-2 px-1">
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-primary' : 'btn-soft'}`}
-                onClick={() => setSortMode('pool')}
+                className={`join-item btn btn-xs flex-1 ${sortMode === "pool" ? "btn-primary" : "btn-soft"}`}
+                onClick={() => setSortMode("pool")}
               >
                 By pool
               </button>
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === 'date' ? 'btn-primary' : 'btn-soft'}`}
-                onClick={() => setSortMode('date')}
+                className={`join-item btn btn-xs flex-1 ${sortMode === "date" ? "btn-primary" : "btn-soft"}`}
+                onClick={() => setSortMode("date")}
               >
                 By date
               </button>
@@ -430,68 +521,78 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                   className="input input-bordered input-sm w-full"
                   placeholder="Filter worktrees..."
                   value={filter}
-                  onChange={e => setFilter(e.target.value)}
+                  onChange={(e) => setFilter(e.target.value)}
                 />
               </div>
             )}
-            {sortMode === 'date' ? (
+            {sortMode === "date" ? (
               dateSorted.length === 0 ? (
-                <p className="text-base-content/50 italic text-center mt-8 text-sm">No matching worktrees</p>
+                <p className="text-base-content/50 italic text-center mt-8 text-sm">
+                  No matching worktrees
+                </p>
               ) : (
-                dateSorted.map(w => renderWorktreeItem(w, {
-                  isBase: w.path === currentRepo,
-                  isAvailable: isTmpBranch(w.branch),
-                  activityTime: activityTimes[w.path],
-                }))
+                dateSorted.map((w) =>
+                  renderWorktreeItem(w, {
+                    isBase: w.path === currentRepo,
+                    isAvailable: isTmpBranch(w.branch),
+                    activityTime: activityTimes[w.path],
+                  }),
+                )
               )
             ) : (
-            <>
-            {baseWorktree && !filter && renderWorktreeItem(baseWorktree, { isBase: true })}
-
-            {poolGroups.map(({ pool, claimed, available }) => {
-              if (claimed.length === 0 && available.length === 0) return null;
-              return (
-                <div className="mt-2" key={pool.prefix}>
-                  <div className="flex items-center justify-between pr-1 mb-1">
-                    <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
-                      {pool.name}
-                    </span>
-                  </div>
-                  {renderSortableList(claimed, available)}
-                </div>
-              );
-            })}
-
-            {!hasAnyPoolGroups ? (
               <>
-                {ungroupedClaimed.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                      Claimed
+                {baseWorktree &&
+                  !filter &&
+                  renderWorktreeItem(baseWorktree, { isBase: true })}
+
+                {poolGroups.map(({ pool, claimed, available }) => {
+                  if (claimed.length === 0 && available.length === 0)
+                    return null;
+                  return (
+                    <div className="mt-2" key={pool.prefix}>
+                      <div className="flex items-center justify-between pr-1 mb-1">
+                        <span className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide pl-1 pt-1">
+                          {pool.name}
+                        </span>
+                      </div>
+                      {renderSortableList(claimed, available)}
                     </div>
-                    {renderSortableList(ungroupedClaimed, [])}
-                  </div>
-                )}
-                {ungroupedAvailable.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                      Available
+                  );
+                })}
+
+                {!hasAnyPoolGroups ? (
+                  <>
+                    {ungroupedClaimed.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                          Claimed
+                        </div>
+                        {renderSortableList(ungroupedClaimed, [])}
+                      </div>
+                    )}
+                    {ungroupedAvailable.length > 0 && (
+                      <div className="mt-2">
+                        <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                          Available
+                        </div>
+                        {ungroupedAvailable.map((w) =>
+                          renderWorktreeItem(w, { isAvailable: true }),
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  (ungroupedClaimed.length > 0 ||
+                    ungroupedAvailable.length > 0) && (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
+                        Other
+                      </div>
+                      {renderSortableList(ungroupedClaimed, ungroupedAvailable)}
                     </div>
-                    {ungroupedAvailable.map(w => renderWorktreeItem(w, { isAvailable: true }))}
-                  </div>
+                  )
                 )}
               </>
-            ) : (
-              (ungroupedClaimed.length > 0 || ungroupedAvailable.length > 0) && (
-                <div className="mt-2">
-                  <div className="text-[10px] font-semibold text-base-content/50 uppercase tracking-wide mb-2 pl-1 pt-1">
-                    Other
-                  </div>
-                  {renderSortableList(ungroupedClaimed, ungroupedAvailable)}
-                </div>
-              )
-            )}
-            </>
             )}
           </>
         )}
@@ -504,14 +605,17 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               className="btn btn-warning w-full"
               disabled={selectedPaths.size === 0}
               onClick={() => {
-                const selected = worktrees.filter(w => selectedPaths.has(w.path));
+                const selected = worktrees.filter((w) =>
+                  selectedPaths.has(w.path),
+                );
                 if (selected.length > 0 && onArchiveWorktrees) {
                   onArchiveWorktrees(selected);
                   exitMultiSelect();
                 }
               }}
             >
-              Archive {selectedPaths.size > 0 ? `${selectedPaths.size} ` : ''}Selected
+              Archive {selectedPaths.size > 0 ? `${selectedPaths.size} ` : ""}
+              Selected
             </button>
             <button
               className="btn btn-soft btn-neutral w-full"
@@ -539,18 +643,20 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
             >
               Create Worktree
             </button>
-            {!hasAnyPoolGroups && ungroupedAvailable.length > 0 && onSwitchWorktree && (
-              <button
-                data-testid="switch-worktree-button"
-                onClick={onSwitchWorktree}
-                disabled={!currentRepo}
-                className="btn btn-soft btn-neutral w-full"
-                title="Claim an available worktree for a branch"
-              >
-                Switch Branch
-              </button>
-            )}
-            {onArchiveWorktrees && worktrees.some(w => isArchivable(w)) && (
+            {!hasAnyPoolGroups &&
+              ungroupedAvailable.length > 0 &&
+              onSwitchWorktree && (
+                <button
+                  data-testid="switch-worktree-button"
+                  onClick={onSwitchWorktree}
+                  disabled={!currentRepo}
+                  className="btn btn-soft btn-neutral w-full"
+                  title="Claim an available worktree for a branch"
+                >
+                  Switch Branch
+                </button>
+              )}
+            {onArchiveWorktrees && worktrees.some((w) => isArchivable(w)) && (
               <button
                 className="btn btn-soft btn-warning w-full"
                 disabled={!currentRepo}
@@ -569,9 +675,9 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 // --- Automations Tab ---
 
 interface AutomationsTabProps {
-  currentRepo: string | null
-  subView: AutomationsSubView
-  onSubViewChange: (view: AutomationsSubView) => void
+  currentRepo: string | null;
+  subView: AutomationsSubView;
+  onSubViewChange: (view: AutomationsSubView) => void;
 }
 
 const AutomationsTab: React.FC<AutomationsTabProps> = ({
@@ -584,25 +690,31 @@ const AutomationsTab: React.FC<AutomationsTabProps> = ({
       <div className="flex-1 overflow-y-auto mb-3">
         <div
           className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-            subView === 'running'
-              ? 'border-l-primary bg-primary/15'
-              : 'border-l-transparent hover:bg-base-content/5'
+            subView === "running"
+              ? "border-l-primary bg-primary/15"
+              : "border-l-transparent hover:bg-base-content/5"
           }`}
-          onClick={() => onSubViewChange('running')}
+          onClick={() => onSubViewChange("running")}
         >
-          <div className="text-sm font-semibold leading-tight">Running Tasks</div>
-          <div className="text-[11px] text-base-content/50 mt-0.5">Active and recent tasks</div>
+          <div className="text-sm font-semibold leading-tight">
+            Running Tasks
+          </div>
+          <div className="text-[11px] text-base-content/50 mt-0.5">
+            Active and recent tasks
+          </div>
         </div>
         <div
           className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-            subView === 'definitions'
-              ? 'border-l-primary bg-primary/15'
-              : 'border-l-transparent hover:bg-base-content/5'
+            subView === "definitions"
+              ? "border-l-primary bg-primary/15"
+              : "border-l-transparent hover:bg-base-content/5"
           }`}
-          onClick={() => onSubViewChange('definitions')}
+          onClick={() => onSubViewChange("definitions")}
         >
           <div className="text-sm font-semibold leading-tight">Definitions</div>
-          <div className="text-[11px] text-base-content/50 mt-0.5">Manage automation definitions</div>
+          <div className="text-[11px] text-base-content/50 mt-0.5">
+            Manage automation definitions
+          </div>
         </div>
       </div>
     </>
@@ -643,23 +755,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleStar,
   onReorderWorktrees,
   onGlobalSettings,
-  onCollapse
+  onCollapse,
 }) => {
-  const hasTaskPools = pools?.some(p => p.taskCommand) ?? false;
+  const hasTaskPools = pools?.some((p) => p.taskCommand) ?? false;
 
   return (
     <div className="bg-base-200 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <img src="/many-shodan.png" alt="" className="w-12 h-12" />
-          <h2 className="text-lg font-semibold">Worktrees</h2>
+          <h2 className="text-lg font-semibold">Many</h2>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={onGlobalSettings} className="btn btn-soft btn-neutral btn-sm" title="Global settings">
+          <button
+            onClick={onGlobalSettings}
+            className="btn btn-soft btn-neutral btn-sm"
+            title="Global settings"
+          >
             &#9881;
           </button>
           {onCollapse && (
-            <button onClick={onCollapse} className="btn btn-soft btn-neutral btn-sm" title="Hide sidebar">
+            <button
+              onClick={onCollapse}
+              className="btn btn-soft btn-neutral btn-sm"
+              title="Hide sidebar"
+            >
               &#x2039;
             </button>
           )}
@@ -670,11 +790,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         <select
           data-testid="repo-selector"
           className="select select-bordered select-sm flex-1"
-          value={currentRepo || ''}
+          value={currentRepo || ""}
           onChange={(e) => onRepoSelect(e.target.value || null)}
         >
           <option value="">Select a repository...</option>
-          {repositories.map(repo => (
+          {repositories.map((repo) => (
             <option key={repo.path} value={repo.path}>
               {repo.name || repo.path}
             </option>
@@ -694,34 +814,34 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="flex mb-2 border-b border-base-300">
         <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'worktrees' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "worktrees" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
           onClick={() => onNavigateWorktrees?.()}
         >
           Worktrees
         </button>
         <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'projects' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "projects" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
           onClick={() => onNavigateProjects?.()}
         >
           Projects
         </button>
         <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'tracked' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "tracked" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
           onClick={() => onNavigateTracked?.()}
         >
           Tracked
         </button>
         {hasTaskPools && (
           <button
-            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === 'automations' ? 'border-b-2 border-primary text-primary' : 'text-base-content/50 hover:text-base-content/80'}`}
-            onClick={() => onAutomationsSubViewChange?.('running')}
+            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "automations" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
+            onClick={() => onAutomationsSubViewChange?.("running")}
           >
             Automations
           </button>
         )}
       </div>
 
-      {activeTab === 'projects' ? (
+      {activeTab === "projects" ? (
         <ProjectsTab
           projects={projects}
           selectedNode={selectedNode}
@@ -731,16 +851,16 @@ const Sidebar: React.FC<SidebarProps> = ({
           onRemoveProject={(p) => onRemoveProject?.(p)}
           worktreeActivity={worktreeActivity}
         />
-      ) : activeTab === 'tracked' ? (
+      ) : activeTab === "tracked" ? (
         <div className="flex-1 overflow-y-auto mb-3">
           <p className="text-base-content/50 text-xs text-center mt-4 px-2">
             Tracked branches are shown in the main panel.
           </p>
         </div>
-      ) : activeTab === 'automations' && hasTaskPools ? (
+      ) : activeTab === "automations" && hasTaskPools ? (
         <AutomationsTab
           currentRepo={currentRepo}
-          subView={automationsSubView ?? 'running'}
+          subView={automationsSubView ?? "running"}
           onSubViewChange={onAutomationsSubViewChange ?? (() => {})}
         />
       ) : (
@@ -763,7 +883,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;

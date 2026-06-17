@@ -21,6 +21,9 @@ export interface FileData {
   binary: boolean;
   error?: string;
   loaded: boolean;
+  // Bumped when the on-disk content is adopted, forcing the (uncontrolled)
+  // editor to remount and re-read the new content.
+  version: number;
 }
 
 interface FileEditorTabProps {

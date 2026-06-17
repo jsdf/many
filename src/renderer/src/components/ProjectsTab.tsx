@@ -4,6 +4,9 @@ import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import FsActionDialog, { FsAction } from "./FsActionDialog";
+import TreeRowItem from "./TreeRowItem";
+import ActiveSessionsTree from "./ActiveSessionsTree";
+import { sumActivityUnder } from "../treeActivity";
 
 interface ProjectsTabProps {
   projects: ProjectEntry[];
@@ -124,12 +127,39 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     setExpanded((prev) => (prev.has(dirPath) ? prev : new Set(prev).add(dirPath)));
   }, [setExpanded]);
 
-  // Selecting a node (project root or directory) drives the main pane
-  // (terminals + file tabs) and reveals its contents.
-  const handleSelectNode = useCallback((node: ProjectNode) => {
+  // Expand a directory and all its ancestors up to the project root. While
+  // filtering, the tree shows matches regardless of `expanded`, so expanding a
+  // single dir would leave its ancestors collapsed and the dir unreachable once
+  // the filter clears. Recording the whole chain keeps it open afterward.
+  const expandPath = useCallback((dirPath: string, projectPath: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      const sep = dirPath.includes("\\") ? "\\" : "/";
+      let cur = dirPath;
+      while (cur.length >= projectPath.length) {
+        next.add(cur);
+        if (cur === projectPath) break;
+        const i = cur.lastIndexOf(sep);
+        if (i < 0) break;
+        cur = cur.slice(0, i);
+      }
+      return next;
+    });
+  }, [setExpanded]);
+
+  // Toggle a directory's expansion. Expanding records the full ancestor chain
+  // so it survives a filter clear; collapsing just drops the dir itself.
+  const handleToggleDir = useCallback((dirPath: string, projectPath: string) => {
+    if (expanded.has(dirPath)) toggleDir(dirPath);
+    else expandPath(dirPath, projectPath);
+  }, [expanded, toggleDir, expandPath]);
+
+  // Clicking a directory title selects it and toggles its expansion, so the
+  // title behaves like the caret.
+  const handleClickNode = useCallback((node: ProjectNode, projectPath: string) => {
     onSelectNode(node);
-    expandDir(node.path);
-  }, [onSelectNode, expandDir]);
+    handleToggleDir(node.path, projectPath);
+  }, [onSelectNode, handleToggleDir]);
 
   // Opening a file first switches the panel to its containing directory, then
   // opens the file there.
@@ -142,8 +172,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
         ? { name: project.name, path: project.path }
         : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
     onSelectNode(node);
+    expandPath(parentPath, project.path);
     onOpenFile({ path: entry.path, name: entry.name });
-  }, [onSelectNode, onOpenFile]);
+  }, [onSelectNode, onOpenFile, expandPath]);
 
   // Build context menu items for a row. Directories can spawn children;
   // non-root entries can be renamed or deleted. Project roots are managed via
@@ -174,17 +205,11 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     setMenu({ x: e.clientX, y: e.clientY, row });
   }, []);
 
-  // Total open terminals for a project: terminals are keyed by the directory
-  // they were launched in, so sum every active path within the project root.
-  const projectTerminalCount = useCallback((projectPath: string): number => {
-    if (!worktreeActivity) return 0;
-    const sep = projectPath.includes("\\") ? "\\" : "/";
-    let total = 0;
-    for (const [p, a] of Object.entries(worktreeActivity)) {
-      if (p === projectPath || p.startsWith(projectPath + sep)) total += a.terminals;
-    }
-    return total;
-  }, [worktreeActivity]);
+  // Open terminals under a directory, rolled up from every descendant path.
+  const dirTerminalCount = useCallback(
+    (dirPath: string): number => sumActivityUnder(worktreeActivity, dirPath).terminals,
+    [worktreeActivity],
+  );
 
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
@@ -296,6 +321,13 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 mb-3">
+      <ActiveSessionsTree
+        projects={projects}
+        worktreeActivity={worktreeActivity}
+        selectedNode={selectedNode}
+        onSelectNode={onSelectNode}
+      />
+
       <div className="flex items-center justify-between mb-2 px-0.5">
         <span className="text-xs font-semibold text-base-content/60">Projects</span>
         <button className="btn btn-soft btn-neutral btn-xs" onClick={onAddProject}>
@@ -357,51 +389,39 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  <div className={`flex items-center w-full h-full rounded ${isSelected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
-                    <div
-                      role="button"
-                      className={`flex items-center flex-1 min-w-0 h-full text-left whitespace-nowrap px-1 cursor-pointer ${isProject ? "text-xs font-semibold" : "text-xs"} ${isSelected ? "text-primary" : ""}`}
-                      style={{ paddingLeft: `${depth * 12 + 4}px` }}
-                      title={entry.path}
-                      onClick={() =>
-                        entry.isDirectory
-                          ? handleSelectNode({ name: entry.name, path: entry.path })
-                          : handleOpenFile(entry, project)
-                      }
-                    >
-                      <span
-                        className="inline-block w-3 shrink-0 text-base-content/50"
-                        onClick={entry.isDirectory ? (e) => { e.stopPropagation(); toggleDir(entry.path); } : undefined}
-                      >
-                        {entry.isDirectory ? (isExpanded ? "▾" : "▸") : ""}
-                      </span>
-                      <span className="shrink-0">{entry.isDirectory ? "📁" : "📄"}</span>
-                      <span className={`ml-1 truncate ${!isProject && entry.name.startsWith(".") ? "text-base-content/50" : ""}`}>
-                        {entry.name}
-                      </span>
-                      {isLoading && <span className="loading loading-spinner loading-xs ml-1" />}
-                    </div>
-                    {isProject && (() => {
-                      const termCount = projectTerminalCount(entry.path);
-                      return termCount > 0 ? (
-                        <span
-                          className="text-[10px] text-base-content/60 shrink-0 px-1"
-                          title={`${termCount} terminal${termCount > 1 ? "s" : ""}`}
+                  <TreeRowItem
+                    name={entry.name}
+                    isDirectory={entry.isDirectory}
+                    isProject={isProject}
+                    depth={depth}
+                    selected={isSelected}
+                    expanded={!!isExpanded}
+                    loading={isLoading}
+                    dimmed={!isProject && entry.name.startsWith(".")}
+                    title={entry.path}
+                    terminalCount={entry.isDirectory ? dirTerminalCount(entry.path) : 0}
+                    onClick={() =>
+                      entry.isDirectory
+                        ? handleClickNode({ name: entry.name, path: entry.path }, project.path)
+                        : handleOpenFile(entry, project)
+                    }
+                    onToggleCaret={
+                      entry.isDirectory
+                        ? (e) => { e.stopPropagation(); handleToggleDir(entry.path, project.path); }
+                        : undefined
+                    }
+                    rightSlot={
+                      isProject ? (
+                        <button
+                          className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
+                          title="Remove project"
+                          onClick={(e) => { e.stopPropagation(); onRemoveProject(project); }}
                         >
-                          &gt;_ {termCount}
-                        </span>
-                      ) : null;
-                    })()}
-                    {isProject && (
-                      <button
-                        className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
-                        title="Remove project"
-                        onClick={(e) => { e.stopPropagation(); onRemoveProject(project); }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+                          ×
+                        </button>
+                      ) : undefined
+                    }
+                  />
                 </div>
               );
             })}
