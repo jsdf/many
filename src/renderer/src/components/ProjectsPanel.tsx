@@ -88,9 +88,12 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
   }, [writeNow]);
 
-  // When switching nodes, drop tabs that fall outside the newly selected
-  // directory but keep those within it. This also lets a file opened in the
-  // same click that switched directories survive (it lives under the new dir).
+  // When switching nodes, keep only the tabs that belong to the newly selected
+  // node. A tab belongs to a node when the file lives directly in that node's
+  // directory: files are always opened with the node set to their parent dir
+  // (see ProjectsTab.handleOpenFile), so a subproject's files belong to the
+  // subproject node, not to an ancestor that merely contains them on disk.
+  // (A prefix check would leak a subproject's files up into the project root.)
   useEffect(() => {
     const prev = prevPathRef.current;
     const current = project?.path ?? null;
@@ -103,15 +106,18 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       setFileData({});
       return;
     }
-    const underCurrent = (p: string) =>
-      p === current || p.startsWith(current + "/") || p.startsWith(current + "\\");
-    setOpenFiles((prev) => prev.filter((f) => underCurrent(f.path)));
+    const parentDir = (p: string) => {
+      const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+      return i >= 0 ? p.slice(0, i) : "";
+    };
+    const belongsToCurrent = (p: string) => parentDir(p) === current;
+    setOpenFiles((prev) => prev.filter((f) => belongsToCurrent(f.path)));
     setFileData((prev) => {
       const next: Record<string, FileData> = {};
-      for (const k of Object.keys(prev)) if (underCurrent(k)) next[k] = prev[k];
+      for (const k of Object.keys(prev)) if (belongsToCurrent(k)) next[k] = prev[k];
       return next;
     });
-    setActiveFile((cur) => (cur !== SESSIONS_TAB && !underCurrent(cur) ? SESSIONS_TAB : cur));
+    setActiveFile((cur) => (cur !== SESSIONS_TAB && !belongsToCurrent(cur) ? SESSIONS_TAB : cur));
   }, [project?.path, flushSaves]);
 
   // Flush any pending saves when the panel unmounts.
