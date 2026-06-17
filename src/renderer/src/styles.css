@@ -1,26 +1,80 @@
 @import "tailwindcss";
-@import "@milkdown/theme-nord/style.css";
 @plugin "daisyui" {
   themes: acid --default, forest --prefersdark;
 }
 
-/* Milkdown WYSIWYG markdown editor (Projects file editor) */
-.milkdown-host {
+/* TipTap WYSIWYG markdown editor (Projects file editor).
+   Tailwind's preflight strips default heading/list styling, so restore the
+   prose styling the editor content needs here, scoped to the editor host. */
+.tiptap-host {
   background: var(--color-base-100);
+  color: var(--color-base-content);
 }
-.milkdown-host .milkdown {
-  height: 100%;
-  background: transparent;
-}
-.milkdown-host .milkdown .ProseMirror {
+.tiptap-host .ProseMirror {
   padding: 1rem 1.25rem 4rem;
   min-height: 100%;
   outline: none;
+  line-height: 1.6;
 }
-@media (prefers-color-scheme: dark) {
-  .milkdown-host .milkdown {
-    color: var(--color-base-content);
-  }
+.tiptap-host .ProseMirror > * + * {
+  margin-top: 0.7em;
+}
+.tiptap-host .ProseMirror h1 { font-size: 1.7em; font-weight: 700; margin-top: 1.2em; line-height: 1.25; }
+.tiptap-host .ProseMirror h2 { font-size: 1.4em; font-weight: 700; margin-top: 1.1em; line-height: 1.3; }
+.tiptap-host .ProseMirror h3 { font-size: 1.2em; font-weight: 600; margin-top: 1em; }
+.tiptap-host .ProseMirror h4 { font-size: 1.05em; font-weight: 600; }
+.tiptap-host .ProseMirror h5,
+.tiptap-host .ProseMirror h6 { font-size: 1em; font-weight: 600; }
+.tiptap-host .ProseMirror ul { list-style: disc; padding-left: 1.5em; }
+.tiptap-host .ProseMirror ol { list-style: decimal; padding-left: 1.5em; }
+.tiptap-host .ProseMirror li > p { margin: 0; }
+.tiptap-host .ProseMirror li { margin: 0.2em 0; }
+.tiptap-host .ProseMirror blockquote {
+  border-left: 3px solid var(--color-base-300);
+  padding-left: 1em;
+  opacity: 0.85;
+}
+.tiptap-host .ProseMirror code {
+  background: var(--color-base-200);
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+.tiptap-host .ProseMirror pre {
+  background: var(--color-base-300);
+  padding: 0.75em 1em;
+  border-radius: 0.4rem;
+  overflow-x: auto;
+}
+.tiptap-host .ProseMirror pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+}
+.tiptap-host .ProseMirror a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+.tiptap-host .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--color-base-300);
+  margin: 1em 0;
+}
+/* Task lists (GFM checkboxes) */
+.tiptap-host .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25em;
+}
+.tiptap-host .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+.tiptap-host .ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 0.25em;
+}
+.tiptap-host .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
 }
 
 /* Override acid theme colors for better text contrast on white backgrounds.

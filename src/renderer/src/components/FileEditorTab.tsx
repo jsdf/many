@@ -5,14 +5,30 @@ import { syntaxHighlighting, defaultHighlightStyle, LanguageDescription } from "
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { languages } from "@codemirror/language-data";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { Editor, rootCtx, defaultValueCtx } from "@milkdown/core";
-import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
-import { commonmark } from "@milkdown/preset-commonmark";
-import { gfm } from "@milkdown/preset-gfm";
-import { listener, listenerCtx } from "@milkdown/plugin-listener";
-import { nord } from "@milkdown/theme-nord";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import { Markdown, type MarkdownStorage } from "tiptap-markdown";
 import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
+
+// Task lists are conventionally tight (no blank lines between checkboxes), but
+// tiptap-markdown only teaches bulletList/orderedList about the `tight` attribute,
+// so taskList serializes loose and inserts a blank line between every item. Add the
+// attribute here so task lists round-trip tight, matching how TODO files are written.
+const TightTaskList = TaskList.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      tight: {
+        default: true,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-tight") !== "false",
+        renderHTML: (attrs: { tight?: boolean }) => ({ "data-tight": attrs.tight ? "true" : "false" }),
+      },
+    };
+  },
+});
 
 export interface FileData {
   content: string;
@@ -102,8 +118,8 @@ function CodeEditor({
   return <div ref={containerRef} className="h-full overflow-hidden text-[13px]" />;
 }
 
-// --- Milkdown WYSIWYG editor ---
-function MilkdownInner({
+// --- TipTap WYSIWYG editor ---
+function TiptapEditor({
   initialMarkdown,
   onChange,
 }: {
@@ -113,20 +129,24 @@ function MilkdownInner({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  useEditor((root) =>
-    Editor.make()
-      .config((ctx) => {
-        ctx.set(rootCtx, root);
-        ctx.set(defaultValueCtx, initialMarkdown);
-        ctx.get(listenerCtx).markdownUpdated((_, markdown) => onChangeRef.current(markdown));
-      })
-      .config(nord)
-      .use(commonmark)
-      .use(gfm)
-      .use(listener)
-  );
+  // StarterKit bundles the UndoRedo (history) extension, so Cmd/Ctrl+Z works.
+  // tiptap-markdown parses the initial markdown string and re-serializes on
+  // every change via editor.storage.markdown.getMarkdown().
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TightTaskList,
+      TaskItem.configure({ nested: true }),
+      Markdown.configure({ html: false }),
+    ],
+    content: initialMarkdown,
+    onUpdate: ({ editor }) => {
+      const markdown = (editor.storage as unknown as { markdown: MarkdownStorage }).markdown;
+      onChangeRef.current(markdown.getMarkdown());
+    },
+  });
 
-  return <Milkdown />;
+  return <EditorContent editor={editor} />;
 }
 
 function MarkdownEditor({
@@ -148,7 +168,7 @@ function MarkdownEditor({
 
   return (
     <div
-      className="milkdown-host h-full overflow-auto"
+      className="tiptap-host h-full overflow-auto"
       onKeyDownCapture={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
           e.preventDefault();
@@ -163,15 +183,13 @@ function MarkdownEditor({
           emit();
         }}
       />
-      <MilkdownProvider>
-        <MilkdownInner
-          initialMarkdown={parsed.body}
-          onChange={(md) => {
-            bodyRef.current = md;
-            emit();
-          }}
-        />
-      </MilkdownProvider>
+      <TiptapEditor
+        initialMarkdown={parsed.body}
+        onChange={(md) => {
+          bodyRef.current = md;
+          emit();
+        }}
+      />
     </div>
   );
 }
