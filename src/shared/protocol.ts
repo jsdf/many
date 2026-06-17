@@ -602,6 +602,16 @@ export interface QueryProcedures {
     input: { worktreePath: string };
     output: string[];
   };
+  "terminal.listAll": {
+    input: {};
+    output: Array<{
+      terminalId: string;
+      worktreePath: string;
+      createdAt: number;
+      lastInputAt: number;
+      title?: string;
+    }>;
+  };
 
   // --- Claude sessions ---
   "claude.sessions": {

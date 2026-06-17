@@ -47,6 +47,13 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
   const pinned = useMemo(() => new Set(pinnedFolders), [pinnedFolders]);
 
+  // Active pane mode: the folder tree ("by folder"), or a flat list of all live
+  // terminals ordered by recency ("recent").
+  const [activeMode, setActiveMode] = useState<"byFolder" | "recent">("byFolder");
+  const [recentTerminals, setRecentTerminals] = useState<
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
+  >([]);
+
   // Active pane height. null means "size to content" (capped); once the user
   // drags the divider it becomes an explicit pixel height.
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
@@ -79,6 +86,35 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       window.removeEventListener("mouseup", handleUp);
     };
   }, [draggingActive]);
+
+  // Poll the live terminal list while showing the "recent" view. A terminal's
+  // recency is the newer of its last user input and its creation.
+  useEffect(() => {
+    if (activeMode !== "recent") return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const list = await getRpcClient().query("terminal.listAll", {});
+        if (!cancelled) setRecentTerminals(list);
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [activeMode]);
+
+  const sortedTerminals = useMemo(
+    () =>
+      [...recentTerminals].sort(
+        (a, b) => Math.max(b.lastInputAt, b.createdAt) - Math.max(a.lastInputAt, a.createdAt),
+      ),
+    [recentTerminals],
+  );
+
+  const baseName = useCallback((p: string) => {
+    const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+    return i >= 0 ? p.slice(i + 1) : p;
+  }, []);
 
   // Root rows for each tree. The Projects tree is rooted at the projects; the
   // Active tree is rooted at active + pinned folders. Both expand identically.
@@ -331,26 +367,66 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     >
       {activeRows.length > 0 && (
         <div className="shrink-0 flex flex-col">
-          <div className="mb-1 px-0.5">
+          <div className="mb-1 px-0.5 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-base-content/60">Active</span>
+            <div className="join">
+              <button
+                className={`join-item btn btn-xs ${activeMode === "recent" ? "btn-primary" : "btn-soft"}`}
+                onClick={() => setActiveMode("recent")}
+              >
+                recent
+              </button>
+              <button
+                className={`join-item btn btn-xs ${activeMode === "byFolder" ? "btn-primary" : "btn-soft"}`}
+                onClick={() => setActiveMode("byFolder")}
+              >
+                by folder
+              </button>
+            </div>
           </div>
           <div
             ref={activeTreeRef}
             className="overflow-hidden"
             style={activeHeight === null ? undefined : { height: activeHeight }}
           >
-            <FileTree
-              rows={activeRows}
-              selectedPath={selectedNode?.path}
-              worktreeActivity={worktreeActivity}
-              isExpanded={(row) => expanded.has(row.entry.path)}
-              isLoading={(row) => loading.has(row.entry.path)}
-              onRowClick={handleRowClick}
-              onToggleCaret={handleToggleCaret}
-              onContextMenu={handleContextMenu}
-              rightSlot={renderRightSlot}
-              scrollClassName={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}
-            />
+            {activeMode === "byFolder" ? (
+              <FileTree
+                rows={activeRows}
+                selectedPath={selectedNode?.path}
+                worktreeActivity={worktreeActivity}
+                isExpanded={(row) => expanded.has(row.entry.path)}
+                isLoading={(row) => loading.has(row.entry.path)}
+                onRowClick={handleRowClick}
+                onToggleCaret={handleToggleCaret}
+                onContextMenu={handleContextMenu}
+                rightSlot={renderRightSlot}
+                scrollClassName={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}
+              />
+            ) : (
+              <div className={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}>
+                {sortedTerminals.length === 0 ? (
+                  <p className="text-base-content/50 text-xs px-2 py-1">No terminals</p>
+                ) : (
+                  sortedTerminals.map((t) => {
+                    const selected = selectedNode?.path === t.worktreePath;
+                    return (
+                      <div
+                        key={t.terminalId}
+                        className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
+                        title={t.worktreePath}
+                        onClick={() => onSelectNode({ name: baseName(t.worktreePath), path: t.worktreePath })}
+                      >
+                        <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">&gt;_</span>
+                        <span className="flex-1 truncate">{t.title || "Terminal"}</span>
+                        <span className="ml-2 shrink-0 max-w-[45%] truncate text-base-content/50">
+                          {baseName(t.worktreePath)}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
           <div
             className={`shrink-0 h-1 my-1.5 rounded cursor-ns-resize transition-colors ${draggingActive ? "bg-primary" : "bg-base-300 hover:bg-primary"}`}

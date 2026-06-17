@@ -842,6 +842,9 @@ export function createQueryHandlers(opts: {
       const { worktreePath } = input as { worktreePath: string };
       return terminalManager.getSessionsForWorktree(worktreePath);
     },
+    "terminal.listAll": async () => {
+      return terminalManager.listAllSessions();
+    },
 
     // --- Claude sessions (existing read-only discovery) ---
     "claude.sessions": async (input) => {

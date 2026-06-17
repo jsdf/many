@@ -15,6 +15,13 @@ const MAX_LOG_BYTES = 10 * 1024 * 1024; // 10 MB
 interface TerminalSession {
   ptyProcess: pty.IPty;
   worktreePath: string;
+  createdAt: number;
+  // Last time the user sent input (keystrokes/paste) to this terminal.
+  lastInputAt: number;
+  // Window title set by the shell/program via OSC 0/2 escape sequences.
+  title?: string;
+  // Trailing output buffer used to detect title sequences split across chunks.
+  titleBuf: string;
   outputBlocks: OutputBlock[];
   currentBlockData: string;
   maxBlocks: number;
@@ -23,6 +30,31 @@ interface TerminalSession {
   exitListeners: Set<() => void>;
   logFileHandle?: fs.FileHandle;
   logBytesWritten: number;
+}
+
+export interface TerminalSessionInfo {
+  terminalId: string;
+  worktreePath: string;
+  createdAt: number;
+  lastInputAt: number;
+  title?: string;
+}
+
+// Pick up the latest OSC 0/1/2 window-title sequence from a session's output,
+// tolerating sequences split across data chunks via a bounded trailing buffer.
+const OSC_TITLE = /\x1b\][012];([^\x07\x1b]*)(?:\x07|\x1b\\)/g;
+function updateTitle(session: TerminalSession, data: string): void {
+  session.titleBuf += data;
+  OSC_TITLE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let lastEnd = -1;
+  while ((match = OSC_TITLE.exec(session.titleBuf))) {
+    session.title = match[1];
+    lastEnd = match.index + match[0].length;
+  }
+  if (lastEnd >= 0) session.titleBuf = session.titleBuf.slice(lastEnd);
+  // Keep only a trailing window: enough to complete one in-progress sequence.
+  if (session.titleBuf.length > 2048) session.titleBuf = session.titleBuf.slice(-2048);
 }
 
 export class TerminalManager {
@@ -68,9 +100,13 @@ export class TerminalManager {
       }, 500);
     }
 
+    const now = Date.now();
     const session: TerminalSession = {
       ptyProcess,
       worktreePath,
+      createdAt: now,
+      lastInputAt: now,
+      titleBuf: "",
       outputBlocks: [],
       currentBlockData: "",
       maxBlocks: 100,
@@ -99,6 +135,7 @@ export class TerminalManager {
     }
 
     ptyProcess.onData((data: string) => {
+      updateTitle(session, data);
       this.appendOutput(session, data);
       if (session.logFileHandle && session.logBytesWritten < MAX_LOG_BYTES) {
         const bytes = Buffer.byteLength(data, "utf8");
@@ -130,6 +167,7 @@ export class TerminalManager {
   sendData(terminalId: string, data: string): void {
     const session = this.sessions.get(terminalId);
     if (session) {
+      session.lastInputAt = Date.now();
       session.ptyProcess.write(data);
     }
   }
@@ -178,6 +216,21 @@ export class TerminalManager {
       }
     }
     return ids;
+  }
+
+  /** All live terminal sessions with their recency metadata, unsorted. */
+  listAllSessions(): TerminalSessionInfo[] {
+    const result: TerminalSessionInfo[] = [];
+    for (const [terminalId, session] of this.sessions) {
+      result.push({
+        terminalId,
+        worktreePath: session.worktreePath,
+        createdAt: session.createdAt,
+        lastInputAt: session.lastInputAt,
+        title: session.title,
+      });
+    }
+    return result;
   }
 
   /** Get count of active terminal sessions per worktree path */
