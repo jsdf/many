@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
@@ -46,6 +46,39 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [fsAction, setFsAction] = useState<FsAction | null>(null);
 
   const pinned = useMemo(() => new Set(pinnedFolders), [pinnedFolders]);
+
+  // Active pane height. null means "size to content" (capped); once the user
+  // drags the divider it becomes an explicit pixel height.
+  const [activeHeight, setActiveHeight] = useState<number | null>(null);
+  const [draggingActive, setDraggingActive] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeTreeRef = useRef<HTMLDivElement>(null);
+
+  const handleActiveResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setDraggingActive(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draggingActive) return;
+    const MIN_ACTIVE = 60;
+    const RESERVE_PROJECTS = 120;
+    const handleMove = (e: MouseEvent) => {
+      const tree = activeTreeRef.current;
+      const container = containerRef.current;
+      if (!tree || !container) return;
+      const top = tree.getBoundingClientRect().top;
+      const maxH = container.getBoundingClientRect().bottom - top - RESERVE_PROJECTS;
+      setActiveHeight(Math.max(MIN_ACTIVE, Math.min(Math.max(MIN_ACTIVE, maxH), e.clientY - top)));
+    };
+    const handleUp = () => setDraggingActive(false);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [draggingActive]);
 
   // Root rows for each tree. The Projects tree is rooted at the projects; the
   // Active tree is rooted at active + pinned folders. Both expand identically.
@@ -291,23 +324,38 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 mb-3">
+    <div
+      ref={containerRef}
+      className="flex-1 flex flex-col min-h-0 mb-3"
+      style={{ userSelect: draggingActive ? "none" : undefined }}
+    >
       {activeRows.length > 0 && (
-        <div className="mb-3 shrink-0">
+        <div className="shrink-0 flex flex-col">
           <div className="mb-1 px-0.5">
             <span className="text-xs font-semibold text-base-content/60">Active</span>
           </div>
-          <FileTree
-            rows={activeRows}
-            selectedPath={selectedNode?.path}
-            worktreeActivity={worktreeActivity}
-            isExpanded={(row) => expanded.has(row.entry.path)}
-            isLoading={(row) => loading.has(row.entry.path)}
-            onRowClick={handleRowClick}
-            onToggleCaret={handleToggleCaret}
-            onContextMenu={handleContextMenu}
-            rightSlot={renderRightSlot}
-            scrollClassName="max-h-48 overflow-auto"
+          <div
+            ref={activeTreeRef}
+            className="overflow-hidden"
+            style={activeHeight === null ? undefined : { height: activeHeight }}
+          >
+            <FileTree
+              rows={activeRows}
+              selectedPath={selectedNode?.path}
+              worktreeActivity={worktreeActivity}
+              isExpanded={(row) => expanded.has(row.entry.path)}
+              isLoading={(row) => loading.has(row.entry.path)}
+              onRowClick={handleRowClick}
+              onToggleCaret={handleToggleCaret}
+              onContextMenu={handleContextMenu}
+              rightSlot={renderRightSlot}
+              scrollClassName={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}
+            />
+          </div>
+          <div
+            className={`shrink-0 h-1 my-1.5 rounded cursor-ns-resize transition-colors ${draggingActive ? "bg-primary" : "bg-base-300 hover:bg-primary"}`}
+            onMouseDown={handleActiveResizeStart}
+            title="Drag to resize"
           />
         </div>
       )}
