@@ -1,0 +1,33 @@
+src/renderer/src/components/GlobalSettingsModal.tsx
+  s_3dac9bea0f7c48::t_b4b149442f3a6e 12
+  s_3dac9bea0f7c48::t_72df2a2086c02c 35
+  s_3dac9bea0f7c48::t_f94e81d079dea8 56
+  s_3dac9bea0f7c48::t_2f44649103ca14 121-137
+src/cli/config.ts
+  s_3dac9bea0f7c48::t_02523bd06b29ac 158
+  s_3dac9bea0f7c48::t_c9e7f2a5d2c51c 55
+  s_3dac9bea0f7c48::t_911f09907cb5a8 85
+src/renderer/src/components/ProjectsPanel.tsx
+  s_3dac9bea0f7c48::t_ab5c1e256772af 443
+  s_3dac9bea0f7c48::t_e564090f39b693 417
+  s_3dac9bea0f7c48::t_8713ce4f9ec0cd 42-43
+  s_3dac9bea0f7c48::t_8c0ef957080870 120-127
+src/shared/protocol.ts
+  s_3dac9bea0f7c48::t_439419f2e34ea6 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "98710b1738e8e48bd37eaa48260876aa517087c8",
+  "prompts": {},
+  "sessions": {
+    "s_3dac9bea0f7c48": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "70ffb87d-6869-4e19-a743-1426cc108ff9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
