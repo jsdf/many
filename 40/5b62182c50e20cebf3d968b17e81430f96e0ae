@@ -1,0 +1,21 @@
+src/renderer/src/treeRows.ts
+  s_a9d62775bd1d61::t_d230a55be70841 27-33,40-46,51,58
+src/renderer/src/treeRows.test.ts
+  s_a9d62775bd1d61::t_610cc553975e2e 82-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "405b62182c50e20cebf3d968b17e81430f96e0ae",
+  "prompts": {},
+  "sessions": {
+    "s_a9d62775bd1d61": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81ae161f-a76e-4287-974a-329ac61abdf5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
