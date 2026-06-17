@@ -9,6 +9,7 @@ interface GlobalSettingsModalProps {
 const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAddRepo }) => {
   const [defaultEditor, setDefaultEditor] = useState("");
   const [defaultTerminal, setDefaultTerminal] = useState("");
+  const [defaultClaudeCommand, setDefaultClaudeCommand] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
         const settings = await getRpcClient().query("settings.get", {});
         setDefaultEditor(settings.defaultEditor || "");
         setDefaultTerminal(settings.defaultTerminal || "");
+        setDefaultClaudeCommand(settings.defaultClaudeCommand || "");
       } catch (err) {
         console.error("Failed to load global settings:", err);
         setError("Failed to load settings");
@@ -51,6 +53,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
       await getRpcClient().query("settings.save", {
         defaultEditor: defaultEditor.trim() || null,
         defaultTerminal: defaultTerminal.trim() || null,
+        defaultClaudeCommand: defaultClaudeCommand.trim() || null,
       });
       onClose();
     } catch (err) {
@@ -113,6 +116,23 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
                   />
                   <p className="text-xs text-base-content/50 mt-1.5">
                     Terminal app name (macOS) or command (Linux). Leave empty to use system default.
+                  </p>
+                </div>
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="default-claude-command-input">
+                    Default Claude Code Command:
+                  </label>
+                  <input
+                    type="text"
+                    id="default-claude-command-input"
+                    className="input input-bordered w-full"
+                    value={defaultClaudeCommand}
+                    onChange={(e) => setDefaultClaudeCommand(e.target.value)}
+                    placeholder="e.g. claude, claude --dangerously-skip-permissions"
+                    disabled={isSaving}
+                  />
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Command used to launch Claude Code from the projects page. Leave empty to use "claude".
                   </p>
                 </div>
               </>

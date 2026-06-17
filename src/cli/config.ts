@@ -52,6 +52,7 @@ export interface SessionMeta {
 export interface GlobalSettings {
   defaultEditor: string | null;
   defaultTerminal: string | null;
+  defaultClaudeCommand: string | null;
 }
 
 export interface AppData {
@@ -81,7 +82,7 @@ const defaultAppData: AppData = {
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},
   sessionMeta: {},
-  globalSettings: { defaultEditor: null, defaultTerminal: null },
+  globalSettings: { defaultEditor: null, defaultTerminal: null, defaultClaudeCommand: null },
 };
 
 // Get platform-specific data directory
@@ -154,7 +155,7 @@ export async function withAppData<T>(mutator: (data: AppData) => T | Promise<T>)
 }
 
 export function getGlobalSettings(appData: AppData): GlobalSettings {
-  return appData.globalSettings || { defaultEditor: null, defaultTerminal: null };
+  return appData.globalSettings || { defaultEditor: null, defaultTerminal: null, defaultClaudeCommand: null };
 }
 
 export function getRepoConfig(appData: AppData, repoPath: string): RepositoryConfig {

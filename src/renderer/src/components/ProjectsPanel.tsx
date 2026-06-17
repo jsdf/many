@@ -39,6 +39,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [dragging, setDragging] = useState(false);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFile, setActiveFile] = useState<string>(SESSIONS_TAB);
+  // App-level default Claude Code command, used to launch Claude from this page.
+  const [claudeCommand, setClaudeCommand] = useState<string | undefined>(undefined);
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   // An unresolved on-disk conflict: the file changed externally while it had
   // unsaved edits. diskContent holds the new on-disk version.
@@ -114,6 +116,14 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
 
   // Flush any pending saves when the panel unmounts.
   useEffect(() => () => flushSaves(), [flushSaves]);
+
+  // Load the app-level default Claude Code command for launching Claude here.
+  useEffect(() => {
+    getRpcClient()
+      .query("settings.get", {})
+      .then((settings) => setClaudeCommand(settings.defaultClaudeCommand || undefined))
+      .catch((err) => console.error("Failed to load settings:", err));
+  }, []);
 
   const loadFile = useCallback((filePath: string) => {
     setFileData((prev) => ({
@@ -404,7 +414,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                   if (sessionType === "chat") {
                     terminalStackRef.current?.openClaudeSession(sessionId);
                   } else {
-                    terminalStackRef.current?.createTerminalWithCommand({}, `claude --resume ${sessionId}`);
+                    terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
                   }
                 }}
               />
@@ -430,6 +440,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
             ref={terminalStackRef}
             key={`project-terminals-${project.path}`}
             worktreePath={project.path}
+            claudeCommand={claudeCommand}
           />
         </div>
       </div>
