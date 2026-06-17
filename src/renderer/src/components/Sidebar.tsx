@@ -63,6 +63,8 @@ interface SidebarProps {
   activeTab: "worktrees" | "tracked" | "automations" | "projects";
   projects: ProjectEntry[];
   selectedNode: ProjectNode | null;
+  pinnedFolders: string[];
+  onTogglePin: (path: string, pinned: boolean) => void;
   onRepoSelect: (repoPath: string | null) => void;
   onWorktreeSelect: (worktree: Worktree | null) => void;
   onCreateWorktree: () => void;
@@ -743,6 +745,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   projects,
   selectedNode,
+  pinnedFolders,
+  onTogglePin,
   onNavigateWorktrees,
   onNavigateTracked,
   onNavigateProjects,
@@ -786,44 +790,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="mb-3 flex gap-2 items-center">
-        <select
-          data-testid="repo-selector"
-          className="select select-bordered select-sm flex-1"
-          value={currentRepo || ""}
-          onChange={(e) => onRepoSelect(e.target.value || null)}
-        >
-          <option value="">Select a repository...</option>
-          {repositories.map((repo) => (
-            <option key={repo.path} value={repo.path}>
-              {repo.name || repo.path}
-            </option>
-          ))}
-        </select>
-        {currentRepo && (
-          <button
-            data-testid="repo-config-button"
-            onClick={onConfigRepo}
-            className="btn btn-soft btn-neutral btn-sm"
-            title="Configure repository settings"
-          >
-            ⚙️
-          </button>
-        )}
-      </div>
-
       <div className="flex mb-2 border-b border-base-300">
-        <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "worktrees" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
-          onClick={() => onNavigateWorktrees?.()}
-        >
-          Worktrees
-        </button>
         <button
           className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "projects" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
           onClick={() => onNavigateProjects?.()}
         >
           Projects
+        </button>
+        <button
+          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "worktrees" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
+          onClick={() => onNavigateWorktrees?.()}
+        >
+          Worktrees
         </button>
         <button
           className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "tracked" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
@@ -841,6 +819,34 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
+      {activeTab !== "projects" && (
+        <div className="mb-3 flex gap-2 items-center">
+          <select
+            data-testid="repo-selector"
+            className="select select-bordered select-sm flex-1"
+            value={currentRepo || ""}
+            onChange={(e) => onRepoSelect(e.target.value || null)}
+          >
+            <option value="">Select a repository...</option>
+            {repositories.map((repo) => (
+              <option key={repo.path} value={repo.path}>
+                {repo.name || repo.path}
+              </option>
+            ))}
+          </select>
+          {currentRepo && (
+            <button
+              data-testid="repo-config-button"
+              onClick={onConfigRepo}
+              className="btn btn-soft btn-neutral btn-sm"
+              title="Configure repository settings"
+            >
+              ⚙️
+            </button>
+          )}
+        </div>
+      )}
+
       {activeTab === "projects" ? (
         <ProjectsTab
           projects={projects}
@@ -850,6 +856,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}
           worktreeActivity={worktreeActivity}
+          pinnedFolders={pinnedFolders}
+          onTogglePin={onTogglePin}
         />
       ) : activeTab === "tracked" ? (
         <div className="flex-1 overflow-y-auto mb-3">

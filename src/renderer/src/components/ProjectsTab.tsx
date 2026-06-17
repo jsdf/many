@@ -1,12 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import FsActionDialog, { FsAction } from "./FsActionDialog";
-import TreeRowItem from "./TreeRowItem";
-import ActiveSessionsTree from "./ActiveSessionsTree";
-import { sumActivityUnder } from "../treeActivity";
+import FileTree, { FileTreeRow } from "./FileTree";
+import { useFsTree } from "../useFsTree";
+import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
+import { PinToggle, pinMenuItem } from "./pinControls";
+import { relativeToRoot } from "../paths";
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).catch((err) => console.error("Failed to copy:", err));
+}
 
 interface ProjectsTabProps {
   projects: ProjectEntry[];
@@ -16,26 +21,9 @@ interface ProjectsTabProps {
   onAddProject: () => void;
   onRemoveProject: (project: ProjectEntry) => void;
   worktreeActivity?: Record<string, { terminals: number; claudeSessions: number }>;
+  pinnedFolders: string[];
+  onTogglePin: (path: string, pinned: boolean) => void;
 }
-
-interface TreeRow {
-  entry: FsEntry;
-  depth: number;
-  project: ProjectEntry;
-  isProject: boolean;
-}
-
-const ROW_HEIGHT = 24;
-
-// Tree state is cached at module scope so it survives this component
-// unmounting (tab switches, sidebar collapse) for the life of the page.
-const treeStateCache: {
-  expanded: Set<string>;
-  childrenByDir: Map<string, FsEntry[]>;
-} = {
-  expanded: new Set(),
-  childrenByDir: new Map(),
-};
 
 const ProjectsTab: React.FC<ProjectsTabProps> = ({
   projects,
@@ -45,170 +33,93 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   onAddProject,
   onRemoveProject,
   worktreeActivity,
+  pinnedFolders,
+  onTogglePin,
 }) => {
-  const [expanded, setExpandedState] = useState<Set<string>>(() => treeStateCache.expanded);
-  const [childrenByDir, setChildrenByDirState] = useState<Map<string, FsEntry[]>>(() => treeStateCache.childrenByDir);
-  const [loading, setLoading] = useState<Set<string>>(new Set());
+  const { expanded, childrenByDir, loading, expandDir, expandPath, handleToggleDir } = useFsTree();
   const [filter, setFilter] = useState("");
   // Server-side search results, keyed by parent dir, used while filtering.
   const [searchChildren, setSearchChildren] = useState<Map<string, FsEntry[]>>(new Map());
   const [searching, setSearching] = useState(false);
-  const parentRef = useRef<HTMLDivElement>(null);
   // Right-click context menu + the create/rename/delete dialog it opens.
-  const [menu, setMenu] = useState<{ x: number; y: number; row: TreeRow } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; row: FileTreeRow } | null>(null);
   const [fsAction, setFsAction] = useState<FsAction | null>(null);
 
-  // Mirror persisted state back into the module cache on every update.
-  const setExpanded = useCallback((updater: (prev: Set<string>) => Set<string>) => {
-    setExpandedState((prev) => (treeStateCache.expanded = updater(prev)));
-  }, []);
-  const setChildrenByDir = useCallback((updater: (prev: Map<string, FsEntry[]>) => Map<string, FsEntry[]>) => {
-    setChildrenByDirState((prev) => (treeStateCache.childrenByDir = updater(prev)));
-  }, []);
+  const pinned = useMemo(() => new Set(pinnedFolders), [pinnedFolders]);
 
-  // Live directory subscriptions, one per expanded directory. The set of
-  // expanded directories is the source of truth; an effect below reconciles
-  // active subscriptions against it, so toggling only updates `expanded`.
-  const subsRef = useRef<Map<string, () => void>>(new Map());
-
-  useEffect(() => {
-    const client = getRpcClient();
-    const subs = subsRef.current;
-
-    // Subscribe to newly-expanded directories.
-    for (const dirPath of expanded) {
-      if (subs.has(dirPath)) continue;
-      setLoading((prev) => new Set(prev).add(dirPath));
-      const unsubscribe = client.subscribe(
-        "fs.dirUpdates",
-        (entries) => {
-          setChildrenByDir((prev) => new Map(prev).set(dirPath, entries));
-          setLoading((prev) => {
-            if (!prev.has(dirPath)) return prev;
-            const next = new Set(prev);
-            next.delete(dirPath);
-            return next;
-          });
-        },
-        { dirPath }
-      );
-      subs.set(dirPath, unsubscribe);
-    }
-
-    // Tear down subscriptions for collapsed directories.
-    for (const [dirPath, unsubscribe] of subs) {
-      if (expanded.has(dirPath)) continue;
-      unsubscribe();
-      subs.delete(dirPath);
-    }
-  }, [expanded, setChildrenByDir]);
-
-  // Tear down all subscriptions on unmount.
-  useEffect(() => {
-    const subs = subsRef.current;
-    return () => {
-      for (const unsubscribe of subs.values()) unsubscribe();
-      subs.clear();
-    };
-  }, []);
-
-  const toggleDir = useCallback((dirPath: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(dirPath)) next.delete(dirPath);
-      else next.add(dirPath);
-      return next;
-    });
-  }, [setExpanded]);
-
-  // Ensure a directory is expanded without toggling it closed. Used when
-  // selecting a directory, so selection also reveals its contents.
-  const expandDir = useCallback((dirPath: string) => {
-    setExpanded((prev) => (prev.has(dirPath) ? prev : new Set(prev).add(dirPath)));
-  }, [setExpanded]);
-
-  // Expand a directory and all its ancestors up to the project root. While
-  // filtering, the tree shows matches regardless of `expanded`, so expanding a
-  // single dir would leave its ancestors collapsed and the dir unreachable once
-  // the filter clears. Recording the whole chain keeps it open afterward.
-  const expandPath = useCallback((dirPath: string, projectPath: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      const sep = dirPath.includes("\\") ? "\\" : "/";
-      let cur = dirPath;
-      while (cur.length >= projectPath.length) {
-        next.add(cur);
-        if (cur === projectPath) break;
-        const i = cur.lastIndexOf(sep);
-        if (i < 0) break;
-        cur = cur.slice(0, i);
-      }
-      return next;
-    });
-  }, [setExpanded]);
-
-  // Toggle a directory's expansion. Expanding records the full ancestor chain
-  // so it survives a filter clear; collapsing just drops the dir itself.
-  const handleToggleDir = useCallback((dirPath: string, projectPath: string) => {
-    if (expanded.has(dirPath)) toggleDir(dirPath);
-    else expandPath(dirPath, projectPath);
-  }, [expanded, toggleDir, expandPath]);
+  // Root rows for each tree. The Projects tree is rooted at the projects; the
+  // Active tree is rooted at active + pinned folders. Both expand identically.
+  const projectRoots = useMemo<FileTreeRow[]>(
+    () =>
+      projects.map((project) => ({
+        entry: { name: project.name, path: project.path, isDirectory: true },
+        depth: 0,
+        project,
+        isProject: true,
+      })),
+    [projects],
+  );
 
   // Clicking a directory title selects it and toggles its expansion, so the
   // title behaves like the caret.
-  const handleClickNode = useCallback((node: ProjectNode, projectPath: string) => {
-    onSelectNode(node);
-    handleToggleDir(node.path, projectPath);
-  }, [onSelectNode, handleToggleDir]);
+  const handleClickNode = useCallback(
+    (node: ProjectNode, projectPath: string) => {
+      onSelectNode(node);
+      handleToggleDir(node.path, projectPath);
+    },
+    [onSelectNode, handleToggleDir],
+  );
 
   // Opening a file first switches the panel to its containing directory, then
   // opens the file there.
-  const handleOpenFile = useCallback((entry: FsEntry, project: ProjectEntry) => {
-    const sep = entry.path.includes("\\") ? "\\" : "/";
-    const i = entry.path.lastIndexOf(sep);
-    const parentPath = i >= 0 ? entry.path.slice(0, i) : project.path;
-    const node: ProjectNode =
-      parentPath === project.path
-        ? { name: project.name, path: project.path }
-        : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
-    onSelectNode(node);
-    expandPath(parentPath, project.path);
-    onOpenFile({ path: entry.path, name: entry.name });
-  }, [onSelectNode, onOpenFile, expandPath]);
+  const handleOpenFile = useCallback(
+    (entry: FsEntry, project: ProjectEntry) => {
+      const sep = entry.path.includes("\\") ? "\\" : "/";
+      const i = entry.path.lastIndexOf(sep);
+      const parentPath = i >= 0 ? entry.path.slice(0, i) : project.path;
+      const node: ProjectNode =
+        parentPath === project.path
+          ? { name: project.name, path: project.path }
+          : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
+      onSelectNode(node);
+      expandPath(parentPath, project.path);
+      onOpenFile({ path: entry.path, name: entry.name });
+    },
+    [onSelectNode, onOpenFile, expandPath],
+  );
 
-  // Build context menu items for a row. Directories can spawn children;
-  // non-root entries can be renamed or deleted. Project roots are managed via
-  // the dedicated "× Remove project" control, so they only offer creation.
-  const menuItems = useCallback((row: TreeRow): ContextMenuItem[] => {
-    const { entry, isProject } = row;
-    const items: ContextMenuItem[] = [];
-    if (entry.isDirectory) {
-      items.push({ label: "New File", onClick: () => setFsAction({ mode: "newFile", dirPath: entry.path }) });
-      items.push({ label: "New Folder", onClick: () => setFsAction({ mode: "newFolder", dirPath: entry.path }) });
-    }
-    if (!isProject) {
-      items.push({
-        label: "Rename",
-        onClick: () => setFsAction({ mode: "rename", targetPath: entry.path, currentName: entry.name, isDirectory: entry.isDirectory }),
-      });
-      items.push({
-        label: "Delete",
-        danger: true,
-        onClick: () => setFsAction({ mode: "delete", targetPath: entry.path, name: entry.name, isDirectory: entry.isDirectory }),
-      });
-    }
-    return items;
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent, row: TreeRow) => {
-    e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY, row });
-  }, []);
-
-  // Open terminals under a directory, rolled up from every descendant path.
-  const dirTerminalCount = useCallback(
-    (dirPath: string): number => sumActivityUnder(worktreeActivity, dirPath).terminals,
-    [worktreeActivity],
+  // Build context menu items for a row. Directories can spawn children and be
+  // pinned; non-root entries can be renamed or deleted. Project roots are
+  // managed via the dedicated "× Remove project" control.
+  const menuItems = useCallback(
+    (row: FileTreeRow): ContextMenuItem[] => {
+      const { entry, isProject, project } = row;
+      const items: ContextMenuItem[] = [];
+      if (entry.isDirectory) {
+        items.push({ label: "New File", onClick: () => setFsAction({ mode: "newFile", dirPath: entry.path }) });
+        items.push({ label: "New Folder", onClick: () => setFsAction({ mode: "newFolder", dirPath: entry.path }) });
+        items.push(
+          pinMenuItem(pinned.has(entry.path), () => onTogglePin(entry.path, !pinned.has(entry.path))),
+        );
+      }
+      if (project) {
+        items.push({ label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(entry.path, project.path)) });
+      }
+      items.push({ label: "Copy absolute path", onClick: () => copyToClipboard(entry.path) });
+      if (!isProject) {
+        items.push({
+          label: "Rename",
+          onClick: () => setFsAction({ mode: "rename", targetPath: entry.path, currentName: entry.name, isDirectory: entry.isDirectory }),
+        });
+        items.push({
+          label: "Delete",
+          danger: true,
+          onClick: () => setFsAction({ mode: "delete", targetPath: entry.path, name: entry.name, isDirectory: entry.isDirectory }),
+        });
+      }
+      return items;
+    },
+    [pinned, onTogglePin],
   );
 
   const query = filter.trim().toLowerCase();
@@ -251,33 +162,58 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   }, [filtering, query, projects]);
 
   // Flatten the expanded forest into a single ordered list. Projects are the
-  // top level of the hierarchy; their directory contents nest beneath them.
-  // When filtering, walk all loaded entries (ignoring the expanded set) and
-  // keep a node if its name matches or it has a matching descendant.
-  const rows = useMemo<TreeRow[]>(() => {
-    const result: TreeRow[] = [];
+  // top level; their directory contents nest beneath them. When filtering, walk
+  // the matched subtree and keep a node if its name matches or it has a matching
+  // descendant. The currently selected directory's immediate children are
+  // always included, regardless of the filter.
+  const rows = useMemo<FileTreeRow[]>(() => {
+    const result: FileTreeRow[] = [];
+    const selPath = selectedNode?.path;
 
     if (filtering) {
-      const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): TreeRow[] => {
-        const entries = searchChildren.get(dirPath);
-        if (!entries) return [];
-        const out: TreeRow[] = [];
-        for (const entry of entries) {
+      const sepFor = (p: string) => (p.includes("\\") ? "\\" : "/");
+      const isAncestorOf = (anc: string, p: string) => p === anc || p.startsWith(anc + sepFor(p));
+
+      // Structural children for a dir while filtering: matched entries, plus the
+      // selected dir's full immediate children, plus a synthesized chain segment
+      // so we can descend to the selected dir even when nothing matches.
+      const childrenFor = (dirPath: string): FsEntry[] => {
+        const map = new Map<string, FsEntry>();
+        for (const e of searchChildren.get(dirPath) ?? []) map.set(e.path, e);
+        if (selPath && dirPath === selPath) {
+          for (const e of childrenByDir.get(dirPath) ?? []) map.set(e.path, e);
+        }
+        if (selPath && selPath !== dirPath && isAncestorOf(dirPath, selPath)) {
+          const sep = sepFor(selPath);
+          const nextName = selPath.slice(dirPath.length + sep.length).split(sep)[0];
+          const nextPath = dirPath + sep + nextName;
+          if (!map.has(nextPath)) map.set(nextPath, { name: nextName, path: nextPath, isDirectory: true });
+        }
+        return sortEntries([...map.values()]);
+      };
+
+      const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): FileTreeRow[] => {
+        const out: FileTreeRow[] = [];
+        const immediateOfSel = !!selPath && dirPath === selPath;
+        for (const entry of childrenFor(dirPath)) {
           if (entry.isDirectory) {
             const childRows = matchedRows(entry.path, depth + 1, project);
-            if (childRows.length > 0 || entry.name.toLowerCase().includes(query)) {
+            const onSelChain = !!selPath && isAncestorOf(entry.path, selPath);
+            if (childRows.length > 0 || entry.name.toLowerCase().includes(query) || onSelChain || immediateOfSel) {
               out.push({ entry, depth, project, isProject: false });
               out.push(...childRows);
             }
-          } else if (entry.name.toLowerCase().includes(query)) {
+          } else if (entry.name.toLowerCase().includes(query) || immediateOfSel) {
             out.push({ entry, depth, project, isProject: false });
           }
         }
         return out;
       };
+
       for (const project of projects) {
         const childRows = matchedRows(project.path, 1, project);
-        if (childRows.length > 0 || project.name.toLowerCase().includes(query)) {
+        const onSelChain = !!selPath && isAncestorOf(project.path, selPath);
+        if (childRows.length > 0 || project.name.toLowerCase().includes(query) || onSelChain) {
           result.push({
             entry: { name: project.name, path: project.path, isDirectory: true },
             depth: 0,
@@ -290,43 +226,91 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       return result;
     }
 
-    const walk = (dirPath: string, depth: number, project: ProjectEntry) => {
-      const entries = childrenByDir.get(dirPath);
-      if (!entries) return;
-      for (const entry of entries) {
-        result.push({ entry, depth, project, isProject: false });
-        if (entry.isDirectory && expanded.has(entry.path)) {
-          walk(entry.path, depth + 1, project);
-        }
-      }
-    };
-    for (const project of projects) {
-      result.push({
-        entry: { name: project.name, path: project.path, isDirectory: true },
-        depth: 0,
-        project,
-        isProject: true,
-      });
-      if (expanded.has(project.path)) walk(project.path, 1, project);
-    }
-    return result;
-  }, [projects, childrenByDir, searchChildren, expanded, filtering, query]);
+    return buildTreeRows(projectRoots, expanded, childrenByDir);
+  }, [projectRoots, projects, childrenByDir, searchChildren, expanded, filtering, query, selectedNode?.path]);
 
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
-  });
+  // The Active tree is just the project tree rooted at active + pinned folders,
+  // expanded with the same shared state, so it behaves identically.
+  const activeRows = useMemo<FileTreeRow[]>(
+    () =>
+      worktreeActivity
+        ? buildTreeRows(activeRoots(projects, worktreeActivity, pinnedFolders), expanded, childrenByDir)
+        : [],
+    [projects, worktreeActivity, pinnedFolders, expanded, childrenByDir],
+  );
+
+  // Click, caret, context-menu and right-slot behavior shared by both trees.
+  const handleRowClick = useCallback(
+    (row: FileTreeRow) => {
+      const project = row.project;
+      if (!project) return;
+      if (row.entry.isDirectory) {
+        handleClickNode({ name: row.entry.name, path: row.entry.path }, project.path);
+      } else {
+        handleOpenFile(row.entry, project);
+      }
+    },
+    [handleClickNode, handleOpenFile],
+  );
+
+  const handleToggleCaret = useCallback(
+    (row: FileTreeRow, e: React.MouseEvent) => {
+      const project = row.project;
+      if (!project) return;
+      e.stopPropagation();
+      handleToggleDir(row.entry.path, project.path);
+    },
+    [handleToggleDir],
+  );
+
+  const handleContextMenu = useCallback((row: FileTreeRow, e: React.MouseEvent) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, row });
+  }, []);
+
+  const renderRightSlot = useCallback(
+    (row: FileTreeRow) =>
+      row.isProject ? (
+        <button
+          className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
+          title="Remove project"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (row.project) onRemoveProject(row.project);
+          }}
+        >
+          ×
+        </button>
+      ) : row.entry.isDirectory ? (
+        <PinToggle
+          pinned={pinned.has(row.entry.path)}
+          onToggle={() => onTogglePin(row.entry.path, !pinned.has(row.entry.path))}
+        />
+      ) : undefined,
+    [pinned, onTogglePin, onRemoveProject],
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0 mb-3">
-      <ActiveSessionsTree
-        projects={projects}
-        worktreeActivity={worktreeActivity}
-        selectedNode={selectedNode}
-        onSelectNode={onSelectNode}
-      />
+      {activeRows.length > 0 && (
+        <div className="mb-3 shrink-0">
+          <div className="mb-1 px-0.5">
+            <span className="text-xs font-semibold text-base-content/60">Active</span>
+          </div>
+          <FileTree
+            rows={activeRows}
+            selectedPath={selectedNode?.path}
+            worktreeActivity={worktreeActivity}
+            isExpanded={(row) => expanded.has(row.entry.path)}
+            isLoading={(row) => loading.has(row.entry.path)}
+            onRowClick={handleRowClick}
+            onToggleCaret={handleToggleCaret}
+            onContextMenu={handleContextMenu}
+            rightSlot={renderRightSlot}
+            scrollClassName="max-h-48 overflow-auto"
+          />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-2 px-0.5">
         <span className="text-xs font-semibold text-base-content/60">Projects</span>
@@ -367,66 +351,18 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           No matches.
         </p>
       ) : (
-        <div ref={parentRef} className="flex-1 overflow-auto">
-          <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
-            {virtualizer.getVirtualItems().map((vi) => {
-              const { entry, depth, project, isProject } = rows[vi.index];
-              const isExpanded = entry.isDirectory && (filtering || expanded.has(entry.path));
-              const isLoading = loading.has(entry.path);
-              const isSelected = selectedNode?.path === entry.path;
-              const row = rows[vi.index];
-              return (
-                <div
-                  key={entry.path}
-                  className="group/row"
-                  onContextMenu={(e) => handleContextMenu(e, row)}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${ROW_HEIGHT}px`,
-                    transform: `translateY(${vi.start}px)`,
-                  }}
-                >
-                  <TreeRowItem
-                    name={entry.name}
-                    isDirectory={entry.isDirectory}
-                    isProject={isProject}
-                    depth={depth}
-                    selected={isSelected}
-                    expanded={!!isExpanded}
-                    loading={isLoading}
-                    dimmed={!isProject && entry.name.startsWith(".")}
-                    title={entry.path}
-                    terminalCount={entry.isDirectory ? dirTerminalCount(entry.path) : 0}
-                    onClick={() =>
-                      entry.isDirectory
-                        ? handleClickNode({ name: entry.name, path: entry.path }, project.path)
-                        : handleOpenFile(entry, project)
-                    }
-                    onToggleCaret={
-                      entry.isDirectory
-                        ? (e) => { e.stopPropagation(); handleToggleDir(entry.path, project.path); }
-                        : undefined
-                    }
-                    rightSlot={
-                      isProject ? (
-                        <button
-                          className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
-                          title="Remove project"
-                          onClick={(e) => { e.stopPropagation(); onRemoveProject(project); }}
-                        >
-                          ×
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <FileTree
+          rows={rows}
+          selectedPath={selectedNode?.path}
+          worktreeActivity={worktreeActivity}
+          isExpanded={(row) => filtering || expanded.has(row.entry.path)}
+          isLoading={(row) => loading.has(row.entry.path)}
+          onRowClick={handleRowClick}
+          onToggleCaret={handleToggleCaret}
+          onContextMenu={handleContextMenu}
+          rightSlot={renderRightSlot}
+          virtualized
+        />
       )}
 
       {menu && (

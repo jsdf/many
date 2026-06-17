@@ -7,8 +7,14 @@ import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import FileEditorTab, { FileData } from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
 import FileConflictModal from "./FileConflictModal";
+import ContextMenu, { ContextMenuItem } from "./ContextMenu";
+import { relativeToRoot } from "../paths";
 
 const SESSIONS_TAB = "__sessions__";
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).catch((err) => console.error("Failed to copy:", err));
+}
 
 interface ProjectsPanelProps {
   project: ProjectNode | null;
@@ -37,6 +43,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   // An unresolved on-disk conflict: the file changed externally while it had
   // unsaved edits. diskContent holds the new on-disk version.
   const [conflict, setConflict] = useState<{ path: string; diskContent: string } | null>(null);
+  // Right-click context menu for an open file's tab handle.
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; file: OpenFile } | null>(null);
   // Live file-content subscriptions, one per open file.
   const fileSubsRef = useRef<Map<string, () => void>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -310,6 +318,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
 
   const active = openFiles.find((f) => f.path === activeFile) ?? null;
 
+  const tabMenuItems = (file: OpenFile): ContextMenuItem[] => [
+    { label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(file.path, project.path)) },
+    { label: "Copy absolute path", onClick: () => copyToClipboard(file.path) },
+  ];
+
   return (
     <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
       <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
@@ -360,6 +373,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                   key={f.path}
                   className={`group flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
                   onClick={() => setActiveFile(f.path)}
+                  onContextMenu={(e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, file: f }); }}
                   title={f.path}
                 >
                   <span className="truncate max-w-[160px]">{f.name}</span>
@@ -426,6 +440,15 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           onKeepMine={resolveKeepMine}
           onReloadDisk={resolveReloadDisk}
           onClose={() => setConflict(null)}
+        />
+      )}
+
+      {tabMenu && (
+        <ContextMenu
+          x={tabMenu.x}
+          y={tabMenu.y}
+          items={tabMenuItems(tabMenu.file)}
+          onClose={() => setTabMenu(null)}
         />
       )}
     </div>

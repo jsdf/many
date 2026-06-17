@@ -340,6 +340,25 @@ export function createQueryHandlers(opts: {
 
       return { ok: true };
     },
+    // --- Folder pinning (Active list) ---
+    "folder.getPinned": async () => {
+      const appData = await loadAppData();
+      return appData.pinnedFolders ?? [];
+    },
+    "folder.setPinned": async (input) => {
+      const { path, pinned } = input as { path: string; pinned: boolean };
+      await withAppData((appData) => {
+        const list = appData.pinnedFolders ?? [];
+        if (pinned && !list.includes(path)) {
+          list.push(path);
+        } else if (!pinned) {
+          const idx = list.indexOf(path);
+          if (idx >= 0) list.splice(idx, 1);
+        }
+        appData.pinnedFolders = list;
+      });
+      return { ok: true };
+    },
     "worktree.getOrder": async (input) => {
       const { repoPath } = input as { repoPath: string };
       const appData = await loadAppData();

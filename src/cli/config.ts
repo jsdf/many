@@ -61,6 +61,7 @@ export interface AppData {
   selectedRepo: string | null;
   recentWorktrees: Record<string, string>;
   starredWorktrees: Record<string, string[]>;
+  pinnedFolders: string[];
   worktreeOrder: Record<string, string[]>;
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, unknown>;
@@ -75,6 +76,7 @@ const defaultAppData: AppData = {
   selectedRepo: null,
   recentWorktrees: {},
   starredWorktrees: {},
+  pinnedFolders: [],
   worktreeOrder: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},

@@ -461,6 +461,15 @@ export interface QueryProcedures {
     input: { path: string };
     output: { ok: boolean };
   };
+  // Folders pinned to the Active list (global, absolute paths).
+  "folder.getPinned": {
+    input: {};
+    output: string[];
+  };
+  "folder.setPinned": {
+    input: { path: string; pinned: boolean };
+    output: { ok: boolean };
+  };
   "repo.getSelected": {
     input: {};
     output: string | null;

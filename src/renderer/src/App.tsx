@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const [worktreeActivity, setWorktreeActivity] = useState<Record<string, { terminals: number; claudeSessions: number }>>({});
   const [starredWorktrees, setStarredWorktrees] = useState<Set<string>>(new Set());
   const [worktreeOrder, setWorktreeOrder] = useState<string[]>([]);
+  const [pinnedFolders, setPinnedFolders] = useState<string[]>([]);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
@@ -156,6 +157,25 @@ const App: React.FC = () => {
     poll();
     const interval = setInterval(poll, 3000);
     return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Load pinned folders once; they persist globally (not per-repo).
+  useEffect(() => {
+    getRpcClient()
+      .query("folder.getPinned", {})
+      .then(setPinnedFolders)
+      .catch((err) => console.error("Failed to load pinned folders:", err));
+  }, []);
+
+  const togglePin = useCallback(async (path: string, pinned: boolean) => {
+    setPinnedFolders((prev) =>
+      pinned ? (prev.includes(path) ? prev : [...prev, path]) : prev.filter((p) => p !== path),
+    );
+    try {
+      await getRpcClient().query("folder.setPinned", { path, pinned });
+    } catch (err) {
+      console.error("Failed to set pinned folder:", err);
+    }
   }, []);
 
   const loadSavedRepos = async () => {
@@ -667,6 +687,8 @@ const App: React.FC = () => {
               }
               projects={projects}
               selectedNode={selectedNode}
+              pinnedFolders={pinnedFolders}
+              onTogglePin={togglePin}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);
