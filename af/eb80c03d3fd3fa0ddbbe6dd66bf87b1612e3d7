@@ -1,0 +1,84 @@
+src/renderer/src/useFsTree.ts
+  s_413ca8668a2b1c::t_dbb45081091ed0 1-154
+src/renderer/src/treeRows.ts
+  s_a9d62775bd1d61::t_c13cbb158f00d5 1-76
+src/renderer/src/components/Sidebar.tsx
+  s_413ca8668a2b1c::t_8b1799bba06214 66-67
+  s_413ca8668a2b1c::t_c1ff98eed1e8fe 748-749
+  s_f4b7bc30bb0268::t_aa2f4fa899ae3d 800-805,822-848
+  s_413ca8668a2b1c::t_b6fc30d3909a56 859-860
+src/renderer/src/paths.ts
+  s_caa3c5b4ecda68::t_d406a3c351d4ac 1-12
+src/shared/protocol.ts
+  s_413ca8668a2b1c::t_1094d9c5150637 464-472
+src/renderer/src/components/ProjectsPanel.tsx
+  s_caa3c5b4ecda68::t_8b58d59777d608 10-11,15-17
+  s_caa3c5b4ecda68::t_2444f4c2c8da2e 376
+  s_caa3c5b4ecda68::t_c544a39757a3e1 46-47
+  s_caa3c5b4ecda68::t_556e10139e454c 321-325
+  s_caa3c5b4ecda68::t_aaf8c6c8144450 445-453
+src/renderer/src/components/FileTree.tsx
+  s_413ca8668a2b1c::t_47c801ab73bda9 1-4,7-8,11,14,16-27,30-34,36-43,45-51,53-85,87-90,92-107,113
+src/renderer/src/treeRows.test.ts
+  s_a9d62775bd1d61::t_60741bb1dd6798 1-92
+src/cli/config.ts
+  s_413ca8668a2b1c::t_1831da47c64a3e 79
+  s_413ca8668a2b1c::t_43bbb8ab11629d 64
+src/renderer/src/App.tsx
+  s_413ca8668a2b1c::t_8ba48c18dcc6fb 690-691
+  s_413ca8668a2b1c::t_fe5d4b817da79d 162-180
+  s_413ca8668a2b1c::t_dd4d96185b31f1 66
+src/renderer/src/components/pinControls.tsx
+  s_413ca8668a2b1c::t_a4e6264ed98de3 1-28
+src/renderer/src/components/ProjectsTab.tsx
+  s_a9d62775bd1d61::t_6bd186bbf24460 8
+  s_a9d62775bd1d61::t_2f86b90b5279ef 229-230
+  s_a9d62775bd1d61::t_37af929ee710ea 295-313
+  s_a9d62775bd1d61::t_8b906b80bfcd0e 360-363
+  s_413ca8668a2b1c::t_8e2415306305ff 1,6-7,9,24-25,36-37,39,45,48,65-71,75-89,91-122,165-171,174-198,201-202,206,212,215-216,354-359,364-365
+  s_caa3c5b4ecda68::t_106226b487e3f4 10-14
+  s_a9d62775bd1d61::t_ad8ec0b08aac50 50-61
+  s_a9d62775bd1d61::t_e93ee18310cdab 232-250,252-254,256-291
+src/web/rpc-handlers.ts
+  s_413ca8668a2b1c::t_19771dd944bc00 343-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "afeb80c03d3fd3fa0ddbbe6dd66bf87b1612e3d7",
+  "prompts": {},
+  "sessions": {
+    "s_413ca8668a2b1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cae0c24b-f4a2-4365-b9bd-9aba47a8ce6b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_a9d62775bd1d61": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81ae161f-a76e-4287-974a-329ac61abdf5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_caa3c5b4ecda68": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87cf889e-9611-4c8c-9c1c-7bbd55cc6f31",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_f4b7bc30bb0268": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22407237-5b89-485e-9c92-c962e8a6bec8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
