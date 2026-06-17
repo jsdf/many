@@ -26,11 +26,10 @@ function projectFor(projects: ProjectEntry[], path: string): ProjectEntry | unde
 // tree and the Active tree; they differ only in which roots they pass in.
 //
 // A path is emitted at most once. The Active tree's roots can nest (e.g. a
-// folder with a live session whose pinned subfolder is also a root), so a
-// descendant root reached while walking an expanded ancestor must not also be
-// rendered as its own top-level row. Roots are sorted ancestor-before-
-// descendant, so the ancestor's walk wins and the redundant root is skipped;
-// when the ancestor is collapsed the descendant root renders normally.
+// folder with a live session whose pinned subfolder is also a root). A folder
+// that is itself a root always renders as its own top-level row, so while
+// walking an expanded ancestor we skip any child that is also a root (and its
+// subtree); it is emitted standalone from the roots loop below.
 export function buildTreeRows(
   roots: FileTreeRow[],
   expanded: Set<string>,
@@ -38,6 +37,7 @@ export function buildTreeRows(
 ): FileTreeRow[] {
   const result: FileTreeRow[] = [];
   const seen = new Set<string>();
+  const rootPaths = new Set(roots.map((r) => r.entry.path));
   const emit = (row: FileTreeRow): boolean => {
     if (seen.has(row.entry.path)) return false;
     seen.add(row.entry.path);
@@ -48,6 +48,8 @@ export function buildTreeRows(
     const entries = childrenByDir.get(dirPath);
     if (!entries) return;
     for (const entry of entries) {
+      // A descendant that is itself a root renders as its own top-level row below.
+      if (rootPaths.has(entry.path)) continue;
       if (!emit({ entry, depth, project, isProject: false })) continue;
       if (entry.isDirectory && expanded.has(entry.path)) {
         walk(entry.path, depth + 1, project);

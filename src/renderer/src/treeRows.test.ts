@@ -79,10 +79,10 @@ describe("buildTreeRows", () => {
     expect(rows.map((r) => r.entry.path)).toEqual(["/repo", "/repo/src"]);
   });
 
-  it("does not duplicate a root that is also a descendant of an expanded root", () => {
+  it("renders a nested root as its own top-level row, not under its expanded ancestor", () => {
     // data-fetching is active and data-fetching/.claude is pinned, so both are
-    // roots. Expanding data-fetching must not also render .claude as its own
-    // top-level row.
+    // roots. Expanding data-fetching must render .claude as a standalone
+    // top-level row, not nested inside data-fetching's subtree.
     const roots = activeRoots(projects, {}, ["/repo/a", "/repo/a/b"]);
     const childrenByDir = new Map<string, FsEntry[]>([
       [
@@ -96,7 +96,9 @@ describe("buildTreeRows", () => {
     const rows = buildTreeRows(roots, new Set(["/repo/a"]), childrenByDir);
     const paths = rows.map((r) => r.entry.path);
     expect(paths.filter((p) => p === "/repo/a/b")).toHaveLength(1);
-    expect(paths).toEqual(["/repo/a", "/repo/a/b", "/repo/a/f.ts"]);
+    // /repo/a/b is a top-level root (depth 0), not a depth-1 child of /repo/a.
+    expect(paths).toEqual(["/repo/a", "/repo/a/f.ts", "/repo/a/b"]);
+    expect(rows.find((r) => r.entry.path === "/repo/a/b")!.depth).toBe(0);
   });
 
   it("shows a nested root at top level when its ancestor root is collapsed", () => {
