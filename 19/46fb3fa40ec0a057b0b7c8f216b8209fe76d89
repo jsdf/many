@@ -1,0 +1,58 @@
+src/renderer/src/components/GlobalSettingsModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 156,164
+src/renderer/src/components/MainContent.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 265
+  s_ac1c2ad1ef437a::t_c81d026e1d462a 275
+src/renderer/src/components/WorktreeDetails.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 507,510
+src/renderer/src/components/RebaseWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 162,167
+src/renderer/src/components/CreateWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 415,424,469
+src/renderer/src/components/ClaudeSessionTab.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 360,383,412,449
+src/renderer/src/components/MergeWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 267,275
+src/renderer/src/components/TrackedPanel.tsx
+  s_ac1c2ad1ef437a::t_80a75708402344 270
+src/renderer/src/components/ArchiveWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 262
+src/renderer/src/components/AddRepoModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 465,474
+src/renderer/src/components/SwitchWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 184,192
+src/renderer/src/components/BranchTypeahead.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 57
+src/renderer/src/components/Sidebar.tsx
+  s_ac1c2ad1ef437a::t_10c21c832f8c41 507
+  s_ac1c2ad1ef437a::t_4ba164b481c54c 513
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 635
+src/renderer/src/theme-sharp.css
+  s_ac1c2ad1ef437a::t_baa76663cf511a 1-14,61-82,86-93,20,23,25,35-36,49,59-60
+  s_ac1c2ad1ef437a::t_47e84c32fd4984 15-19,21-22,24,26-34,37-48,50-58
+  s_ac1c2ad1ef437a::t_cb4eaf22905668 83-85
+src/renderer/src/components/AutomationsModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 161,274,279
+  s_ac1c2ad1ef437a::t_5d5e5b8bc47571 223
+  s_ac1c2ad1ef437a::t_ba2fce2804c479 230
+src/renderer/src/components/ReleaseWorktreeModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 205,224
+src/renderer/src/components/NewTaskModal.tsx
+  s_ac1c2ad1ef437a::t_c4d628599c0c00 196,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1946fb3fa40ec0a057b0b7c8f216b8209fe76d89",
+  "prompts": {},
+  "sessions": {
+    "s_ac1c2ad1ef437a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb538c08-961b-454c-a714-9eb66f027a1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}

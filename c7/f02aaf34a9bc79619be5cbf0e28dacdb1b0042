@@ -1,0 +1,19 @@
+CLAUDE.md
+  s_ac1c2ad1ef437a::t_1e8a3df6a02d1f 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c7f02aaf34a9bc79619be5cbf0e28dacdb1b0042",
+  "prompts": {},
+  "sessions": {
+    "s_ac1c2ad1ef437a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb538c08-961b-454c-a714-9eb66f027a1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
