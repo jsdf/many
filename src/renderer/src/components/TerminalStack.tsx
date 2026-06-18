@@ -259,7 +259,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
 
   return (
     <div className={`flex flex-col ${fixedTerminalHeight ? '' : 'h-full overflow-hidden'}`} ref={containerRef}>
-      <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-200 border-b border-base-300 shrink-0">
+      <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
           <button className="btn btn-soft btn-neutral btn-xs" onClick={() => openClaudeSession()}>
@@ -300,7 +300,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                 : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
               }
             >
-              <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-300 border-b border-base-300 shrink-0">
+              <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
                 <span className="text-xs text-base-content/60 truncate">
                   {term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
                 </span>

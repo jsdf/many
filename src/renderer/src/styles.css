@@ -85,8 +85,8 @@
   --color-primary: oklch(55% 0.3 330.759);
   --color-secondary: oklch(55% 0.2 48.25);
   --color-accent: oklch(55% 0.2 122.962);
-  --color-success: oklch(50% 0.2 158.53);
-  --color-warning: oklch(55% 0.17 100.5);
+  --color-success: oklch(38% 0.13 158.53);
+  --color-warning: oklch(40% 0.11 100.5);
 }
 
 /* xterm terminal overrides */

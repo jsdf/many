@@ -656,7 +656,7 @@ const App: React.FC = () => {
     <div className="flex h-screen">
       {sidebarCollapsed ? (
         isNarrow ? null : (
-          <div className="w-10 shrink-0 bg-base-200 border-r border-base-300 flex flex-col items-center pt-2">
+          <div className="w-10 shrink-0 bg-base-100 border-r border-base-300 flex flex-col items-center pt-2">
             <button
               className="btn btn-ghost btn-sm btn-square"
               onClick={() => setSidebarCollapsed(false)}

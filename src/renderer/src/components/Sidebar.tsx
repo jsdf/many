@@ -764,7 +764,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const hasTaskPools = pools?.some((p) => p.taskCommand) ?? false;
 
   return (
-    <div className="bg-base-200 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
+    <div className="bg-base-100 border-r border-base-300 flex flex-col p-2 h-full overflow-hidden">
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <img src="/many-shodan.png" alt="" className="w-12 h-12" />

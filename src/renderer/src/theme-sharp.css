@@ -84,6 +84,15 @@
    no global conversion here. Destructive buttons (btn-error/btn-warning) stay
    filled for emphasis. */
 
+/* In a .join, every item after the first gets a -1px inline-start margin so
+   neighbors share one border line. That's invisible for solid buttons, but an
+   outline button's colored border gets clipped where the next item paints over
+   the overlap. Lift outline join-items above their neighbors so the full
+   border shows (.join is a flex container, so z-index applies to flex items). */
+.join > .btn-outline {
+  z-index: 1;
+}
+
 /* Solid-filled badges -> outline, mirroring .badge-outline. */
 .badge:not(.badge-outline, .badge-dash, .badge-soft, .badge-ghost) {
   color: var(--badge-color, var(--color-base-content));

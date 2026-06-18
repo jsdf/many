@@ -8,7 +8,7 @@ interface TopBarProps {
 
 export default function TopBar({ sidebarCollapsed, onExpandSidebar, children }: TopBarProps) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-base-200 border-b border-base-300 shrink-0 flex-wrap">
+    <div className="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-300 shrink-0 flex-wrap">
       {sidebarCollapsed && onExpandSidebar && (
         <button
           className="btn btn-ghost btn-sm btn-square"

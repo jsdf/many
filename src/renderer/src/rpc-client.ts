@@ -172,7 +172,9 @@ let client: RpcClient | null = null;
 export function getRpcClient(): RpcClient {
   if (!client) {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("token") ?? "";
+    // In dev the backend always uses the token "dev"; fall back to it so the
+    // app still connects when the URL lacks ?token (e.g. vite bumped the port).
+    const token = params.get("token") ?? (import.meta.env.DEV ? "dev" : "");
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${wsProtocol}//${window.location.host}/ws?token=${token}`;
     client = new RpcClient(url);
