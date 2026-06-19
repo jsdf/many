@@ -24,6 +24,17 @@ async function makeTmpDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "many-test-"));
 }
 
+// Git triggers a detached background `gc`/`maintenance` process after pushes and
+// commits. That process keeps writing into `objects/` after the awaited git
+// command returns, racing afterEach cleanup and causing intermittent
+// "ENOTEMPTY: directory not empty" on `objects`. Disabling auto maintenance
+// stops the background process from being spawned.
+async function disableBackgroundMaintenance(git: ReturnType<typeof simpleGit>): Promise<void> {
+  await git.addConfig("gc.auto", "0");
+  await git.addConfig("maintenance.auto", "false");
+  await git.addConfig("receive.autogc", "0");
+}
+
 async function initBareOriginAndClone(
   tmpDir: string
 ): Promise<{ originPath: string; repoPath: string }> {
@@ -34,12 +45,14 @@ async function initBareOriginAndClone(
   await fs.mkdir(originPath, { recursive: true });
   const originGit = simpleGit(originPath);
   await originGit.init(true);
+  await disableBackgroundMaintenance(originGit);
 
   // Clone it to get a working repo
   await simpleGit(tmpDir).clone(originPath, "repo");
 
   // Make an initial commit so main exists
   const repoGit = simpleGit(repoPath);
+  await disableBackgroundMaintenance(repoGit);
   await fs.writeFile(path.join(repoPath, "file.txt"), "initial");
   await repoGit.add("file.txt");
   await repoGit.commit("initial commit");
@@ -115,7 +128,7 @@ describe("parseWorktreeList", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("lists the main worktree and added worktrees", async () => {
@@ -147,7 +160,7 @@ describe("branchExists", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("returns true for existing branches", async () => {
@@ -169,7 +182,7 @@ describe("checkBranchMerged", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("reports a branch with no extra commits as fully merged", async () => {
@@ -207,7 +220,7 @@ describe("getWorktreeStatus", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("reports clean status when there are no changes", async () => {
@@ -255,7 +268,7 @@ describe("stashChanges", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("stashes modified and untracked files", async () => {
@@ -285,7 +298,7 @@ describe("cleanChanges", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("discards modified files and deletes untracked files", async () => {
@@ -318,7 +331,7 @@ describe("commitChanges", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("stages all changes and creates a commit", async () => {
@@ -345,7 +358,7 @@ describe("removeWorktree", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("removes a worktree directory and cleans up git references", async () => {
@@ -378,7 +391,7 @@ describe("claimWorktree", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("creates a new branch from main when branch does not exist", async () => {
@@ -433,7 +446,7 @@ describe("releaseWorktree", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("switches worktree to tmp branch at main head and preserves feature branch", async () => {
@@ -599,7 +612,7 @@ describe("parseWorktreeList with stale locked worktrees", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("auto-unlocks and prunes a locked worktree whose directory was deleted", async () => {
@@ -613,7 +626,7 @@ describe("parseWorktreeList with stale locked worktrees", () => {
     await git.raw(["worktree", "lock", wtPath]);
 
     // Manually delete the directory (simulating stale state)
-    await fs.rm(wtPath, { recursive: true, force: true });
+    await fs.rm(wtPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 
     // parseWorktreeList should auto-unlock and prune the stale entry
     const worktrees = await parseWorktreeList(repoPath);
