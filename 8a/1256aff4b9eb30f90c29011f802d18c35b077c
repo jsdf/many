@@ -1,0 +1,21 @@
+src/renderer/src/components/AutomationsModal.tsx
+  s_cee2db468d21be::t_7fb6afc9be16e3 40
+  s_cee2db468d21be::t_0ef87c5a96dd3a 82-107
+  s_cee2db468d21be::t_00882fa4663d45 166-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "8a1256aff4b9eb30f90c29011f802d18c35b077c",
+  "prompts": {},
+  "sessions": {
+    "s_cee2db468d21be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5e61800-c4e8-47a6-bacd-70e6449c26d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
