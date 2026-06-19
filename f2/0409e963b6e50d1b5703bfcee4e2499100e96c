@@ -1,0 +1,51 @@
+src/renderer/src/components/ProjectsPanel.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 350,359
+src/renderer/src/components/FileEditorTab.tsx
+  s_1a18bbd29ed56d::t_2a2437114bd3d5 237
+  s_1a18bbd29ed56d::t_147d32a02d5b6f 244
+src/renderer/src/components/FsActionDialog.tsx
+  s_1a18bbd29ed56d::t_14d78d17fc05bb 124
+src/renderer/src/components/TrackedItem.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 63
+src/renderer/src/components/TerminalPanel.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 89
+src/renderer/src/components/AddProjectModal.tsx
+  s_1a18bbd29ed56d::t_d3c807b77d73fd 93
+  s_1a18bbd29ed56d::t_bca320c581b807 80
+src/renderer/src/components/FileConflictModal.tsx
+  s_1a18bbd29ed56d::t_70b62a620bad78 37
+src/renderer/src/components/AddRepoModal.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 261,288,316,359,450
+src/renderer/src/components/ProjectsTab.tsx
+  s_1a18bbd29ed56d::t_c3229b6c646371 387,393
+  s_1a18bbd29ed56d::t_bca320c581b807 454
+src/renderer/src/components/BranchChanges.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 244,251
+src/renderer/src/components/GlobalSettingsModal.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 146
+src/renderer/src/components/MainContent.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 192,203,214,235,245
+src/renderer/src/components/Sidebar.tsx
+  s_1a18bbd29ed56d::t_c3229b6c646371 511,517
+  s_1a18bbd29ed56d::t_bca320c581b807 627,659,785,793,800,808,865
+src/renderer/src/components/TerminalStack.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 265,268,271,284,287
+src/renderer/src/components/WorktreeDetails.tsx
+  s_1a18bbd29ed56d::t_bca320c581b807 302,391,546
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "f20409e963b6e50d1b5703bfcee4e2499100e96c",
+  "prompts": {},
+  "sessions": {
+    "s_1a18bbd29ed56d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f30f29ac-8811-463d-83db-ad0a7400dcb6",
+        "model": "unknown"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
