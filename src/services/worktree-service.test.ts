@@ -18,6 +18,17 @@ async function makeTmpDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "many-svc-test-"));
 }
 
+// Git triggers a detached background `gc`/`maintenance` process after pushes
+// and commits. That process keeps writing into `objects/` after the awaited git
+// command returns, racing the afterEach `fs.rm` and causing intermittent
+// "ENOTEMPTY: directory not empty" on `objects`. Disabling auto maintenance on
+// the test repos stops any background process from being spawned.
+async function disableBackgroundMaintenance(git: ReturnType<typeof simpleGit>): Promise<void> {
+  await git.addConfig("gc.auto", "0");
+  await git.addConfig("maintenance.auto", "false");
+  await git.addConfig("receive.autogc", "0");
+}
+
 async function initBareOriginAndClone(
   tmpDir: string
 ): Promise<{ originPath: string; repoPath: string }> {
@@ -27,10 +38,12 @@ async function initBareOriginAndClone(
   await fs.mkdir(originPath, { recursive: true });
   const originGit = simpleGit(originPath);
   await originGit.init(true);
+  await disableBackgroundMaintenance(originGit);
 
   await simpleGit(tmpDir).clone(originPath, "repo");
 
   const repoGit = simpleGit(repoPath);
+  await disableBackgroundMaintenance(repoGit);
   await fs.writeFile(path.join(repoPath, "file.txt"), "initial");
   await repoGit.add("file.txt");
   await repoGit.commit("initial commit");
@@ -52,7 +65,7 @@ describe("resolveStartingPoint", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("returns a plain branch name as-is after fetching", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
@@ -95,7 +108,7 @@ describe("archiveWorktree", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("removes the worktree directory and git reference", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
@@ -147,7 +160,7 @@ describe("createAndSetupWorktree", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("creates a worktree on a tmp branch", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
@@ -253,7 +266,7 @@ describe("launchTask", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("claims an available worktree in a recyclable pool", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
@@ -366,7 +379,7 @@ describe("findParentBranch", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("returns the branch that current branch forked from", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
@@ -447,7 +460,7 @@ describe("getBranchDiff", () => {
   let tmpDir: string;
 
   beforeEach(async () => { tmpDir = await makeTmpDir(); });
-  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
+  afterEach(async () => { await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
   it("diffs against parent branch, not main", async () => {
     const { repoPath } = await initBareOriginAndClone(tmpDir);
