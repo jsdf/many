@@ -1,0 +1,19 @@
+src/renderer/src/router.ts
+  s_8d3588e826d002::t_bd15a2360e44ef 12,15,17,19,21,23,27-28,40,43-44,46-48,55-56,58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b7a3c45cc7519470616a82618d76b18e2fcc2c15",
+  "prompts": {},
+  "sessions": {
+    "s_8d3588e826d002": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d5bd4f1-09ee-4a83-84cb-e7bcae401193",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
