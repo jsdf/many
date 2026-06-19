@@ -1,4 +1,5 @@
 import React from "react";
+import { GitBranch, Bot, Zap, FolderOpen } from "lucide-react";
 
 const WelcomeScreen: React.FC = () => {
   return (
@@ -8,19 +9,19 @@ const WelcomeScreen: React.FC = () => {
         <p className="text-lg text-base-content/60 mb-10">Manage git worktrees for parallel development with AI tools</p>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-5 mt-10">
           <div className="bg-base-200 border border-base-300 rounded-lg p-5">
-            <h3 className="text-base mb-2">🌿 Multiple Worktrees</h3>
+            <h3 className="text-base mb-2 flex items-center gap-1.5"><GitBranch size={16} /> Multiple Worktrees</h3>
             <p className="text-sm text-base-content/60 leading-snug">Work on different features simultaneously</p>
           </div>
           <div className="bg-base-200 border border-base-300 rounded-lg p-5">
-            <h3 className="text-base mb-2">🤖 AI Integration</h3>
+            <h3 className="text-base mb-2 flex items-center gap-1.5"><Bot size={16} /> AI Integration</h3>
             <p className="text-sm text-base-content/60 leading-snug">Generate branch names from prompts</p>
           </div>
           <div className="bg-base-200 border border-base-300 rounded-lg p-5">
-            <h3 className="text-base mb-2">⚡ Quick Setup</h3>
+            <h3 className="text-base mb-2 flex items-center gap-1.5"><Zap size={16} /> Quick Setup</h3>
             <p className="text-sm text-base-content/60 leading-snug">Create worktrees with a single click</p>
           </div>
           <div className="bg-base-200 border border-base-300 rounded-lg p-5">
-            <h3 className="text-base mb-2">📂 External Tools</h3>
+            <h3 className="text-base mb-2 flex items-center gap-1.5"><FolderOpen size={16} /> External Tools</h3>
             <p className="text-sm text-base-content/60 leading-snug">Open worktrees in your editor or terminal</p>
           </div>
         </div>

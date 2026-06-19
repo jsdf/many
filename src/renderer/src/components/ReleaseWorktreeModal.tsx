@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 import { Worktree, GitStatus, ChangeHandlingOption, formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
 
@@ -112,7 +113,7 @@ const ReleaseWorktreeModal: React.FC<ReleaseWorktreeModalProps> = ({
       <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center p-5 border-b border-base-300">
           <h3 className="text-lg font-semibold m-0">Release Worktree</h3>
-          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>&times;</button>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}><X size={18} /></button>
         </div>
 
         <div className="p-5">

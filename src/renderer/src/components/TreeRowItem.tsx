@@ -1,4 +1,5 @@
 import React from "react";
+import { ChevronDown, ChevronRight, Folder, File, Terminal } from "lucide-react";
 
 export interface TreeRowItemProps {
   name: string;
@@ -44,21 +45,21 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
       onClick={onClick}
     >
       <span
-        className="inline-block w-3 shrink-0 text-base-content/50"
+        className="inline-flex items-center justify-center w-3 shrink-0 text-base-content/50"
         onClick={isDirectory && onToggleCaret ? onToggleCaret : undefined}
       >
-        {isDirectory ? (expanded ? "▾" : "▸") : ""}
+        {isDirectory ? (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
       </span>
-      <span className="shrink-0">{isDirectory ? "📁" : "📄"}</span>
+      <span className="shrink-0 inline-flex items-center text-base-content/60">{isDirectory ? <Folder size={14} /> : <File size={14} />}</span>
       <span className={`ml-1 truncate ${dimmed ? "text-base-content/50" : ""}`}>{name}</span>
       {loading && <span className="loading loading-spinner loading-xs ml-1" />}
     </div>
     {terminalCount ? (
       <span
-        className="text-[10px] text-base-content/60 shrink-0 px-1"
+        className="text-[10px] text-base-content/60 shrink-0 px-1 inline-flex items-center gap-0.5"
         title={`${terminalCount} terminal${terminalCount > 1 ? "s" : ""}`}
       >
-        &gt;_ {terminalCount}
+        <Terminal size={10} /> {terminalCount}
       </span>
     ) : null}
     {rightSlot}

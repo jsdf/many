@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { X } from "lucide-react";
 
 interface FileConflictModalProps {
   fileName: string;
@@ -24,7 +25,7 @@ const FileConflictModal: React.FC<FileConflictModalProps> = ({ fileName, onKeepM
         <div className="flex justify-between items-center p-4 border-b border-base-300">
           <h3 className="text-base font-semibold m-0">File changed on disk</h3>
           <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
-            &times;
+            <X size={18} />
           </button>
         </div>
         <div className="p-4">

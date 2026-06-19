@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 import { Worktree, GitStatus, ChangeHandlingOption, formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
 
@@ -131,7 +132,7 @@ const ArchiveWorktreeModal: React.FC<ArchiveWorktreeModalProps> = ({
           <h3 className="text-lg font-semibold m-0">
             Archive {single ? 'Worktree' : `${worktrees.length} Worktrees`}
           </h3>
-          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>&times;</button>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}><X size={18} /></button>
         </div>
 
         <div className="p-5">

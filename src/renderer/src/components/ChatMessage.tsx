@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ChevronRight } from "lucide-react";
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -97,7 +98,7 @@ function ToolUseSummary({ toolUses, toolOnly }: { toolUses: { name: string; inpu
     return (
       <details className="mb-2 group">
         <summary className="cursor-pointer text-[11px] text-base-content/50 font-mono select-none list-none flex items-center gap-1.5">
-          <span className="text-base-content/30 group-open:rotate-90 transition-transform">{"\u25B6"}</span>
+          <span className="text-base-content/30 group-open:rotate-90 transition-transform inline-flex"><ChevronRight size={12} /></span>
           <span className="px-2 py-0.5 rounded-md bg-base-300">{totalCount} tool use{totalCount !== 1 ? "s" : ""}</span>
           <span className="truncate text-base-content/40">{summaryLabel}</span>
         </summary>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import { Folder, FileEdit, Terminal, Zap, Unlock, Package, GitPullRequest } from "lucide-react";
 import { Worktree, PoolConfig, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -197,7 +198,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               .catch((err) => console.error("[action] openFileManager failed:", err));
           }}
         >
-          📁 Folder
+          <Folder size={14} /> Folder
         </button>
         <button
           className="btn btn-soft btn-neutral btn-sm"
@@ -208,7 +209,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               .catch((err) => console.error("[action] openEditor failed:", err));
           }}
         >
-          📝 Editor
+          <FileEdit size={14} /> Editor
         </button>
         <button
           className="btn btn-soft btn-neutral btn-sm"
@@ -219,14 +220,14 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               .catch((err) => console.error("[action] openTerminal failed:", err));
           }}
         >
-          💻 Terminal
+          <Terminal size={14} /> Terminal
         </button>
         {isTmpBranch(selectedWorktree.branch) && onClaimWorktree && (
           <button
             className="btn btn-soft btn-primary btn-sm"
             onClick={() => onClaimWorktree(selectedWorktree)}
           >
-            ⚡ Claim
+            <Zap size={14} /> Claim
           </button>
         )}
 
@@ -236,7 +237,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             onClick={() => onReleaseWorktree(selectedWorktree)}
             title="Release this worktree back to the pool"
           >
-            🔓 Release
+            <Unlock size={14} /> Release
           </button>
         )}
 
@@ -256,7 +257,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               className="btn btn-warning btn-sm"
               onClick={handleArchive}
             >
-              📦 Archive
+              <Package size={14} /> Archive
             </button>
           )}
 
@@ -278,9 +279,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
               rel="noopener noreferrer"
               style={ghLink ? undefined : { pointerEvents: "none", opacity: 0.5 }}
             >
-              {ghLink?.type === "pr"
-                ? `🔀 PR #${ghLink.url.match(/\/(\d+)$/)?.[1] ?? ""}`
-                : "GitHub"}
+              {ghLink?.type === "pr" ? (
+                <><GitPullRequest size={14} /> PR #{ghLink.url.match(/\/(\d+)$/)?.[1] ?? ""}</>
+              ) : (
+                "GitHub"
+              )}
             </a>
           )}
         </div>

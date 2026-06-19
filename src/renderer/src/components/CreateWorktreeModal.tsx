@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
 import { PoolConfig } from '../types'
 import { getRpcClient } from '../rpc-client'
 import type { StreamEvent } from '../../../shared/protocol'
@@ -241,7 +242,7 @@ const CreateWorktreeModal: React.FC<CreateWorktreeModalProps> = ({ currentRepo, 
       <div className="bg-base-200 border border-base-300 rounded-xl w-[90%] max-w-[500px] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-5 border-b border-base-300">
           <h3 className="text-lg font-semibold m-0">Create New Worktree</h3>
-          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose} disabled={isCreating}>&times;</button>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose} disabled={isCreating}><X size={18} /></button>
         </div>
 
         {!showLog && (

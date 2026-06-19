@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { RepositoryConfig, PoolConfig } from "../types";
 import { getRpcClient } from "../rpc-client";
 
@@ -193,7 +194,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
             {isConfigMode ? "Repository Configuration" : "Add Repository"}
           </h3>
           <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
-            &times;
+            <X size={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>

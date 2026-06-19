@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { getRpcClient } from "../rpc-client";
+import { Settings2, Check, X, ChevronUp, ChevronDown, Brain, AlertTriangle } from "lucide-react";
 import type {
   SessionMessage,
   SessionStatus,
@@ -40,10 +41,10 @@ function ToolCallPill({ toolUse }: { toolUse: ToolUse }) {
   return (
     <div className="my-0.5">
       <button className="btn btn-xs btn-ghost gap-1 font-mono text-xs opacity-70 hover:opacity-100" onClick={() => setOpen((o) => !o)}>
-        <span className="text-accent">⚙</span>
+        <span className="text-accent"><Settings2 size={12} /></span>
         <span>{toolUse.name}</span>
         {text && <span className="opacity-50 max-w-[300px] truncate">{text}</span>}
-        <span className="opacity-40">{open ? "▲" : "▼"}</span>
+        <span className="opacity-40">{open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
       </button>
       {open && (
         <pre className="mt-1 p-2 bg-base-300 rounded text-xs overflow-x-auto max-h-60 overflow-y-auto">
@@ -64,9 +65,9 @@ function ToolResultBlock({ toolResult }: { toolResult: ToolResult }) {
         className={`btn btn-xs btn-ghost gap-1 font-mono text-xs opacity-70 hover:opacity-100 ${toolResult.isError ? "text-error" : "text-success"}`}
         onClick={() => setOpen((o) => !o)}
       >
-        <span>{toolResult.isError ? "✗" : "✓"}</span>
+        <span>{toolResult.isError ? <X size={12} /> : <Check size={12} />}</span>
         <span className="opacity-50 max-w-[400px] truncate">{truncated}</span>
-        {toolResult.output.length > 200 && <span className="opacity-40">{open ? "▲" : "▼"}</span>}
+        {toolResult.output.length > 200 && <span className="opacity-40">{open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>}
       </button>
       {open && (
         <pre className="mt-1 p-2 bg-base-300 rounded text-xs overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap">
@@ -84,7 +85,7 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
     return (
       <div className="my-0.5">
         <button className="btn btn-xs btn-ghost gap-1 text-xs text-base-content/50 opacity-70 hover:opacity-100" onClick={() => setOpen((o) => !o)}>
-          <span>💭</span><span>thinking</span><span className="opacity-40">{open ? "▲" : "▼"}</span>
+          <span><Brain size={12} /></span><span>thinking</span><span className="opacity-40">{open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
         </button>
         {open && <pre className="mt-1 p-2 bg-base-300 rounded text-xs overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap opacity-70">{block.thinking}</pre>}
       </div>
@@ -405,7 +406,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
       {permissionRequest && (
         <div className="border-t border-warning/30 bg-warning/10 p-3 flex flex-col gap-2">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-amber-600">⚠</span>
+            <span className="text-amber-600"><AlertTriangle size={14} /></span>
             <span className="font-medium">{permissionRequest.displayName ?? permissionRequest.toolName}</span>
           </div>
           <div className="flex gap-2">

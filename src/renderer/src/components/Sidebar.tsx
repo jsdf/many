@@ -31,6 +31,7 @@ import {
 } from "../types";
 import { useWorktreeActivityTimes } from "../rpc-hooks";
 import ProjectsTab from "./ProjectsTab";
+import { Settings, ArrowLeft, ArrowRight, ChevronLeft, Star, Circle } from "lucide-react";
 
 function formatRelativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -416,7 +417,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                   onToggleStar(worktree.path);
                 }}
               >
-                {isStarred ? "\u2605" : "\u2606"}
+                <Star size={12} className={isStarred ? "fill-current" : ""} />
               </button>
             )}
             {(termCount > 0 || claudeCount > 0) && (
@@ -434,7 +435,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                     className="text-[10px] text-accent flex items-center gap-0.5"
                     title={`${claudeCount} Claude session${claudeCount > 1 ? "s" : ""}`}
                   >
-                    &#9679; {claudeCount}
+                    <Circle size={8} className="fill-current" /> {claudeCount}
                   </span>
                 )}
               </div>
@@ -785,7 +786,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             className="btn btn-soft btn-neutral btn-sm"
             title="Back"
           >
-            &#x2190;
+            <ArrowLeft size={16} />
           </button>
           <button
             onClick={onForward}
@@ -793,14 +794,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             className="btn btn-soft btn-neutral btn-sm"
             title="Forward"
           >
-            &#x2192;
+            <ArrowRight size={16} />
           </button>
           <button
             onClick={onGlobalSettings}
             className="btn btn-soft btn-neutral btn-sm"
             title="Global settings"
           >
-            &#9881;
+            <Settings size={16} />
           </button>
           {onCollapse && (
             <button
@@ -808,7 +809,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="btn btn-soft btn-neutral btn-sm"
               title="Hide sidebar"
             >
-              &#x2039;
+              <ChevronLeft size={16} />
             </button>
           )}
         </div>
@@ -865,7 +866,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="btn btn-soft btn-neutral btn-sm"
               title="Configure repository settings"
             >
-              ⚙️
+              <Settings size={16} />
             </button>
           )}
         </div>
