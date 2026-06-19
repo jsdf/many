@@ -9,23 +9,23 @@ export type MainPaneView =
   | { type: 'automations' }
   | { type: 'projects' };
 
-function viewToHash(view: MainPaneView): string {
+function viewToPath(view: MainPaneView): string {
   switch (view.type) {
     case 'worktree':
-      return '#/worktree';
+      return '/worktree';
     case 'tracked':
-      return '#/tracked';
+      return '/tracked';
     case 'runningTasks':
-      return '#/running';
+      return '/running';
     case 'automations':
-      return '#/automations';
+      return '/automations';
     case 'projects':
-      return '#/projects';
+      return '/projects';
   }
 }
 
-function hashToView(hash: string): MainPaneView {
-  const path = hash.replace(/^#\/?/, '');
+function pathToView(pathname: string): MainPaneView {
+  const path = pathname.replace(/^\/+/, '');
 
   if (path === 'tracked') return { type: 'tracked' };
   if (path === 'running') return { type: 'runningTasks' };
@@ -37,25 +37,26 @@ function hashToView(hash: string): MainPaneView {
 
 export function useHashRouter() {
   const [view, setViewState] = useState<MainPaneView>(() =>
-    hashToView(window.location.hash)
+    pathToView(window.location.pathname)
   );
 
-  // Navigate to a new view, updating the hash
+  // Navigate to a new view, pushing a history entry. The query string (which
+  // carries the auth token) is preserved across navigations.
   const navigate = useCallback((newView: MainPaneView) => {
-    const newHash = viewToHash(newView);
-    if (window.location.hash !== newHash) {
-      window.location.hash = newHash;
+    const newPath = viewToPath(newView) + window.location.search;
+    if (window.location.pathname + window.location.search !== newPath) {
+      window.history.pushState(null, '', newPath);
     }
     setViewState(newView);
   }, []);
 
   // Listen for back/forward navigation
   useEffect(() => {
-    const onHashChange = () => {
-      setViewState(hashToView(window.location.hash));
+    const onPopState = () => {
+      setViewState(pathToView(window.location.pathname));
     };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   return { view, navigate };
