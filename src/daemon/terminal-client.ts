@@ -280,8 +280,19 @@ export class TerminalManagerClient {
 
   // --- daemon lifecycle controls -------------------------------------------
 
-  /** Number of live PTY sessions across all worktrees. */
+  /**
+   * Whether there is a daemon to talk to. With an explicit socketPath (tests /
+   * manual control) we assume the caller manages it; otherwise we check the
+   * info file so we don't auto-spawn a daemon just to query or shut it down.
+   */
+  private async daemonPresent(): Promise<boolean> {
+    if (this.opts.socketPath) return true;
+    return (await isDaemonRunning()) !== null;
+  }
+
+  /** Number of live PTY sessions across all worktrees (0 if no daemon). */
   async getRunningCount(): Promise<number> {
+    if (!(await this.daemonPresent())) return 0;
     const sessions = await this.listAllSessions();
     return sessions.length;
   }
@@ -295,8 +306,12 @@ export class TerminalManagerClient {
     }
   }
 
-  /** Ask the daemon to kill all PTYs and exit. */
+  /** Ask the daemon to kill all PTYs and exit. No-op if no daemon is running. */
   async shutdownDaemon(): Promise<void> {
+    if (!(await this.daemonPresent())) {
+      this.closed = true;
+      return;
+    }
     try {
       await this.request({ reqId: this.newReqId(), op: "shutdown" });
     } catch {

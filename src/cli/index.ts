@@ -1592,6 +1592,10 @@ ${bold("WEB UI:")}
   many web                     # Start the web UI and open in browser
   many web --port 8080         # Use a specific port
   many web --no-open           # Don't open browser automatically
+
+${bold("TERMINAL DAEMON:")}
+  many daemon                  # Show the terminal daemon status + running terminals
+  many daemon stop             # Stop the daemon (prompts if terminals are running)
 `);
 }
 
@@ -1628,7 +1632,93 @@ async function cmdWeb(args: string[]): Promise<void> {
 
   // Dynamic import to avoid loading web server dependencies for other commands
   const { startWebServer } = await import("../web/server.js");
-  await startWebServer({ port, host, open, token });
+  // handleSignals:false so we can prompt before killing terminals on Ctrl+C
+  // instead of letting the server's default handler decide silently.
+  const server = await startWebServer({ port, host, open, token, handleSignals: false });
+
+  let handlingExit = false;
+  const onSigint = async () => {
+    if (handlingExit) {
+      // Second Ctrl+C: force exit, leaving the daemon as-is.
+      process.exit(0);
+    }
+    handlingExit = true;
+    let killTerminals = false;
+    try {
+      const count = await server.getRunningTerminalCount();
+      if (count > 0) {
+        console.log();
+        killTerminals = await confirm(
+          `${count} terminal process${count === 1 ? " is" : "es are"} still running in the daemon. Also shut ${count === 1 ? "it" : "them"} down?`
+        );
+      }
+    } catch {
+      // daemon unreachable; nothing running to prompt about
+    }
+    await server.shutdown({ killTerminals });
+    if (killTerminals) console.log(dim("Terminal daemon shut down."));
+    else console.log(dim("Server stopped; terminal daemon left running."));
+    process.exit(0);
+  };
+  process.on("SIGINT", () => { onSigint().catch(() => process.exit(1)); });
+  // SIGTERM: graceful, never prompt — leave the daemon running if terminals exist.
+  process.on("SIGTERM", () => { server.shutdown().then(() => process.exit(0)); });
+}
+
+async function cmdDaemon(subcommand: string | null): Promise<void> {
+  const { isDaemonRunning } = await import("../daemon/daemon-lifecycle.js");
+  const { TerminalManagerClient } = await import("../daemon/terminal-client.js");
+
+  if (subcommand === "stop") {
+    const info = await isDaemonRunning();
+    if (!info) {
+      console.log(dim("Terminal daemon is not running."));
+      return;
+    }
+    const client = new TerminalManagerClient({ autoSpawn: false });
+    let count = 0;
+    try {
+      count = await client.getRunningCount();
+    } catch {
+      // proceed; we'll still attempt shutdown
+    }
+    if (count > 0) {
+      const ok = await confirm(
+        `${count} terminal process${count === 1 ? " is" : "es are"} running. Stop the daemon and kill ${count === 1 ? "it" : "them"}?`
+      );
+      if (!ok) {
+        console.log(dim("Left the daemon running."));
+        return;
+      }
+    }
+    await client.shutdownDaemon();
+    console.log(green("Terminal daemon stopped."));
+    return;
+  }
+
+  // default: status
+  const info = await isDaemonRunning();
+  if (!info) {
+    console.log(dim("Terminal daemon is not running."));
+    return;
+  }
+  console.log(bold("Terminal daemon"));
+  console.log(`  pid:        ${info.pid}`);
+  console.log(`  socket:     ${info.socketPath}`);
+  console.log(`  version:    ${info.version}`);
+  console.log(`  started at: ${info.startedAt}`);
+  const client = new TerminalManagerClient({ autoSpawn: false });
+  try {
+    const sessions = await client.listAllSessions();
+    console.log(`  terminals:  ${sessions.length}`);
+    for (const s of sessions) {
+      console.log(`    - ${s.terminalId} ${dim(s.worktreePath)}`);
+    }
+  } catch {
+    console.log(dim("  (could not query running terminals)"));
+  } finally {
+    client.disconnect();
+  }
 }
 
 function getVersion(): string {
@@ -1712,6 +1802,10 @@ async function main(): Promise<void> {
 
       case "web":
         await cmdWeb(rawArgs.slice(1));
+        break;
+
+      case "daemon":
+        await cmdDaemon(positional[1] || null);
         break;
 
       case "help":
