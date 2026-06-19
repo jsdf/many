@@ -36,8 +36,10 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   pinnedFolders,
   onTogglePin,
 }) => {
-  const { expanded, childrenByDir, loading, expandDir, expandPath, handleToggleDir } = useFsTree();
+  const { expanded, childrenByDir, loading, toggleDir, expandDir, expandPath } = useFsTree();
   const [filter, setFilter] = useState("");
+  const query = filter.trim().toLowerCase();
+  const filtering = query.length > 0;
   // Server-side search results, keyed by parent dir, used while filtering.
   const [searchChildren, setSearchChildren] = useState<Map<string, FsEntry[]>>(new Map());
   const [searching, setSearching] = useState(false);
@@ -129,14 +131,28 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     [projects],
   );
 
+  // Toggle a directory's expansion. Collapsing just drops the dir. Expanding
+  // records the full ancestor chain only while filtering (so the dir stays
+  // reachable once the filter clears); otherwise a single dir, since ancestors
+  // are already open. Chaining up to the project root would wrongly expand a
+  // containing pinned folder that hosts this one as a nested Active-tree root.
+  const toggleNode = useCallback(
+    (dirPath: string, projectPath: string) => {
+      if (expanded.has(dirPath)) toggleDir(dirPath);
+      else if (filtering) expandPath(dirPath, projectPath);
+      else expandDir(dirPath);
+    },
+    [expanded, toggleDir, expandDir, expandPath, filtering],
+  );
+
   // Clicking a directory title selects it and toggles its expansion, so the
   // title behaves like the caret.
   const handleClickNode = useCallback(
     (node: ProjectNode, projectPath: string) => {
       onSelectNode(node);
-      handleToggleDir(node.path, projectPath);
+      toggleNode(node.path, projectPath);
     },
-    [onSelectNode, handleToggleDir],
+    [onSelectNode, toggleNode],
   );
 
   // Opening a file first switches the panel to its containing directory, then
@@ -190,9 +206,6 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     },
     [pinned, onTogglePin],
   );
-
-  const query = filter.trim().toLowerCase();
-  const filtering = query.length > 0;
 
   // Run a server-side recursive search (debounced) when filtering, and store
   // the matched subtree separately so the browse cache stays intact.
@@ -327,9 +340,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       const project = row.project;
       if (!project) return;
       e.stopPropagation();
-      handleToggleDir(row.entry.path, project.path);
+      toggleNode(row.entry.path, project.path);
     },
-    [handleToggleDir],
+    [toggleNode],
   );
 
   const handleContextMenu = useCallback((row: FileTreeRow, e: React.MouseEvent) => {
