@@ -33,10 +33,32 @@ class RpcClient {
   private url: string;
   private destroyed = false;
   private hasConnected = false;
+  private connected = false;
+  private connectionListeners = new Set<(connected: boolean) => void>();
 
   constructor(url: string) {
     this.url = url;
     this.connect();
+  }
+
+  /**
+   * Subscribe to connection state changes. Fires immediately with the current
+   * state, then on every connect/disconnect. Returns an unsubscribe function.
+   */
+  onConnectionChange(listener: (connected: boolean) => void): () => void {
+    this.connectionListeners.add(listener);
+    listener(this.connected);
+    return () => {
+      this.connectionListeners.delete(listener);
+    };
+  }
+
+  private setConnected(connected: boolean): void {
+    if (this.connected === connected) return;
+    this.connected = connected;
+    for (const listener of this.connectionListeners) {
+      listener(connected);
+    }
   }
 
   query<K extends QueryProcedure>(
@@ -105,6 +127,7 @@ class RpcClient {
         }
       }
       this.hasConnected = true;
+      this.setConnected(true);
       // Flush queued messages in original order
       const queued = this.sendQueue.splice(0);
       for (const msg of queued) {
@@ -122,6 +145,7 @@ class RpcClient {
     };
 
     this.ws.onclose = () => {
+      this.setConnected(false);
       if (!this.destroyed) {
         this.reconnectTimer = setTimeout(() => this.connect(), 1000);
       }

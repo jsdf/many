@@ -81,6 +81,20 @@ export function useQuery<K extends QueryProcedure>(
 }
 
 /**
+ * Track whether the RPC client is currently connected to the backend.
+ * Starts true to avoid a flash of the banner before the first connect.
+ */
+export function useConnectionStatus(): boolean {
+  const [connected, setConnected] = useState(true);
+
+  useEffect(() => {
+    return getRpcClient().onConnectionChange(setConnected);
+  }, []);
+
+  return connected;
+}
+
+/**
  * Subscribe to live worktree updates for a repository.
  * Drop-in replacement for the old useWorktreeSubscription hook.
  */
