@@ -280,9 +280,14 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         {!hasTerminals && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60" style={fixedTerminalHeight ? { height: fixedTerminalHeight } : undefined}>
             <p>No terminals open</p>
-            <button className="btn btn-soft btn-neutral" onClick={createTerminal}>
-              + New Terminal
-            </button>
+            <div className="flex gap-2">
+              <button className="btn btn-soft btn-neutral" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
+                + Claude Code
+              </button>
+              <button className="btn btn-soft btn-neutral" onClick={createTerminal}>
+                + New Terminal
+              </button>
+            </div>
           </div>
         )}
         {terminals.map((term, i) => (
