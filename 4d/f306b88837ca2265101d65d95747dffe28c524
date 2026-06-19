@@ -1,0 +1,20 @@
+src/shared/git-core.test.ts
+  s_c73be1330a0180::t_417902d057cf49 27-37
+  s_c73be1330a0180::t_755ad04892df18 48,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4df306b88837ca2265101d65d95747dffe28c524",
+  "prompts": {},
+  "sessions": {
+    "s_c73be1330a0180": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d65e115-1469-441a-82eb-f006766c605a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
