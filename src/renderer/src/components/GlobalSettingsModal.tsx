@@ -144,7 +144,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
                   <label className="block mb-2 text-sm font-medium">Repositories:</label>
                   <button
                     type="button"
-                    className="btn btn-soft btn-neutral btn-sm"
+                    className="btn btn-outline btn-neutral btn-sm"
                     onClick={() => { onClose(); onAddRepo(); }}
                   >
                     + Add Repo

@@ -122,7 +122,7 @@ const FsActionDialog: React.FC<FsActionDialogProps> = ({ action, onClose, onReve
             {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
           </div>
           <div className="flex justify-end gap-3 p-4 border-t border-base-300">
-            <button type="button" className="btn btn-neutral btn-sm" onClick={onClose} disabled={busy}>
+            <button type="button" className="btn btn-outline btn-neutral btn-sm" onClick={onClose} disabled={busy}>
               Cancel
             </button>
             <button

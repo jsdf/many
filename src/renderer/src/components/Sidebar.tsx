@@ -509,13 +509,13 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
           <>
             <div className="join w-full mb-2 px-1">
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-outline btn-primary' : 'btn-soft'}`}
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-outline btn-primary' : 'btn-outline btn-neutral'}`}
                 onClick={() => setSortMode('pool')}
               >
                 By pool
               </button>
               <button
-                className={`join-item btn btn-xs flex-1 ${sortMode === 'date' ? 'btn-outline btn-primary' : 'btn-soft'}`}
+                className={`join-item btn btn-xs flex-1 ${sortMode === 'date' ? 'btn-outline btn-primary' : 'btn-outline btn-neutral'}`}
                 onClick={() => setSortMode('date')}
               >
                 By date
@@ -625,7 +625,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               Selected
             </button>
             <button
-              className="btn btn-soft btn-neutral w-full"
+              className="btn btn-outline btn-neutral w-full"
               onClick={exitMultiSelect}
             >
               Cancel
@@ -657,7 +657,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                   data-testid="switch-worktree-button"
                   onClick={onSwitchWorktree}
                   disabled={!currentRepo}
-                  className="btn btn-soft btn-neutral w-full"
+                  className="btn btn-outline btn-neutral w-full"
                   title="Claim an available worktree for a branch"
                 >
                   Switch Branch
@@ -783,7 +783,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onBack}
             disabled={!canBack}
-            className="btn btn-soft btn-neutral btn-sm"
+            className="btn btn-outline btn-neutral btn-sm"
             title="Back"
           >
             <ArrowLeft size={16} />
@@ -791,14 +791,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onForward}
             disabled={!canForward}
-            className="btn btn-soft btn-neutral btn-sm"
+            className="btn btn-outline btn-neutral btn-sm"
             title="Forward"
           >
             <ArrowRight size={16} />
           </button>
           <button
             onClick={onGlobalSettings}
-            className="btn btn-soft btn-neutral btn-sm"
+            className="btn btn-outline btn-neutral btn-sm"
             title="Global settings"
           >
             <Settings size={16} />
@@ -806,7 +806,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           {onCollapse && (
             <button
               onClick={onCollapse}
-              className="btn btn-soft btn-neutral btn-sm"
+              className="btn btn-outline btn-neutral btn-sm"
               title="Hide sidebar"
             >
               <ChevronLeft size={16} />
@@ -863,7 +863,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <button
               data-testid="repo-config-button"
               onClick={onConfigRepo}
-              className="btn btn-soft btn-neutral btn-sm"
+              className="btn btn-outline btn-neutral btn-sm"
               title="Configure repository settings"
             >
               <Settings size={16} />

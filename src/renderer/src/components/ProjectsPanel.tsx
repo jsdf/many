@@ -348,7 +348,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           <span className="block text-xs text-base-content/50 leading-tight" title={project.path}>{project.path}</span>
         </div>
         <button
-          className="btn btn-soft btn-neutral btn-sm"
+          className="btn btn-outline btn-neutral btn-sm"
           onClick={() => {
             getRpcClient().query("action.openDirectory", { path: project.path })
               .catch((err) => console.error("[action] openDirectory failed:", err));
@@ -357,7 +357,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           <Folder size={14} /> Folder
         </button>
         <button
-          className="btn btn-soft btn-neutral btn-sm"
+          className="btn btn-outline btn-neutral btn-sm"
           onClick={() => {
             getRpcClient().query("action.openTerminalInDir", { path: project.path })
               .catch((err) => console.error("[action] openTerminalInDir failed:", err));

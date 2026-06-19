@@ -78,7 +78,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd }) => 
               <button
                 type="button"
                 data-testid="browse-folder-button"
-                className="btn btn-soft btn-neutral"
+                className="btn btn-outline btn-neutral"
                 onClick={handleBrowse}
                 disabled={isLoading}
               >
@@ -91,7 +91,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd }) => 
             {error && <p className="text-error text-sm mt-2 p-2 bg-error/10 rounded">{error}</p>}
           </div>
           <div className="flex justify-end gap-3 p-5 border-t border-base-300">
-            <button type="button" className="btn btn-neutral" onClick={onClose} disabled={isLoading}>
+            <button type="button" className="btn btn-outline btn-neutral" onClick={onClose} disabled={isLoading}>
               Cancel
             </button>
             <button type="submit" data-testid="add-project-submit" className="btn btn-primary" disabled={isLoading || !projectPath.trim()}>

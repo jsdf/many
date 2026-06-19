@@ -263,13 +263,13 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
-          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => openClaudeSession()}>
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={() => openClaudeSession()}>
             + Chat
           </button>
-          <button className="btn btn-soft btn-neutral btn-xs" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
             + Claude Code
           </button>
-          <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
             + New
           </button>
         </div>
@@ -282,10 +282,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60" style={fixedTerminalHeight ? { height: fixedTerminalHeight } : undefined}>
             <p>No terminals open</p>
             <div className="flex gap-2">
-              <button className="btn btn-soft btn-neutral" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
+              <button className="btn btn-outline btn-neutral" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
                 + Claude Code
               </button>
-              <button className="btn btn-soft btn-neutral" onClick={createTerminal}>
+              <button className="btn btn-outline btn-neutral" onClick={createTerminal}>
                 + New Terminal
               </button>
             </div>

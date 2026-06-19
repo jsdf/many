@@ -234,14 +234,14 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, data, onChange,
       {markdown && (
         <div className="absolute top-2 right-2 z-10 join shadow-md">
           <button
-            className={`join-item btn btn-xs ${mode === "wysiwyg" ? "btn-primary" : "btn-neutral"}`}
+            className={`join-item btn btn-xs ${mode === "wysiwyg" ? "btn-primary" : "btn-outline btn-neutral"}`}
             title="WYSIWYG"
             onClick={() => setMode("wysiwyg")}
           >
             {WysiwygIcon}
           </button>
           <button
-            className={`join-item btn btn-xs ${mode === "code" ? "btn-primary" : "btn-neutral"}`}
+            className={`join-item btn btn-xs ${mode === "code" ? "btn-primary" : "btn-outline btn-neutral"}`}
             title="Source"
             onClick={() => setMode("code")}
           >

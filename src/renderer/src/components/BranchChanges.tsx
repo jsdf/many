@@ -242,14 +242,14 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
         {!collapsed && (
           <div className="flex gap-2">
             <button
-              className="btn btn-soft btn-neutral btn-sm"
+              className="btn btn-outline btn-neutral btn-sm"
               onClick={toggleDiffStyle}
               title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
             >
               {diffStyle === "unified" ? "Split" : "Unified"}
             </button>
             <button
-              className="btn btn-soft btn-neutral btn-sm"
+              className="btn btn-outline btn-neutral btn-sm"
               onClick={() => setRefreshKey((k) => k + 1)}
             >
               Refresh
