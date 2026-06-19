@@ -741,6 +741,7 @@ const App: React.FC = () => {
                 setMainPaneView({ type: 'projects' });
               }}
               onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
+              onOpenWorktreeFile={(file: OpenFile) => mainContentRef.current?.openFile(file)}
               onAddProject={() => setShowAddProjectModal(true)}
               onRemoveProject={handleRemoveProject}
               onAutomationsSubViewChange={(view: AutomationsSubView) => {
