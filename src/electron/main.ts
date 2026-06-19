@@ -1,9 +1,12 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, dialog } from "electron";
 import crypto from "crypto";
 import { loadAppData, withAppData } from "../cli/config.js";
+import type { WebServerResult } from "../web/server.js";
 
 let mainWindow: BrowserWindow | null = null;
 let serverUrl: string | null = null;
+let webServer: WebServerResult | null = null;
+let isQuitting = false;
 let saveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function createWindow(url: string) {
@@ -79,7 +82,10 @@ app.whenReady().then(async () => {
     const { startWebServer } = await import("../web/server.js");
 
     const token = crypto.randomBytes(24).toString("hex");
-    const result = await startWebServer({ port: 0, open: false, token });
+    // handleSignals:false — we drive shutdown from the before-quit handler so we
+    // can show a native dialog before killing any running terminals.
+    const result = await startWebServer({ port: 0, open: false, token, handleSignals: false });
+    webServer = result;
     serverUrl = result.url;
 
     await createWindow(serverUrl);
@@ -91,6 +97,42 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   app.quit();
+});
+
+// PTYs live in the detached terminal daemon and survive this app quitting. Ask
+// the user whether to also shut them down when any are still running; otherwise
+// shut the daemon down silently (nothing to lose).
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
+  event.preventDefault();
+  isQuitting = true;
+
+  void (async () => {
+    let killTerminals = false;
+    try {
+      const count = (await webServer?.getRunningTerminalCount()) ?? 0;
+      if (count > 0) {
+        const { response } = await dialog.showMessageBox({
+          type: "question",
+          buttons: ["Leave Running", "Shut Down Terminals"],
+          defaultId: 0,
+          cancelId: 0,
+          message: `${count} terminal process${count === 1 ? " is" : "es are"} still running.`,
+          detail:
+            "Leave them running in the background (the app can reconnect next launch), or shut them down now?",
+        });
+        killTerminals = response === 1;
+      }
+    } catch {
+      // daemon unreachable; nothing to prompt about
+    }
+    try {
+      await webServer?.shutdown({ killTerminals });
+    } catch {
+      // best-effort
+    }
+    app.quit();
+  })();
 });
 
 app.on("activate", () => {
