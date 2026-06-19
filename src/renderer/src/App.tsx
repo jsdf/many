@@ -21,7 +21,8 @@ import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
 import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { getRpcClient } from "./rpc-client";
-import { useWorktreeSubscription } from "./rpc-hooks";
+import { useWorktreeSubscription, useConnectionStatus } from "./rpc-hooks";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 import type { StreamEvent } from "../../shared/protocol";
 import type { TaskLaunchState } from "./components/NewTaskModal";
 
@@ -703,8 +704,12 @@ const App: React.FC = () => {
     setWorktreeToRelease(null);
   };
 
+  const connectionStatus = useConnectionStatus();
+
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-col h-screen">
+      <ConnectionBanner status={connectionStatus} />
+      <div className="flex flex-1 min-h-0">
       {sidebarCollapsed ? (
         isNarrow ? null : (
           <div className="w-10 shrink-0 bg-base-100 border-r border-base-300 flex flex-col items-center pt-2">
@@ -992,6 +997,7 @@ const App: React.FC = () => {
         />
       )}
 
+      </div>
     </div>
   );
 };

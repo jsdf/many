@@ -23,6 +23,13 @@ type ActiveSubscription = {
   callback: (data: unknown) => void;
 };
 
+/**
+ * - connected: WebSocket is open and usable.
+ * - disconnected: connection dropped; the client is auto-reconnecting.
+ * - unauthorized: server rejected the token (4001); reconnecting won't help.
+ */
+export type ConnectionStatus = "connected" | "disconnected" | "unauthorized";
+
 class RpcClient {
   private ws: WebSocket | null = null;
   private nextId = 1;
@@ -33,10 +40,32 @@ class RpcClient {
   private url: string;
   private destroyed = false;
   private hasConnected = false;
+  private status: ConnectionStatus = "disconnected";
+  private connectionListeners = new Set<(status: ConnectionStatus) => void>();
 
   constructor(url: string) {
     this.url = url;
     this.connect();
+  }
+
+  /**
+   * Subscribe to connection state changes. Fires immediately with the current
+   * state, then on every status change. Returns an unsubscribe function.
+   */
+  onConnectionChange(listener: (status: ConnectionStatus) => void): () => void {
+    this.connectionListeners.add(listener);
+    listener(this.status);
+    return () => {
+      this.connectionListeners.delete(listener);
+    };
+  }
+
+  private setStatus(status: ConnectionStatus): void {
+    if (this.status === status) return;
+    this.status = status;
+    for (const listener of this.connectionListeners) {
+      listener(status);
+    }
   }
 
   query<K extends QueryProcedure>(
@@ -105,6 +134,7 @@ class RpcClient {
         }
       }
       this.hasConnected = true;
+      this.setStatus("connected");
       // Flush queued messages in original order
       const queued = this.sendQueue.splice(0);
       for (const msg of queued) {
@@ -121,7 +151,14 @@ class RpcClient {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
+      // 4001 = Unauthorized (bad/missing token). Reconnecting can never succeed,
+      // so stop retrying and leave the banner up instead of flickering on a loop.
+      if (event.code === 4001) {
+        this.setStatus("unauthorized");
+        return;
+      }
+      this.setStatus("disconnected");
       if (!this.destroyed) {
         this.reconnectTimer = setTimeout(() => this.connect(), 1000);
       }
