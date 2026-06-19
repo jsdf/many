@@ -430,10 +430,10 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                         onClick={() => onSelectNode({ name: baseName(t.worktreePath), path: t.worktreePath })}
                       >
                         <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">&gt;_</span>
-                        <span className="flex-1 truncate">{t.title || "Terminal"}</span>
-                        <span className="ml-2 shrink-0 max-w-[45%] truncate text-base-content/50">
+                        <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
                           {baseName(t.worktreePath)}
                         </span>
+                        <span className="flex-1 truncate">{t.title || "Terminal"}</span>
                       </div>
                     );
                   })
