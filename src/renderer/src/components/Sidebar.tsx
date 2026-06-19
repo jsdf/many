@@ -361,6 +361,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
     return (
       <div
+        key={worktree.path}
         data-testid={`worktree-item-${worktree.branch || "main"}`}
         className={`group px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
           isDragOverlay
