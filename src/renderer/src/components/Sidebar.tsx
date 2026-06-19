@@ -31,7 +31,7 @@ import {
 } from "../types";
 import { useWorktreeActivityTimes } from "../rpc-hooks";
 import ProjectsTab from "./ProjectsTab";
-import { Settings, ArrowLeft, ArrowRight, ChevronLeft, Star, Circle } from "lucide-react";
+import { Settings, ChevronLeft, Star, Circle } from "lucide-react";
 
 function formatRelativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -86,10 +86,6 @@ interface SidebarProps {
   onReorderWorktrees: (orderedPaths: string[]) => void;
   onGlobalSettings: () => void;
   onCollapse?: () => void;
-  onBack?: () => void;
-  onForward?: () => void;
-  canBack?: boolean;
-  canForward?: boolean;
 }
 
 interface PoolGroup {
@@ -766,10 +762,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onReorderWorktrees,
   onGlobalSettings,
   onCollapse,
-  onBack,
-  onForward,
-  canBack,
-  canForward,
 }) => {
   const hasTaskPools = pools?.some((p) => p.taskCommand) ?? false;
 
@@ -781,22 +773,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="text-lg font-semibold">Many</h2>
         </div>
         <div className="flex gap-1.5">
-          <button
-            onClick={onBack}
-            disabled={!canBack}
-            className="btn btn-outline btn-neutral btn-sm"
-            title="Back"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <button
-            onClick={onForward}
-            disabled={!canForward}
-            className="btn btn-outline btn-neutral btn-sm"
-            title="Forward"
-          >
-            <ArrowRight size={16} />
-          </button>
           <button
             onClick={onGlobalSettings}
             className="btn btn-outline btn-neutral btn-sm"

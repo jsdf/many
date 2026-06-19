@@ -11,6 +11,7 @@ import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
 import { useHashRouter, useNavHistory, NavState } from "./router";
+import { NavContext } from "./nav-context";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import AddProjectModal from "./components/AddProjectModal";
@@ -704,6 +705,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <NavContext.Provider value={{ onBack: goBack, onForward: goForward, canBack: navHistory.canBack, canForward: navHistory.canForward }}>
     <div className="flex h-screen">
       {sidebarCollapsed ? (
         isNarrow ? null : (
@@ -769,10 +771,6 @@ const App: React.FC = () => {
               onReorderWorktrees={handleReorderWorktrees}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
-              onBack={goBack}
-              onForward={goForward}
-              canBack={navHistory.canBack}
-              canForward={navHistory.canForward}
             />
           </div>
           <div
@@ -993,6 +991,7 @@ const App: React.FC = () => {
       )}
 
     </div>
+    </NavContext.Provider>
   );
 };
 
