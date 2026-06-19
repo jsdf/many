@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { X } from "lucide-react";
 import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
@@ -361,7 +362,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             if (row.project) onRemoveProject(row.project);
           }}
         >
-          ×
+          <X size={12} />
         </button>
       ) : row.entry.isDirectory ? (
         <PinToggle
@@ -473,7 +474,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               title="Clear filter"
               onClick={() => setFilter("")}
             >
-              ×
+              <X size={12} />
             </button>
           ) : null}
         </div>

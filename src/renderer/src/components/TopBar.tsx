@@ -1,4 +1,5 @@
 import React from "react";
+import { Menu } from "lucide-react";
 
 interface TopBarProps {
   sidebarCollapsed?: boolean;
@@ -15,7 +16,7 @@ export default function TopBar({ sidebarCollapsed, onExpandSidebar, children }: 
           onClick={onExpandSidebar}
           title="Show sidebar"
         >
-          &#9776;
+          <Menu size={16} />
         </button>
       )}
       {children}

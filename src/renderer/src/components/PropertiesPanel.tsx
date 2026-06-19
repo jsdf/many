@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { X } from "lucide-react";
 import { PropertyValue } from "../frontmatter";
 
 type PropType = "text" | "number" | "checkbox" | "list";
@@ -83,7 +84,7 @@ function ListEditor({ values, onChange }: { values: string[]; onChange: (next: s
             title="Remove"
             onClick={() => onChange(values.filter((_, j) => j !== i))}
           >
-            ×
+            <X size={12} />
           </button>
         </span>
       ))}
@@ -176,7 +177,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ initialProperties, on
                 title="Remove property"
                 onClick={() => removeRow(row.id)}
               >
-                ×
+                <X size={12} />
               </button>
             </div>
           ))}

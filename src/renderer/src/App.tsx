@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Menu } from "lucide-react";
 import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, ProjectNode, OpenFile, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
@@ -695,7 +696,7 @@ const App: React.FC = () => {
               onClick={() => setSidebarCollapsed(false)}
               title="Show sidebar"
             >
-              &#9776;
+              <Menu size={16} />
             </button>
           </div>
         )

@@ -1,4 +1,5 @@
 import React from "react";
+import { Pin } from "lucide-react";
 import { ContextMenuItem } from "./ContextMenu";
 
 // Hover-revealed pin toggle for a directory row. Stays visible (in primary
@@ -19,7 +20,7 @@ export const PinToggle: React.FC<{ pinned: boolean; onToggle: () => void }> = ({
       onToggle();
     }}
   >
-    📌
+    <Pin size={12} className={pinned ? "fill-current" : ""} />
   </button>
 );
 

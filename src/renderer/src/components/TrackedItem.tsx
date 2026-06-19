@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
 import TrackedSteps from './TrackedSteps'
+import { GripVertical, ChevronDown, ChevronRight, ArrowUpToLine, X } from 'lucide-react'
 
 export interface TrackedItemProps {
   branch: string
@@ -47,13 +48,13 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
           title="Drag to reorder"
           {...dragHandleProps}
         >
-          &#x2630;
+          <GripVertical size={14} />
         </span>
         <span
-          className="text-base-content/40 text-xs w-4 shrink-0 cursor-pointer select-none"
+          className="text-base-content/40 text-xs w-4 shrink-0 cursor-pointer select-none inline-flex items-center justify-center"
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? '\u25BC' : '\u25B6'}
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
         <span className="font-semibold text-sm flex-1 min-w-0 truncate select-text cursor-text" title={displayBranch}>
           {displayBranch}
@@ -100,7 +101,7 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
             title="Move to top"
             onClick={() => onMoveToTop(branch)}
           >
-            &#x21E7;
+            <ArrowUpToLine size={14} />
           </button>
         )}
         <button
@@ -108,7 +109,7 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
           title="Remove from tracked"
           onClick={() => onRemove(branch)}
         >
-          &times;
+          <X size={14} />
         </button>
       </div>
       {expanded && notesLoaded && (

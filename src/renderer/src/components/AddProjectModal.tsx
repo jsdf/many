@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 
 interface AddProjectModalProps {
@@ -56,7 +57,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd }) => 
         <div className="flex justify-between items-center p-5 border-b border-base-300">
           <h3 className="text-lg font-semibold m-0">Add Project</h3>
           <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>
-            &times;
+            <X size={18} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>

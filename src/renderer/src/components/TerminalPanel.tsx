@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
+import { ChevronRight, ChevronDown, X } from "lucide-react";
 
 interface TerminalPanelProps {
   worktreePath: string;
@@ -82,7 +83,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
               onClick={() => setIsCollapsed(!isCollapsed)}
               title={isCollapsed ? "Expand terminal" : "Collapse terminal"}
             >
-              {isCollapsed ? "▶" : "▼"} Terminal
+              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />} Terminal
             </button>
           )}
           {!hasTerminals && <span className="text-sm text-base-content/60">Terminal</span>}
@@ -112,7 +113,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
                   }}
                   title="Close terminal"
                 >
-                  ×
+                  <X size={14} />
                 </button>
               </div>
             ))}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { getRpcClient } from "../rpc-client";
+import { ChevronRight, ChevronDown } from "lucide-react";
 
 function useDarkMode(): boolean {
   const query = window.matchMedia("(prefers-color-scheme: dark)");
@@ -77,7 +78,7 @@ const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultColl
         className="px-2.5 py-1.5 bg-base-300 cursor-pointer select-none font-mono text-sm text-base-content/80 hover:bg-base-300/80 flex items-center gap-2"
         onClick={() => setCollapsed(!collapsed)}
       >
-        <span className="flex-1 min-w-0 truncate">{collapsed ? "▶" : "▼"} {filename}</span>
+        <span className="flex-1 min-w-0 truncate inline-flex items-center gap-1">{collapsed ? <ChevronRight size={12} className="shrink-0" /> : <ChevronDown size={12} className="shrink-0" />} <span className="truncate">{filename}</span></span>
         <span className="flex-shrink-0 flex gap-1" onClick={(e) => e.stopPropagation()}>
           <CopyButton text={filename} label="rel" />
           <CopyButton text={absPath} label="abs" />
@@ -235,8 +236,8 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
   return (
     <div className="mt-5 w-full min-w-0">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-base font-semibold cursor-pointer select-none" onClick={toggleCollapsed}>
-          {collapsed ? "▶" : "▼"} Branch Changes
+        <h3 className="text-base font-semibold cursor-pointer select-none inline-flex items-center gap-1" onClick={toggleCollapsed}>
+          {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />} Branch Changes
         </h3>
         {!collapsed && (
           <div className="flex gap-2">

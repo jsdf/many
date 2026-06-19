@@ -3,6 +3,7 @@ import { Menu } from '@base-ui-components/react/menu'
 import { getMuxSteps, addMuxStep, updateMuxStep, deleteMuxStep, type TrackedStep } from '../mux-client'
 import { AutomationDefinition } from '../types'
 import { getRpcClient } from '../rpc-client'
+import { Play, X } from 'lucide-react'
 
 const AUTOMATION_PREFIX = '[[automation:';
 const AUTOMATION_SUFFIX = ']]';
@@ -301,7 +302,7 @@ const TrackedSteps: React.FC<{
                         title="Run"
                         onClick={() => runAutomationStep(step)}
                       >
-                        &#9654;
+                        <Play size={12} />
                       </button>
                     )}
                     <button
@@ -309,7 +310,7 @@ const TrackedSteps: React.FC<{
                       title="Remove step"
                       onClick={() => removeStep(step.id)}
                     >
-                      &times;
+                      <X size={12} />
                     </button>
                   </div>
                 </div>
@@ -336,7 +337,7 @@ const TrackedSteps: React.FC<{
                   title="Remove step"
                   onClick={() => removeStep(step.id)}
                 >
-                  &times;
+                  <X size={12} />
                 </button>
               </div>
             );

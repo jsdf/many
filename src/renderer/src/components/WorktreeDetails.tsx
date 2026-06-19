@@ -4,6 +4,7 @@ import type { BranchStackResult } from "../../../shared/protocol";
 import { getRpcClient } from "../rpc-client";
 import { setMuxNotes, getMuxBranchInfo, type MuxBranchInfo } from "../mux-client";
 import BranchChanges from "./BranchChanges";
+import { ChevronRight, ChevronDown, CircleDot, Circle } from "lucide-react";
 
 interface TaskRecord {
   id: string;
@@ -346,7 +347,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
               className="text-base font-semibold cursor-pointer select-none"
               onClick={() => setSessionsCollapsed(!sessionsCollapsed)}
             >
-              <span className="text-base-content/40 mr-1">{sessionsCollapsed ? "▶" : "▼"}</span>
+              <span className="text-base-content/40 mr-1 inline-flex items-center align-middle">{sessionsCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>
               Claude Sessions
               {sessionsCollapsed && (
                 <span className="text-xs font-normal text-base-content/50 ml-2">
@@ -417,7 +418,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
             className="text-base font-semibold cursor-pointer select-none mb-3"
             onClick={() => setStackCollapsed(!stackCollapsed)}
           >
-            <span className="text-base-content/40 mr-1">{stackCollapsed ? "▶" : "▼"}</span>
+            <span className="text-base-content/40 mr-1 inline-flex items-center align-middle">{stackCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>
             Branch Stack
             {stackCollapsed && (
               <span className="text-xs font-normal text-base-content/50 ml-2">
@@ -433,8 +434,8 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
               <div className="flex flex-col gap-0.5 font-mono text-sm">
                 {branchStack.stack.map((entry) => (
                   <div key={entry.branch} className="flex items-center gap-2">
-                    <span className="text-base-content/30 w-4 text-center shrink-0">
-                      {entry.isCurrent ? "◉" : "○"}
+                    <span className="text-base-content/30 w-4 shrink-0 inline-flex items-center justify-center">
+                      {entry.isCurrent ? <CircleDot size={12} /> : <Circle size={12} />}
                     </span>
                     <span
                       className={
@@ -524,7 +525,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
             className="text-base font-semibold cursor-pointer select-none"
             onClick={() => setStatusCollapsed(!statusCollapsed)}
           >
-            <span className="text-base-content/40 mr-1">{statusCollapsed ? "▶" : "▼"}</span>
+            <span className="text-base-content/40 mr-1 inline-flex items-center align-middle">{statusCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>
             Git Status
             {statusCollapsed && gitStatus && gitStatus.hasChanges && (
               <span className="text-xs font-normal text-base-content/50 ml-2">

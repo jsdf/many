@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getRpcClient } from "../rpc-client";
 import SessionHistoryTab from "./SessionHistoryTab";
+import { ArrowLeft, RotateCw } from "lucide-react";
 
 interface ClaudeSession {
   sessionId: string;
@@ -62,7 +63,7 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath, o
             className="btn btn-ghost btn-xs"
             onClick={() => setOpenSessionId(null)}
           >
-            ← Sessions
+            <ArrowLeft size={12} /> Sessions
           </button>
           <span className="text-xs text-base-content/40 font-mono">{openSessionId.slice(0, 8)}</span>
         </div>
@@ -80,7 +81,7 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath, o
           Sessions{sessions.length > 0 ? ` (${sessions.length})` : ""}
         </span>
         <button className="btn btn-ghost btn-xs" onClick={load} title="Refresh">
-          ↻
+          <RotateCw size={12} />
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-2">

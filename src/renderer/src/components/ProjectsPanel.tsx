@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import { Folder, Terminal, X, Circle } from "lucide-react";
 import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -353,7 +354,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
               .catch((err) => console.error("[action] openDirectory failed:", err));
           }}
         >
-          📁 Folder
+          <Folder size={14} /> Folder
         </button>
         <button
           className="btn btn-soft btn-neutral btn-sm"
@@ -362,7 +363,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
               .catch((err) => console.error("[action] openTerminalInDir failed:", err));
           }}
         >
-          💻 Terminal
+          <Terminal size={14} /> Terminal
         </button>
       </TopBar>
 
@@ -394,18 +395,18 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 >
                   <span className="truncate max-w-[160px]">{f.name}</span>
                   <button
-                    className={`w-3 text-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
+                    className={`w-3 flex items-center justify-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
                     title="Unsaved changes"
                     onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
                   >
-                    •
+                    <Circle size={8} className="fill-current" />
                   </button>
                   <button
                     className={`w-3 text-center text-base-content/40 hover:text-error ${dirty ? "hidden group-hover:inline" : ""}`}
                     title="Close"
                     onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
                   >
-                    ×
+                    <X size={14} />
                   </button>
                 </div>
               );

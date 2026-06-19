@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
+import { X } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -314,7 +315,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   onClick={() => closeTerminal(term.id)}
                   title={term.isSavedLog ? "Dismiss saved log" : term.isTaskLog ? "Close and kill task" : "Close terminal"}
                 >
-                  ×
+                  <X size={14} />
                 </button>
               </div>
               <div className="flex-1 overflow-hidden min-h-0">

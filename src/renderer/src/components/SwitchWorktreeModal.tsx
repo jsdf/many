@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Worktree, PoolConfig, isTmpBranch, GitStatus, formatBranchName } from '../types'
 import { getRpcClient } from '../rpc-client'
+import { AlertTriangle, X } from 'lucide-react'
 
 interface SwitchWorktreeModalProps {
   currentRepo: string | null
@@ -115,7 +116,7 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
           <h3 className="text-lg font-semibold m-0">
             {poolFilter ? `Claim ${poolFilter.name} Worktree` : 'Switch Worktree to Branch'}
           </h3>
-          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}>&times;</button>
+          <button className="btn btn-ghost btn-sm btn-circle text-base-content/60" onClick={onClose}><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -140,8 +141,8 @@ const SwitchWorktreeModal: React.FC<SwitchWorktreeModalProps> = ({
                 )}
               </select>
               {worktreeStatus && (worktreeStatus.hasChanges || worktreeStatus.hasStaged) && (
-                <p className="text-xs text-warning mt-1.5">
-                  ⚠️ This worktree has uncommitted changes that will be discarded
+                <p className="text-xs text-warning mt-1.5 flex items-center gap-1">
+                  <AlertTriangle size={12} /> This worktree has uncommitted changes that will be discarded
                 </p>
               )}
             </div>
