@@ -34,7 +34,7 @@ const FileConflictModal: React.FC<FileConflictModalProps> = ({ fileName, onKeepM
           </p>
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-base-300">
-          <button type="button" className="btn btn-neutral btn-sm" onClick={onReloadDisk}>
+          <button type="button" className="btn btn-outline btn-neutral btn-sm" onClick={onReloadDisk}>
             Discard mine, reload from disk
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={onKeepMine}>

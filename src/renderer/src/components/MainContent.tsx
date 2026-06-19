@@ -189,7 +189,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         </div>
 
         <button
-          className="btn btn-soft btn-neutral btn-sm"
+          className="btn btn-outline btn-neutral btn-sm"
           onClick={() => {
             if (!selectedWorktree.path) return;
             console.log("[action] openFileManager", selectedWorktree.path);
@@ -200,7 +200,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           📁 Folder
         </button>
         <button
-          className="btn btn-soft btn-neutral btn-sm"
+          className="btn btn-outline btn-neutral btn-sm"
           onClick={() => {
             if (!selectedWorktree.path) return;
             console.log("[action] openEditor", selectedWorktree.path);
@@ -211,7 +211,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           📝 Editor
         </button>
         <button
-          className="btn btn-soft btn-neutral btn-sm"
+          className="btn btn-outline btn-neutral btn-sm"
           onClick={() => {
             if (!selectedWorktree.path) return;
             console.log("[action] openTerminal", selectedWorktree.path);
@@ -232,7 +232,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
         {showRelease && onReleaseWorktree && !isTmpBranch(selectedWorktree.branch) && (
           <button
-            className="btn btn-soft btn-neutral btn-sm"
+            className="btn btn-outline btn-neutral btn-sm"
             onClick={() => onReleaseWorktree(selectedWorktree)}
             title="Release this worktree back to the pool"
           >
@@ -242,7 +242,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
         {!isTmpBranch(selectedWorktree.branch) && (
           <button
-            className={`btn btn-sm ${isTracked ? 'btn-primary btn-soft' : 'btn-soft btn-neutral'}`}
+            className={`btn btn-sm ${isTracked ? 'btn-primary btn-soft' : 'btn-outline btn-neutral'}`}
             onClick={handleToggleTrack}
             title={isTracked ? "Remove from tracked" : "Add to tracked"}
           >

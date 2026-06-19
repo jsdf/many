@@ -258,7 +258,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     />
                     <button
                       type="button"
-                      className="btn btn-soft btn-neutral"
+                      className="btn btn-outline btn-neutral"
                       onClick={handleBrowseWorktreeDir}
                       disabled={isLoading}
                     >
@@ -285,7 +285,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     />
                     <button
                       type="button"
-                      className="btn btn-soft btn-neutral"
+                      className="btn btn-outline btn-neutral"
                       onClick={async () => {
                         try {
                           const result = await getRpcClient().query("action.selectFolder", {
@@ -313,7 +313,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                     <label className="text-sm font-medium">Worktree Pools:</label>
                     <button
                       type="button"
-                      className="btn btn-soft btn-neutral btn-xs"
+                      className="btn btn-outline btn-neutral btn-xs"
                       onClick={() => setPools(prev => [...prev, emptyPool()])}
                       disabled={isLoading}
                     >
@@ -356,7 +356,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                             </select>
                             <button
                               type="button"
-                              className="btn btn-soft btn-neutral btn-xs"
+                              className="btn btn-outline btn-neutral btn-xs"
                               onClick={() => removePool(i)}
                               disabled={isLoading}
                               title="Remove pool"
@@ -447,7 +447,7 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   <button
                     type="button"
                     data-testid="browse-folder-button"
-                    className="btn btn-soft btn-neutral"
+                    className="btn btn-outline btn-neutral"
                     onClick={handleBrowse}
                     disabled={isLoading}
                   >

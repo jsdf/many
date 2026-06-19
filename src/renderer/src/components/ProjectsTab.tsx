@@ -384,13 +384,13 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             <span className="text-xs font-semibold text-base-content/60">Active</span>
             <div className="join">
               <button
-                className={`join-item btn btn-xs ${activeMode === "recent" ? "btn-primary" : "btn-soft"}`}
+                className={`join-item btn btn-xs ${activeMode === "recent" ? "btn-primary" : "btn-outline btn-neutral"}`}
                 onClick={() => setActiveMode("recent")}
               >
                 recent
               </button>
               <button
-                className={`join-item btn btn-xs ${activeMode === "byFolder" ? "btn-primary" : "btn-soft"}`}
+                className={`join-item btn btn-xs ${activeMode === "byFolder" ? "btn-primary" : "btn-outline btn-neutral"}`}
                 onClick={() => setActiveMode("byFolder")}
               >
                 by folder
@@ -451,7 +451,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
       <div className="flex items-center justify-between mb-2 px-0.5">
         <span className="text-xs font-semibold text-base-content/60">Projects</span>
-        <button className="btn btn-soft btn-neutral btn-xs" onClick={onAddProject}>
+        <button className="btn btn-outline btn-neutral btn-xs" onClick={onAddProject}>
           + Add Project
         </button>
       </div>

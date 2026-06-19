@@ -299,7 +299,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
               )}
               {task.logFile && onViewTaskLog && (
                 <button
-                  className="btn btn-soft btn-neutral btn-sm"
+                  className="btn btn-outline btn-neutral btn-sm"
                   onClick={() => onViewTaskLog(task.id, task.status !== "running")}
                 >
                   View Log
@@ -388,7 +388,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                   <div className="flex items-center gap-2 mt-2">
                     {onViewSessionHistory && (
                       <button
-                        className="btn btn-soft btn-neutral btn-xs"
+                        className="btn btn-outline btn-neutral btn-xs"
                         onClick={() => onViewSessionHistory(session.sessionId)}
                       >
                         History
@@ -543,7 +543,7 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
           </h3>
           {!statusCollapsed && (
             <button
-              className="btn btn-soft btn-neutral btn-sm"
+              className="btn btn-outline btn-neutral btn-sm"
               onClick={loadGitStatus}
               disabled={statusLoading}
             >

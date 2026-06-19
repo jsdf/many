@@ -86,7 +86,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
             </button>
           )}
           {!hasTerminals && <span className="text-sm text-base-content/60">Terminal</span>}
-          <button className="btn btn-soft btn-neutral btn-xs" onClick={createTerminal}>
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
             + New Terminal
           </button>
         </div>

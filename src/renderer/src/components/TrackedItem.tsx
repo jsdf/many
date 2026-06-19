@@ -60,7 +60,7 @@ const TrackedItem: React.FC<TrackedItemProps> = ({
         </span>
         {worktreePath && onGoToWorktree && (
           <button
-            className="btn btn-xs btn-soft btn-neutral shrink-0"
+            className="btn btn-xs btn-outline btn-neutral shrink-0"
             title="Go to worktree"
             onClick={() => onGoToWorktree(worktreePath)}
           >
