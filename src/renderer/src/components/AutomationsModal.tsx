@@ -37,6 +37,7 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
   const [automations, setAutomations] = useState<AutomationDefinition[]>([]);
   const [editing, setEditing] = useState<AutomationDefinition | null>(null);
   const [loading, setLoading] = useState(true);
+  const [runStatus, setRunStatus] = useState<{ id: string; message: string; error: boolean } | null>(null);
 
   useEffect(() => {
     loadAutomations();
@@ -75,6 +76,32 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
       await loadAutomations();
     } catch (err) {
       console.error("Failed to delete automation:", err);
+    }
+  };
+
+  const handleRun = async (automation: AutomationDefinition) => {
+    const prompt =
+      automation.type === "skill"
+        ? `/${automation.skillName}`
+        : automation.prompt ?? "";
+    try {
+      const repoConfig = await getRpcClient().query("repo.getConfig", { repoPath: currentRepo });
+      const pool = repoConfig.pools?.find((p) => p.taskCommand || p.backgroundTaskCommand);
+      if (!pool) {
+        setRunStatus({ id: automation.id, message: "No task pool configured", error: true });
+        return;
+      }
+      getRpcClient().subscribe("stream.launchTask", () => {}, {
+        repoPath: currentRepo,
+        poolType: pool.type,
+        poolPrefix: pool.prefix,
+        prompt,
+        taskCommand: pool.backgroundTaskCommand || pool.taskCommand,
+      });
+      setRunStatus({ id: automation.id, message: "Launched", error: false });
+    } catch (err) {
+      console.error("Failed to run automation:", err);
+      setRunStatus({ id: automation.id, message: "Failed to launch", error: true });
     }
   };
 
@@ -136,7 +163,21 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                           {a.type === "skill" ? `/${a.skillName}` : (a.prompt ?? "").slice(0, 80)}
                         </div>
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
+                        {runStatus?.id === a.id && (
+                          <span
+                            className={`text-xs ${runStatus.error ? "text-error" : "text-success"}`}
+                          >
+                            {runStatus.message}
+                          </span>
+                        )}
+                        <button
+                          className="btn btn-ghost btn-sm text-success"
+                          onClick={() => handleRun(a)}
+                          title="Run"
+                        >
+                          Run
+                        </button>
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => setEditing({ ...a })}
