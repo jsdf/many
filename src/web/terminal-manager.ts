@@ -69,8 +69,14 @@ export class TerminalManager {
     initialCommand?: string,
     terminalLogDir?: string | null
   ): boolean {
-    // If session already exists, just return true (client is reconnecting)
+    // If session already exists, the client is reconnecting (e.g. after
+    // switching worktrees and back). The PTY kept its previous size while
+    // detached, so resize it to the reconnecting client's current dimensions —
+    // otherwise TUIs keep rendering at the stale width.
     if (this.sessions.has(terminalId)) {
+      if (cols && rows) {
+        this.resize(terminalId, cols, rows);
+      }
       return true;
     }
 
