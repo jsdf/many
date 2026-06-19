@@ -1,0 +1,19 @@
+src/renderer/src/components/TerminalStack.tsx
+  s_0e3ff9e2867eec::t_cb08c9eae36bb3 283-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "198568ee75e3780a22eb2d161eacc5a3ed617fa7",
+  "prompts": {},
+  "sessions": {
+    "s_0e3ff9e2867eec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d66d275-f70c-4176-a1b8-670946c5ac76",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
