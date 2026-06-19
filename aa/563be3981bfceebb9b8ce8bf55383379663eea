@@ -1,0 +1,19 @@
+src/web/terminal-manager.ts
+  s_dc729597912b7b::t_5a012e3cec2b05 72-75,77-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "aa563be3981bfceebb9b8ce8bf55383379663eea",
+  "prompts": {},
+  "sessions": {
+    "s_dc729597912b7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25984565-663a-4d20-979f-7e78fa53eeee",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
