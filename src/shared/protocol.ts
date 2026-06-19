@@ -434,6 +434,13 @@ export interface QueryProcedures {
     input: { dirPath: string; query: string };
     output: Record<string, FsEntry[]>;
   };
+  // List every file (not directories) under dirPath as paths relative to it,
+  // for client-side fuzzy matching (quick open). Skips .git/node_modules and is
+  // capped to keep the payload bounded on large trees.
+  "fs.allFiles": {
+    input: { dirPath: string };
+    output: string[];
+  };
   "fs.readFile": {
     input: { filePath: string };
     output: { content: string; size: number; tooLarge: boolean; binary: boolean };

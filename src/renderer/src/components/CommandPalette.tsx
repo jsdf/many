@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 // A single selectable row in the palette.
 export interface PaletteItem {
   id: string;
-  label: string;
+  // Primary text; a node so callers can render fuzzy-match highlighting.
+  label: React.ReactNode;
   // Secondary text shown right-aligned (e.g. a file's path).
   detail?: string;
   onSelect: () => void;

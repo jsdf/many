@@ -836,12 +836,6 @@ const App: React.FC = () => {
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
           />
-          <ProjectsPalette
-            projects={projects}
-            selectedNode={selectedNode}
-            onOpenFile={openProjectFile}
-            onNewTerminal={() => projectsPanelRef.current?.newTerminal()}
-          />
         </div>
       ) : (
         <MainContent
@@ -858,6 +852,16 @@ const App: React.FC = () => {
           onClaimWorktree={handleClaimWorktree}
         />
       )}
+
+      {/* Always mounted so Cmd+P is claimed on every pane (never the browser
+          print dialog); it only opens the palette on the projects screen. */}
+      <ProjectsPalette
+        active={mainPaneView.type === 'projects'}
+        projects={projects}
+        selectedNode={selectedNode}
+        onOpenFile={openProjectFile}
+        onNewTerminal={() => projectsPanelRef.current?.newTerminal()}
+      />
 
       {showCreateModal && (
         <CreateWorktreeModal

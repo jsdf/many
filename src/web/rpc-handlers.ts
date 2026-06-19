@@ -582,6 +582,36 @@ export function createQueryHandlers(opts: {
       }
       return result;
     },
+    "fs.allFiles": async (input) => {
+      const { dirPath } = input as { dirPath: string };
+      const SKIP = new Set([".git", "node_modules"]);
+      const MAX_FILES = 20000;
+      const MAX_DEPTH = 24;
+      const files: string[] = [];
+
+      const walk = async (dir: string, depth: number): Promise<void> => {
+        if (depth > MAX_DEPTH || files.length >= MAX_FILES) return;
+        let dirents: import("fs").Dirent[];
+        try {
+          dirents = await fs.readdir(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const d of dirents) {
+          if (files.length >= MAX_FILES) break;
+          if (SKIP.has(d.name)) continue;
+          const full = path.join(dir, d.name);
+          if (d.isDirectory()) {
+            await walk(full, depth + 1);
+          } else if (d.isFile()) {
+            files.push(path.relative(dirPath, full));
+          }
+        }
+      };
+
+      await walk(dirPath, 0);
+      return files;
+    },
     "fs.readFile": async (input) => {
       const { filePath } = input as { filePath: string };
       try {
