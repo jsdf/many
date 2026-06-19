@@ -1,0 +1,24 @@
+src/daemon/terminal-daemon-protocol.test.ts
+  s_714637572a3165::t_350d13f503954c 1-59
+tsconfig.cli.json
+  s_714637572a3165::t_39fcc2540b5d9f 22
+src/daemon/terminal-daemon-protocol.ts
+  s_714637572a3165::t_db2d486b85e44a 1-9,12-120
+  s_714637572a3165::t_af61d1776cbf08 10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ca3b180f18d5d60472d576a2a75efa245628b4e1",
+  "prompts": {},
+  "sessions": {
+    "s_714637572a3165": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed1ee2e-3670-4bc1-ae2d-fe55b2e53d95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
