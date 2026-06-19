@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FsEntry, ProjectEntry } from "../types";
 import { WorktreeActivity, sumActivityUnder } from "../treeActivity";
@@ -50,11 +50,29 @@ const FileTree: React.FC<FileTreeProps> = ({
     overscan: 12,
   });
 
+  // Keep the selected row visible. Virtualized lists scroll by index (the row
+  // may not be in the DOM); plain lists scroll the rendered element. Re-runs
+  // when the row list changes too, so selection stays visible after expand.
+  useEffect(() => {
+    if (!selectedPath) return;
+    const index = rows.findIndex((r) => r.entry.path === selectedPath);
+    if (index < 0) return;
+    if (virtualized) {
+      virtualizer.scrollToIndex(index, { align: "auto" });
+    } else {
+      parentRef.current
+        ?.querySelector(`[data-tree-path="${CSS.escape(selectedPath)}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath, rows, virtualized]);
+
   const renderRow = (row: FileTreeRow, style: React.CSSProperties) => {
     const { entry, depth, isProject } = row;
     return (
       <div
         key={entry.path}
+        data-tree-path={entry.path}
         className="group/row"
         onContextMenu={onContextMenu ? (e) => onContextMenu(row, e) : undefined}
         style={style}
