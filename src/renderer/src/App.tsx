@@ -4,6 +4,7 @@ import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, Proje
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
+import ProjectsPalette from "./components/ProjectsPalette";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
@@ -155,6 +156,22 @@ const App: React.FC = () => {
       console.error("Failed to remove project:", err);
     }
   };
+
+  // Open a file in the projects panel from anywhere (e.g. the palette),
+  // switching the selected node to the file's containing directory first so the
+  // panel keeps the tab. Mirrors ProjectsTab.handleOpenFile's node resolution.
+  const openProjectFile = useCallback((file: OpenFile, projectPath: string, projectName: string) => {
+    const sep = file.path.includes("\\") ? "\\" : "/";
+    const i = file.path.lastIndexOf(sep);
+    const parentPath = i >= 0 ? file.path.slice(0, i) : projectPath;
+    const node: ProjectNode =
+      parentPath === projectPath
+        ? { name: projectName, path: projectPath }
+        : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
+    setSelectedNode(node);
+    setMainPaneView({ type: "projects" });
+    projectsPanelRef.current?.openFile(file);
+  }, [setMainPaneView]);
 
   useEffect(() => {
     const repo = repositories.find(r => r.path === currentRepo);
@@ -836,6 +853,16 @@ const App: React.FC = () => {
           onClaimWorktree={handleClaimWorktree}
         />
       )}
+
+      {/* Always mounted so Cmd+P is claimed on every pane (never the browser
+          print dialog); it only opens the palette on the projects screen. */}
+      <ProjectsPalette
+        active={mainPaneView.type === 'projects'}
+        projects={projects}
+        selectedNode={selectedNode}
+        onOpenFile={openProjectFile}
+        onNewTerminal={() => projectsPanelRef.current?.newTerminal()}
+      />
 
       {showCreateModal && (
         <CreateWorktreeModal

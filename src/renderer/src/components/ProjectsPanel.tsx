@@ -25,6 +25,7 @@ interface ProjectsPanelProps {
 
 export interface ProjectsPanelHandle {
   openFile: (file: OpenFile) => void;
+  newTerminal: () => void;
 }
 
 const MIN_PANE_WIDTH = 200;
@@ -170,6 +171,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
         return prev;
       });
     },
+    newTerminal: () => terminalStackRef.current?.createTerminalWithCommand({}, ""),
   }), [loadFile]);
 
   const updateContent = useCallback((filePath: string, content: string) => {
