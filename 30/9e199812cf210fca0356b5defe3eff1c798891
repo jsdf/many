@@ -1,0 +1,26 @@
+src/daemon/terminal-daemon.ts
+  s_714637572a3165::t_854f5e97888d74 74-75
+  s_714637572a3165::t_89e42834a0c9fa 224-225,228
+  s_714637572a3165::t_5847cca040d883 27
+  s_714637572a3165::t_acedb402477c83 302-308
+  s_714637572a3165::t_8554d37024d32f 115-117
+  s_714637572a3165::t_bea3c3768d669d 247-259,263-269,272-273,276-285
+src/daemon/log-capture.ts
+  s_714637572a3165::t_571cc2b9e2aa9c 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "309e199812cf210fca0356b5defe3eff1c798891",
+  "prompts": {},
+  "sessions": {
+    "s_714637572a3165": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed1ee2e-3670-4bc1-ae2d-fe55b2e53d95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
