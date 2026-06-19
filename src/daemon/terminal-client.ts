@@ -65,6 +65,7 @@ export class TerminalManagerClient {
 
   private connect(): Promise<net.Socket> {
     if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
+    if (this.closed) return Promise.reject(new Error("Terminal client is closed"));
     if (this.connecting) return this.connecting;
 
     this.connecting = (async () => {
@@ -106,14 +107,15 @@ export class TerminalManagerClient {
 
   private onDisconnect(): void {
     this.socket = null;
-    // Fail in-flight requests; callers can retry (which lazily reconnects).
+    // Fail in-flight requests. We do NOT proactively reconnect here: that would
+    // (a) race an intentional shutdown into respawning a fresh daemon, and
+    // (b) silently re-subscribe to terminals that died with a crashed daemon.
+    // Reconnection is lazy — the next request/subscribe re-establishes the
+    // socket (and replays still-registered subscriptions). A crashed daemon's
+    // PTYs are genuinely gone; we surface that rather than faking a reconnect.
     const err = new Error("Terminal daemon connection lost");
     for (const { reject } of this.pending.values()) reject(err);
     this.pending.clear();
-    // Reconnect proactively if we have live subscriptions to restore.
-    if (!this.closed && this.subs.size > 0) {
-      this.connect().catch((e) => logger.warn("[terminal-client] reconnect failed:", e));
-    }
   }
 
   private onData(chunk: Buffer): void {
@@ -300,6 +302,9 @@ export class TerminalManagerClient {
     } catch {
       // daemon may exit/drop the socket before/while responding
     }
+    // Mark closed so the socket-close from the daemon exiting cannot later be
+    // turned into a reconnect that respawns a fresh daemon.
+    this.closed = true;
   }
 
   /** Disconnect this client WITHOUT shutting down the daemon (PTYs survive). */

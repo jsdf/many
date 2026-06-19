@@ -10,12 +10,8 @@ import type { AddressInfo } from "net";
 import logger from "../shared/logger.js";
 import { loadAppData } from "../cli/config.js";
 import { startTrackedPoller } from "./tracked-poller.js";
-import {
-  registerTask,
-  markTaskCompleted,
-  reconcileTasks,
-} from "../cli/task-registry.js";
-import { TerminalManager } from "./terminal-manager.js";
+import { reconcileTasks } from "../cli/task-registry.js";
+import { TerminalManagerClient } from "../daemon/terminal-client.js";
 import { RepoWatcher } from "./git-watcher.js";
 import { RpcServer } from "./rpc-server.js";
 import { createQueryHandlers, createSubscriptionHandlers } from "./rpc-handlers.js";
@@ -41,8 +37,9 @@ const MIME_TYPES: Record<string, string> = {
   ".ttf": "font/ttf",
 };
 
-// Terminal manager - singleton, lives for the server's lifetime
-const terminalManager = new TerminalManager();
+// Terminal client - connects to (auto-spawning) the detached terminal daemon
+// that actually owns the PTYs, so they survive this server process restarting.
+const terminalManager = new TerminalManagerClient();
 
 // Serve static file
 async function serveStaticFile(filePath: string): Promise<{ status: number; body: Buffer | string; contentType: string }> {
@@ -64,11 +61,25 @@ export interface WebServerOptions {
   host?: string;
   open?: boolean;
   token?: string;
+  /**
+   * Register SIGINT/SIGTERM handlers that gracefully shut down the server
+   * (and the daemon, only if no terminals are running). Default true. The CLI
+   * and Electron set this false so they can prompt before killing terminals.
+   */
+  handleSignals?: boolean;
 }
 
 export interface WebServerResult {
   url: string;
   port: number;
+  /** Number of live PTY sessions in the daemon (for shutdown prompts). */
+  getRunningTerminalCount: () => Promise<number>;
+  /**
+   * Tear down watchers/RPC and disconnect from the daemon. The daemon (and its
+   * PTYs) is only shut down if there are no running terminals, unless
+   * killTerminals is set. Does not call process.exit.
+   */
+  shutdown: (opts?: { killTerminals?: boolean }) => Promise<void>;
 }
 
 export async function startWebServer(options: WebServerOptions = {}): Promise<WebServerResult> {
@@ -171,62 +182,37 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     }
   });
 
-  // Cleanup on server shutdown — save terminal logs before exiting
-  const cleanupAndExit = async () => {
+  // Graceful shutdown. PTYs live in the detached daemon now, so we do NOT kill
+  // them here on a plain server restart. We only ask the daemon to shut down
+  // (which saves logs + kills PTYs — see the daemon's shutdown path) when there
+  // are no running terminals, or when the caller explicitly opts to kill them.
+  let shuttingDown = false;
+  const shutdown = async (opts?: { killTerminals?: boolean }): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     trackedPoller.stop();
     repoWatcher.close();
     claudeService.destroy();
     rpcServer.destroy();
-
-    // Save terminal output as read-only logs
     try {
-      const { getTaskLogDir } = await import("../cli/task-registry.js");
-      const logDir = getTaskLogDir();
-      const saved = await terminalManager.saveAllSessionLogs(logDir);
-
-      if (saved.length > 0) {
-        const appData = await loadAppData();
-        for (const entry of saved) {
-          let repoPath = "";
-          let branch = "";
-          for (const [rp, cfg] of Object.entries(appData.repositoryConfigs)) {
-            const worktreeDir = (cfg as any).worktreeDirectory || path.dirname(rp);
-            if (entry.worktreePath === rp || entry.worktreePath.startsWith(worktreeDir + path.sep)) {
-              repoPath = rp;
-              break;
-            }
-          }
-          try {
-            const { simpleGit } = await import("simple-git");
-            const git = simpleGit(entry.worktreePath);
-            const status = await git.status();
-            branch = status.current || "";
-          } catch {}
-
-          const task = await registerTask({
-            pid: 0,
-            repoPath,
-            worktreePath: entry.worktreePath,
-            poolPrefix: "",
-            poolName: "",
-            branch,
-            prompt: "Terminal session (saved on shutdown)",
-            taskCommand: "",
-            logFile: entry.logFile,
-            launchedBy: "web",
-          });
-          await markTaskCompleted(task.id, 0);
-        }
+      const count = await terminalManager.getRunningCount();
+      if (count === 0 || opts?.killTerminals) {
+        await terminalManager.shutdownDaemon();
       }
     } catch (err) {
-      logger.error("Failed to save terminal logs on shutdown:", err);
+      logger.error("Failed to coordinate terminal daemon shutdown:", err);
     }
-
-    terminalManager.cleanup();
-    process.exit(0);
+    terminalManager.disconnect();
   };
-  process.on("SIGINT", cleanupAndExit);
-  process.on("SIGTERM", cleanupAndExit);
+
+  if (options.handleSignals !== false) {
+    const onSignal = async () => {
+      await shutdown();
+      process.exit(0);
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+  }
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
@@ -250,7 +236,12 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
         }
       }
 
-      resolve({ url: serverUrl, port: actualPort });
+      resolve({
+        url: serverUrl,
+        port: actualPort,
+        getRunningTerminalCount: () => terminalManager.getRunningCount(),
+        shutdown,
+      });
     });
   });
 }
