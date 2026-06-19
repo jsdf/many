@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getRpcClient } from "./rpc-client";
+import type { ConnectionStatus } from "./rpc-client";
 import type {
   QueryProcedure,
   SubscriptionProcedure,
@@ -81,17 +82,17 @@ export function useQuery<K extends QueryProcedure>(
 }
 
 /**
- * Track whether the RPC client is currently connected to the backend.
- * Starts true to avoid a flash of the banner before the first connect.
+ * Track the RPC client's connection status to the backend.
+ * Starts "connected" to avoid a flash of the banner before the first connect.
  */
-export function useConnectionStatus(): boolean {
-  const [connected, setConnected] = useState(true);
+export function useConnectionStatus(): ConnectionStatus {
+  const [status, setStatus] = useState<ConnectionStatus>("connected");
 
   useEffect(() => {
-    return getRpcClient().onConnectionChange(setConnected);
+    return getRpcClient().onConnectionChange(setStatus);
   }, []);
 
-  return connected;
+  return status;
 }
 
 /**

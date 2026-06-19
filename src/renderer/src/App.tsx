@@ -687,11 +687,11 @@ const App: React.FC = () => {
     setWorktreeToRelease(null);
   };
 
-  const connected = useConnectionStatus();
+  const connectionStatus = useConnectionStatus();
 
   return (
     <div className="flex flex-col h-screen">
-      <ConnectionBanner connected={connected} />
+      <ConnectionBanner status={connectionStatus} />
       <div className="flex flex-1 min-h-0">
       {sidebarCollapsed ? (
         isNarrow ? null : (
