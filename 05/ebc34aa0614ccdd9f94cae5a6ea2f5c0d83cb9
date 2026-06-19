@@ -1,0 +1,22 @@
+src/daemon/terminal-daemon.ts
+  s_714637572a3165::t_7e5b3f072c5085 97
+  s_714637572a3165::t_489e8432066ff1 1-96,98-281
+src/daemon/daemon-lifecycle.ts
+  s_714637572a3165::t_e5957bbb54187a 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "05ebc34aa0614ccdd9f94cae5a6ea2f5c0d83cb9",
+  "prompts": {},
+  "sessions": {
+    "s_714637572a3165": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed1ee2e-3670-4bc1-ae2d-fe55b2e53d95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
