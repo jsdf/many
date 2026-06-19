@@ -24,6 +24,7 @@ import {
   removeDaemonInfo,
   logDaemon,
 } from "./daemon-lifecycle.js";
+import { saveAndRegisterTerminalLog } from "./log-capture.js";
 
 /**
  * The subset of TerminalManager the IPC layer depends on. Declared as an
@@ -70,7 +71,8 @@ interface ActiveSubscription {
 export function attachConnection(
   manager: DaemonManager,
   socket: net.Socket,
-  onShutdown: () => void
+  onShutdown: () => void,
+  onSessionCreated?: (terminalId: string, worktreePath: string) => void
 ): () => void {
   const decoder = new FrameDecoder();
   const subs = new Map<number, ActiveSubscription>();
@@ -110,6 +112,9 @@ export function attachConnection(
           req.logDir
         );
         const pid = manager.getSessionPid(req.terminalId);
+        // Register the log-capture exit hook once, only for genuinely new
+        // sessions (reconnects return existed=true).
+        if (!existed) onSessionCreated?.(req.terminalId, req.worktreePath);
         respond(req.reqId, { existed, pid });
         break;
       }
@@ -216,10 +221,11 @@ export function attachConnection(
 /** Create the daemon's IPC server bound to the manager. */
 export function createDaemonServer(
   manager: DaemonManager,
-  onShutdown: () => void
+  onShutdown: () => void,
+  onSessionCreated?: (terminalId: string, worktreePath: string) => void
 ): net.Server {
   const server = net.createServer((socket) => {
-    attachConnection(manager, socket, onShutdown);
+    attachConnection(manager, socket, onShutdown, onSessionCreated);
   });
   return server;
 }
@@ -238,17 +244,45 @@ async function main(): Promise<void> {
   }
 
   let shuttingDown = false;
-  const shutdown = (signal: string) => {
+
+  // Per-PTY natural exit: save the buffered output to a log + register a task.
+  // Suppressed during shutdown, which captures all running sessions explicitly
+  // (below) so the kill-triggered exits don't double-save.
+  const onSessionCreated = (terminalId: string, worktreePath: string) => {
+    manager.addExitListener(terminalId, () => {
+      if (shuttingDown) return;
+      const output = manager.getBufferedOutput(terminalId);
+      saveAndRegisterTerminalLog(terminalId, worktreePath, output).catch(() => {});
+    });
+  };
+
+  const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     logDaemon(`shutting down (${signal})`);
-    // Step 5 will save logs + register tasks here before killing PTYs.
+    // PTYs are actually being killed here, so capture their logs first.
+    const sessions = manager.listAllSessions();
+    await Promise.all(
+      sessions.map((s) =>
+        saveAndRegisterTerminalLog(s.terminalId, s.worktreePath, manager.getBufferedOutput(s.terminalId))
+      )
+    );
     manager.cleanup();
     server.close();
-    removeDaemonInfo().finally(() => process.exit(0));
+    await removeDaemonInfo();
+    process.exit(0);
   };
 
-  const server = createDaemonServer(manager, () => shutdown("shutdown-request"));
+  const server = createDaemonServer(
+    manager,
+    () => {
+      shutdown("shutdown-request").catch((err) => {
+        logger.error("[terminal-daemon] shutdown failed:", err);
+        process.exit(1);
+      });
+    },
+    onSessionCreated
+  );
 
   server.on("error", (err) => {
     logger.error("[terminal-daemon] server error:", err);
@@ -265,8 +299,13 @@ async function main(): Promise<void> {
     logDaemon(`listening on ${socketPath} (pid ${process.pid})`);
   });
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  const onSignal = (signal: string) =>
+    shutdown(signal).catch((err) => {
+      logger.error("[terminal-daemon] shutdown failed:", err);
+      process.exit(1);
+    });
+  process.on("SIGTERM", () => onSignal("SIGTERM"));
+  process.on("SIGINT", () => onSignal("SIGINT"));
 }
 
 // Run only when invoked directly as the daemon entry (not when imported in tests).
