@@ -41,6 +41,7 @@ import { selectFromList, confirm, textInput } from "./ink-prompts.js";
 import {
   markTaskCompleted,
   updateTaskPid,
+  registerTask,
   reconcileTasks,
   listTasks,
   getTask,
@@ -50,7 +51,7 @@ import {
   TaskRecord,
   TaskStatus,
 } from "./task-registry.js";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, openSync, closeSync } from "node:fs";
 import { promises as fsPromises } from "node:fs";
 import type { RunCommand } from "../services/types.js";
 
@@ -711,6 +712,9 @@ async function cmdCreate(worktreeName: string, flags: ParsedFlags): Promise<void
 
   console.log(`Creating worktree '${worktreeName}'...`);
 
+  // Create the worktree synchronously. The init/setup command is NOT run here
+  // (no runCommand passed) — it runs as a detached background task below so the
+  // CLI can return immediately.
   const result = await createAndSetupWorktree(
     repoPath,
     {
@@ -723,13 +727,95 @@ async function cmdCreate(worktreeName: string, flags: ParsedFlags): Promise<void
       if (event.type === "step") console.log(event.text);
       else if (event.type === "stdout") process.stdout.write(event.text);
       else if (event.type === "stderr") process.stderr.write(event.text);
-    },
-    cliRunCommand
+    }
   );
 
   console.log(green(`\nWorktree created at: ${result.worktreePath}`));
   console.log(`Branch: ${result.branch}`);
+
+  if (config.initCommand) {
+    const task = await startInitTask(
+      repoPath,
+      result.worktreePath,
+      result.branch,
+      config.initCommand,
+      config.terminalLogDir || getTaskLogDir()
+    );
+    console.log(`\nSetup script running in background (task ${task.id}).`);
+    console.log(dim(`  Command:  ${config.initCommand}`));
+    console.log(dim(`  Tail:     many tasks log ${task.id} -f`));
+    console.log(dim(`  Status:   many tasks list`));
+    if (task.logFile) console.log(dim(`  Log:      ${task.logFile}`));
+  }
+
   console.log(`\nTo start working:\n  cd ${result.worktreePath}`);
+}
+
+// Register an init/setup command as a background task and spawn a detached
+// runner process for it. The runner (`many __run-init <id>`) streams output to
+// the task's log file and marks the task complete on exit, so the CLI can exit
+// while setup continues.
+async function startInitTask(
+  repoPath: string,
+  worktreePath: string,
+  branch: string,
+  initCommand: string,
+  logDir: string
+): Promise<TaskRecord> {
+  await fsPromises.mkdir(logDir, { recursive: true });
+  const logName = `init-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.log`;
+  const logFile = path.join(logDir, logName);
+
+  const taskRecord = await registerTask({
+    pid: 0,
+    repoPath,
+    worktreePath,
+    poolPrefix: "",
+    poolName: "",
+    branch,
+    prompt: `Setup: ${initCommand}`,
+    taskCommand: initCommand,
+    launchedBy: "cli",
+    logFile,
+  });
+
+  const child = spawn(process.execPath, [process.argv[1], "__run-init", taskRecord.id], {
+    detached: true,
+    stdio: "ignore",
+  });
+  // Record the runner's pid up front so reconcileTasks doesn't see a pid-0
+  // record and mark it "unknown" before the runner adopts the shell's pid.
+  if (child.pid) await updateTaskPid(taskRecord.id, child.pid);
+  child.unref();
+
+  return taskRecord;
+}
+
+// Internal command: run a registered init task's command, streaming output to
+// its log file, then mark the task complete. Invoked detached by startInitTask.
+async function cmdRunInit(taskId: string): Promise<void> {
+  const task = await getTask(taskId);
+  if (!task) {
+    console.error(red(`Init task not found: ${taskId}`));
+    process.exit(1);
+  }
+
+  const out = task.logFile ? openSync(task.logFile, "a") : "ignore";
+  const loginShell = process.env.SHELL || "/bin/zsh";
+  const child = spawn(loginShell, ["-l", "-c", task.taskCommand], {
+    cwd: task.worktreePath,
+    stdio: ["ignore", out, out],
+  });
+  if (child.pid) await updateTaskPid(taskId, child.pid);
+
+  const exitCode = await new Promise<number>((resolve) => {
+    child.on("error", () => resolve(1));
+    child.on("close", (c) => resolve(c ?? 1));
+  });
+
+  if (typeof out === "number") closeSync(out);
+  await markTaskCompleted(taskId, exitCode);
+  process.exit(exitCode);
 }
 
 // Release command - release a worktree back to the pool
@@ -1696,6 +1782,11 @@ async function main(): Promise<void> {
 
       case "tasks":
         await cmdTasks(positional[1] || null, positional.slice(2), flags);
+        break;
+
+      case "__run-init":
+        if (!positional[1]) process.exit(1);
+        await cmdRunInit(positional[1]);
         break;
 
       case "star":
