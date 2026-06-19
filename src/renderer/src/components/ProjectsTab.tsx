@@ -6,6 +6,7 @@ import FsActionDialog, { FsAction } from "./FsActionDialog";
 import FileTree, { FileTreeRow } from "./FileTree";
 import { useFsTree } from "../useFsTree";
 import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
+import { WorktreeActivity, isActive } from "../treeActivity";
 import { PinToggle, pinMenuItem } from "./pinControls";
 import { relativeToRoot } from "../paths";
 
@@ -20,7 +21,9 @@ interface ProjectsTabProps {
   onOpenFile: (file: OpenFile) => void;
   onAddProject: () => void;
   onRemoveProject: (project: ProjectEntry) => void;
-  worktreeActivity?: Record<string, { terminals: number; claudeSessions: number }>;
+  onCloseProject: (path: string, name: string) => void;
+  onResumeRecentSession: (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => void;
+  worktreeActivity?: Record<string, WorktreeActivity>;
   pinnedFolders: string[];
   onTogglePin: (path: string, pinned: boolean) => void;
 }
@@ -32,6 +35,8 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   onOpenFile,
   onAddProject,
   onRemoveProject,
+  onCloseProject,
+  onResumeRecentSession,
   worktreeActivity,
   pinnedFolders,
   onTogglePin,
@@ -54,6 +59,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [activeMode, setActiveMode] = useState<"byFolder" | "recent">("byFolder");
   const [recentTerminals, setRecentTerminals] = useState<
     { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
+  >([]);
+  const [recentSessions, setRecentSessions] = useState<
+    { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
   >([]);
 
   // Active pane height. null means "size to content" (capped); once the user
@@ -89,34 +97,74 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     };
   }, [draggingActive]);
 
-  // Poll the live terminal list while showing the "recent" view. A terminal's
-  // recency is the newer of its last user input and its creation.
+  // Poll the live terminals and recent Claude sessions while showing the
+  // "recent" view. A terminal's recency is the newer of its last user input and
+  // its creation; a session's is its last-modified time.
   useEffect(() => {
     if (activeMode !== "recent") return;
     let cancelled = false;
     const poll = async () => {
+      const client = getRpcClient();
+      const rootPaths = projects.map((p) => p.path);
       try {
-        const list = await getRpcClient().query("terminal.listAll", {});
-        if (!cancelled) setRecentTerminals(list);
+        const [terminals, sessions] = await Promise.all([
+          client.query("terminal.listAll", {}),
+          client.query("claude.recentSessions", { rootPaths, limit: 10 }),
+        ]);
+        if (!cancelled) {
+          setRecentTerminals(terminals);
+          setRecentSessions(sessions);
+        }
       } catch {}
     };
     poll();
     const interval = setInterval(poll, 3000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [activeMode]);
-
-  const sortedTerminals = useMemo(
-    () =>
-      [...recentTerminals].sort(
-        (a, b) => Math.max(b.lastInputAt, b.createdAt) - Math.max(a.lastInputAt, a.createdAt),
-      ),
-    [recentTerminals],
-  );
+  }, [activeMode, projects]);
 
   const baseName = useCallback((p: string) => {
     const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
     return i >= 0 ? p.slice(i + 1) : p;
   }, []);
+
+  // A path belongs to a project when it is, or is nested under, a project root.
+  const isUnderAnyProject = useCallback(
+    (p: string) => {
+      const sep = p.includes("\\") ? "\\" : "/";
+      return projects.some((pr) => p === pr.path || p.startsWith(pr.path + sep));
+    },
+    [projects],
+  );
+
+  // Unified "recent" list: project-attached terminals plus recent Claude
+  // sessions for those projects, ordered by recency (newest first).
+  type RecentItem =
+    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string }
+    | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const items: RecentItem[] = [];
+    for (const t of recentTerminals) {
+      if (!isUnderAnyProject(t.worktreePath)) continue;
+      items.push({
+        kind: "terminal",
+        recency: Math.max(t.lastInputAt, t.createdAt),
+        terminalId: t.terminalId,
+        worktreePath: t.worktreePath,
+        title: t.title,
+      });
+    }
+    for (const s of recentSessions) {
+      items.push({
+        kind: "claude",
+        recency: Date.parse(s.modified) || 0,
+        sessionId: s.sessionId,
+        worktreePath: s.worktreePath,
+        sessionType: s.sessionType,
+        label: (s.summary || s.firstPrompt || "").replace(/<[^>]+>/g, "").trim() || "Claude session",
+      });
+    }
+    return items.sort((a, b) => b.recency - a.recency);
+  }, [recentTerminals, recentSessions, isUnderAnyProject]);
 
   // Root rows for each tree. The Projects tree is rooted at the projects; the
   // Active tree is rooted at active + pinned folders. Both expand identically.
@@ -351,25 +399,48 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   }, []);
 
   const renderRightSlot = useCallback(
-    (row: FileTreeRow) =>
-      row.isProject ? (
-        <button
-          className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
-          title="Remove project"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (row.project) onRemoveProject(row.project);
-          }}
-        >
-          ×
-        </button>
-      ) : row.entry.isDirectory ? (
-        <PinToggle
-          pinned={pinned.has(row.entry.path)}
-          onToggle={() => onTogglePin(row.entry.path, !pinned.has(row.entry.path))}
-        />
-      ) : undefined,
-    [pinned, onTogglePin, onRemoveProject],
+    (row: FileTreeRow) => {
+      if (!row.entry.isDirectory) return undefined;
+      // Close (kill terminals + close files) is offered when this exact node has
+      // activity, so it clears precisely what its badge counts at this path.
+      const own = worktreeActivity?.[row.entry.path];
+      const closeButton =
+        own && isActive(own) ? (
+          <button
+            className="opacity-0 group-hover/row:opacity-100 px-1 shrink-0 text-base-content/50 hover:text-error"
+            title="Close (kill terminals + close files)"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseProject(row.entry.path, row.entry.name);
+            }}
+          >
+            ⊘
+          </button>
+        ) : null;
+      return (
+        <>
+          {closeButton}
+          {row.isProject ? (
+            <button
+              className="opacity-0 group-hover/row:opacity-100 px-1.5 shrink-0 text-base-content/50 hover:text-error"
+              title="Remove project"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (row.project) onRemoveProject(row.project);
+              }}
+            >
+              ×
+            </button>
+          ) : (
+            <PinToggle
+              pinned={pinned.has(row.entry.path)}
+              onToggle={() => onTogglePin(row.entry.path, !pinned.has(row.entry.path))}
+            />
+          )}
+        </>
+      );
+    },
+    [pinned, onTogglePin, onRemoveProject, onCloseProject, worktreeActivity],
   );
 
   return (
@@ -417,23 +488,31 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               />
             ) : (
               <div className={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}>
-                {sortedTerminals.length === 0 ? (
-                  <p className="text-base-content/50 text-xs px-2 py-1">No terminals</p>
+                {recentItems.length === 0 ? (
+                  <p className="text-base-content/50 text-xs px-2 py-1">Nothing recent</p>
                 ) : (
-                  sortedTerminals.map((t) => {
-                    const selected = selectedNode?.path === t.worktreePath;
+                  recentItems.map((item) => {
+                    const selected = selectedNode?.path === item.worktreePath;
+                    const onClick =
+                      item.kind === "terminal"
+                        ? () => onSelectNode({ name: baseName(item.worktreePath), path: item.worktreePath })
+                        : () => onResumeRecentSession(item.worktreePath, item.sessionId, item.sessionType);
                     return (
                       <div
-                        key={t.terminalId}
+                        key={item.kind === "terminal" ? `t:${item.terminalId}` : `c:${item.sessionId}`}
                         className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
-                        title={t.worktreePath}
-                        onClick={() => onSelectNode({ name: baseName(t.worktreePath), path: t.worktreePath })}
+                        title={item.worktreePath}
+                        onClick={onClick}
                       >
-                        <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">&gt;_</span>
-                        <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
-                          {baseName(t.worktreePath)}
+                        <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">
+                          {item.kind === "terminal" ? ">_" : "◆"}
                         </span>
-                        <span className="flex-1 truncate">{t.title || "Terminal"}</span>
+                        <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
+                          {baseName(item.worktreePath)}
+                        </span>
+                        <span className="flex-1 truncate">
+                          {item.kind === "terminal" ? item.title || "Terminal" : item.label}
+                        </span>
                       </div>
                     );
                   })

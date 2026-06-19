@@ -598,6 +598,11 @@ export interface QueryProcedures {
     input: { terminalId: string };
     output: { ok: boolean };
   };
+  // Kill every live terminal whose worktreePath equals the given path.
+  "terminal.closeWorktree": {
+    input: { worktreePath: string };
+    output: { closed: number };
+  };
   "terminal.listSessions": {
     input: { worktreePath: string };
     output: string[];
@@ -626,6 +631,19 @@ export interface QueryProcedures {
       limit?: number;
     };
     output: unknown; // existing session message format
+  };
+  // Most-recent Claude sessions whose cwd is within any of the given roots.
+  "claude.recentSessions": {
+    input: { rootPaths: string[]; limit?: number };
+    output: Array<{
+      sessionId: string;
+      worktreePath: string;
+      firstPrompt: string;
+      summary?: string;
+      modified: string;
+      gitBranch: string;
+      sessionType?: "chat" | "claude-code";
+    }>;
   };
   "claude.setSessionMeta": {
     input: {

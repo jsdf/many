@@ -145,21 +145,13 @@ async function scanSessionFile(
 }
 
 /**
- * Get Claude Code sessions for a given worktree path.
+ * Read all sessions stored in a single Claude project dir (index fast-path
+ * plus a scan of any .jsonl files the index doesn't cover). Unsorted.
  */
-export async function getClaudeSessions(
-  worktreePath: string
+async function readSessionsForProjectDir(
+  projectDir: string,
+  fallbackWorktreePath: string
 ): Promise<ClaudeSession[]> {
-  const projectsDir = getClaudeProjectsDir();
-  const encodedPath = encodeProjectPath(worktreePath);
-  const projectDir = path.join(projectsDir, encodedPath);
-
-  try {
-    await fs.promises.access(projectDir);
-  } catch {
-    return [];
-  }
-
   const now = Date.now();
   const sessions: ClaudeSession[] = [];
   const coveredSessionIds = new Set<string>();
@@ -188,7 +180,7 @@ export async function getClaudeSessions(
         modified: entry.modified,
         gitBranch: entry.gitBranch || "",
         isRunning: now - mtime < RUNNING_THRESHOLD_MS,
-        projectPath: entry.projectPath || worktreePath,
+        projectPath: entry.projectPath || fallbackWorktreePath,
       });
     }
   }
@@ -222,15 +214,88 @@ export async function getClaudeSessions(
       modified: new Date(stat.mtimeMs).toISOString(),
       gitBranch: scanned.gitBranch,
       isRunning: now - stat.mtimeMs < RUNNING_THRESHOLD_MS,
-      projectPath: scanned.cwd || worktreePath,
+      projectPath: scanned.cwd || fallbackWorktreePath,
     });
   }
 
+  return sessions;
+}
+
+/**
+ * Get Claude Code sessions for a given worktree path.
+ */
+export async function getClaudeSessions(
+  worktreePath: string
+): Promise<ClaudeSession[]> {
+  const projectsDir = getClaudeProjectsDir();
+  const projectDir = path.join(projectsDir, encodeProjectPath(worktreePath));
+
+  try {
+    await fs.promises.access(projectDir);
+  } catch {
+    return [];
+  }
+
+  const sessions = await readSessionsForProjectDir(projectDir, worktreePath);
   sessions.sort(
     (a, b) =>
       new Date(b.modified).getTime() - new Date(a.modified).getTime()
   );
   return sessions.slice(0, MAX_SESSIONS);
+}
+
+// Whether `cwd` is the root itself or a descendant of it.
+function isUnder(cwd: string, root: string): boolean {
+  const sep = root.includes("\\") ? "\\" : "/";
+  return cwd === root || cwd.startsWith(root + sep);
+}
+
+/**
+ * Most-recent Claude sessions whose recorded cwd is within any of the given
+ * roots. Claude project dirs encode the cwd lossily (`/`->`-`), so we match
+ * candidate dirs by encoded prefix and then verify each session's real cwd is
+ * genuinely under a root before including it.
+ */
+export async function getRecentSessionsForRoots(
+  rootPaths: string[],
+  limit = 10
+): Promise<ClaudeSession[]> {
+  const projectsDir = getClaudeProjectsDir();
+  let dirs: string[];
+  try {
+    dirs = await fs.promises.readdir(projectsDir);
+  } catch {
+    return [];
+  }
+
+  const encodedRoots = rootPaths.map((root) => ({
+    root,
+    encoded: encodeProjectPath(root),
+  }));
+
+  const all: ClaudeSession[] = [];
+  for (const dir of dirs) {
+    const matchesEncoded = encodedRoots.some(
+      ({ encoded }) => dir === encoded || dir.startsWith(encoded + "-")
+    );
+    if (!matchesEncoded) continue;
+
+    const sessions = await readSessionsForProjectDir(
+      path.join(projectsDir, dir),
+      ""
+    );
+    for (const s of sessions) {
+      if (encodedRoots.some(({ root }) => isUnder(s.projectPath, root))) {
+        all.push(s);
+      }
+    }
+  }
+
+  all.sort(
+    (a, b) =>
+      new Date(b.modified).getTime() - new Date(a.modified).getTime()
+  );
+  return all.slice(0, limit);
 }
 
 export interface SessionMessage {

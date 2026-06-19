@@ -18,6 +18,12 @@ function copyToClipboard(text: string) {
 
 interface ProjectsPanelProps {
   project: ProjectNode | null;
+  // Open files for the current project, owned by App so they persist per project.
+  openFiles: OpenFile[];
+  onOpenFilesChange: (next: OpenFile[]) => void;
+  // A Claude session to resume once this panel is mounted for its project.
+  pendingResume: { projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null;
+  onPendingResumeConsumed: () => void;
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
 }
@@ -31,16 +37,23 @@ const DEFAULT_SPLIT = 0.6;
 
 const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   project,
+  openFiles,
+  onOpenFilesChange,
+  pendingResume,
+  onPendingResumeConsumed,
   sidebarCollapsed,
   onExpandSidebar,
 }, ref) => {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
-  const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFile, setActiveFile] = useState<string>(SESSIONS_TAB);
+  // Latest open-files list, readable from timers/cleanup without stale closures.
+  const openFilesRef = useRef(openFiles);
+  openFilesRef.current = openFiles;
   // App-level default Claude Code command, used to launch Claude from this page.
   const [claudeCommand, setClaudeCommand] = useState<string | undefined>(undefined);
+  const [claudeCommandLoaded, setClaudeCommandLoaded] = useState(false);
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   // An unresolved on-disk conflict: the file changed externally while it had
   // unsaved edits. diskContent holds the new on-disk version.
@@ -88,37 +101,47 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
   }, [writeNow]);
 
-  // When switching nodes, keep only the tabs that belong to the newly selected
-  // node. A tab belongs to a node when the file lives directly in that node's
-  // directory: files are always opened with the node set to their parent dir
-  // (see ProjectsTab.handleOpenFile), so a subproject's files belong to the
-  // subproject node, not to an ancestor that merely contains them on disk.
-  // (A prefix check would leak a subproject's files up into the project root.)
+  // The open-files LIST is owned by App per project, so it persists across
+  // switches. Per-file editing state (fileData, subscriptions) is kept local and
+  // only for the visible project: on switch we flush pending saves and drop the
+  // local fileData, then reload the incoming project's files (see below). This
+  // bounds memory to one project's worth of file content.
   useEffect(() => {
     const prev = prevPathRef.current;
     const current = project?.path ?? null;
     prevPathRef.current = current;
     if (prev === null || prev === current) return;
     flushSaves();
-    if (current === null) {
-      setOpenFiles([]);
-      setActiveFile(SESSIONS_TAB);
-      setFileData({});
-      return;
-    }
-    const parentDir = (p: string) => {
-      const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-      return i >= 0 ? p.slice(0, i) : "";
-    };
-    const belongsToCurrent = (p: string) => parentDir(p) === current;
-    setOpenFiles((prev) => prev.filter((f) => belongsToCurrent(f.path)));
-    setFileData((prev) => {
-      const next: Record<string, FileData> = {};
-      for (const k of Object.keys(prev)) if (belongsToCurrent(k)) next[k] = prev[k];
-      return next;
-    });
-    setActiveFile((cur) => (cur !== SESSIONS_TAB && !belongsToCurrent(cur) ? SESSIONS_TAB : cur));
+    setFileData({});
+    setActiveFile(SESSIONS_TAB);
   }, [project?.path, flushSaves]);
+
+  // Load any open file that lacks local content yet (initial open or return to a
+  // project whose fileData was dropped on switch).
+  useEffect(() => {
+    for (const f of openFiles) {
+      if (!fileDataRef.current[f.path]) loadFile(f.path);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openFiles, project?.path]);
+
+  // When files are removed externally (e.g. closing the whole project), flush
+  // their pending saves, drop their local state, and fall back to the Sessions
+  // tab if the active file is gone.
+  useEffect(() => {
+    const want = new Set(openFiles.map((f) => f.path));
+    const removed = Object.keys(fileDataRef.current).filter((k) => !want.has(k));
+    if (removed.length > 0) {
+      for (const k of removed) writeNow(k);
+      setFileData((prev) => {
+        const next = { ...prev };
+        for (const k of removed) delete next[k];
+        return next;
+      });
+    }
+    setActiveFile((cur) => (cur !== SESSIONS_TAB && !want.has(cur) ? SESSIONS_TAB : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openFiles]);
 
   // Flush any pending saves when the panel unmounts.
   useEffect(() => () => flushSaves(), [flushSaves]);
@@ -128,8 +151,24 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     getRpcClient()
       .query("settings.get", {})
       .then((settings) => setClaudeCommand(settings.defaultClaudeCommand || undefined))
-      .catch((err) => console.error("Failed to load settings:", err));
+      .catch((err) => console.error("Failed to load settings:", err))
+      .finally(() => setClaudeCommandLoaded(true));
   }, []);
+
+  // Resume a queued Claude session once this panel is mounted for its project
+  // (and settings are loaded so we use the configured command). The terminal
+  // stack is keyed per project, so the ref points at the right project's stack.
+  useEffect(() => {
+    if (!claudeCommandLoaded || !pendingResume || !project) return;
+    if (pendingResume.projectPath !== project.path) return;
+    const { sessionId, sessionType } = pendingResume;
+    if (sessionType === "chat") {
+      terminalStackRef.current?.openClaudeSession(sessionId);
+    } else {
+      terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
+    }
+    onPendingResumeConsumed();
+  }, [pendingResume, project?.path, claudeCommand, claudeCommandLoaded, onPendingResumeConsumed]);
 
   const loadFile = useCallback((filePath: string) => {
     setFileData((prev) => ({
@@ -161,15 +200,12 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
 
   useImperativeHandle(ref, () => ({
     openFile: (file: OpenFile) => {
-      setOpenFiles((prev) => (prev.some((f) => f.path === file.path) ? prev : [...prev, file]));
+      const cur = openFilesRef.current;
+      if (!cur.some((f) => f.path === file.path)) onOpenFilesChange([...cur, file]);
       setActiveFile(file.path);
-      setFileData((prev) => {
-        if (prev[file.path]) return prev;
-        loadFile(file.path);
-        return prev;
-      });
+      if (!fileDataRef.current[file.path]) loadFile(file.path);
     },
-  }), [loadFile]);
+  }), [loadFile, onOpenFilesChange]);
 
   const updateContent = useCallback((filePath: string, content: string) => {
     setFileData((prev) => {
@@ -193,20 +229,18 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const closeFile = useCallback((filePath: string) => {
     // Flush any pending autosave before dropping the file's state.
     writeNow(filePath);
-    setOpenFiles((prev) => {
-      const next = prev.filter((f) => f.path !== filePath);
-      setActiveFile((current) => {
-        if (current !== filePath) return current;
-        return next.length > 0 ? next[next.length - 1].path : SESSIONS_TAB;
-      });
-      return next;
+    const next = openFilesRef.current.filter((f) => f.path !== filePath);
+    onOpenFilesChange(next);
+    setActiveFile((current) => {
+      if (current !== filePath) return current;
+      return next.length > 0 ? next[next.length - 1].path : SESSIONS_TAB;
     });
     setFileData((prev) => {
       const next = { ...prev };
       delete next[filePath];
       return next;
     });
-  }, [writeNow]);
+  }, [writeNow, onOpenFilesChange]);
 
   // Handle a file's on-disk content changing while it's open in the editor.
   const handleDiskUpdate = useCallback((filePath: string, res: { content: string; tooLarge: boolean; binary: boolean }) => {

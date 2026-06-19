@@ -90,6 +90,9 @@ const FileTree: React.FC<FileTreeProps> = ({
           terminalCount={
             entry.isDirectory ? sumActivityUnder(worktreeActivity, entry.path).terminals : 0
           }
+          openFileCount={
+            entry.isDirectory ? sumActivityUnder(worktreeActivity, entry.path).openFiles : 0
+          }
           onClick={() => onRowClick(row)}
           onToggleCaret={
             entry.isDirectory && onToggleCaret

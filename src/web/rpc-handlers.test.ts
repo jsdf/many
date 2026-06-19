@@ -49,6 +49,44 @@ async function waitFor(predicate: () => boolean, timeout = 3000): Promise<void> 
   }
 }
 
+describe("terminal.closeWorktree", () => {
+  it("kills every session for the worktree and returns the count", async () => {
+    const killed: string[] = [];
+    const sessionsByPath: Record<string, string[]> = {
+      "/repo/a": ["t1", "t2"],
+      "/repo/b": ["t3"],
+    };
+    const fakeTerminalManager = {
+      getSessionsForWorktree: (p: string) => sessionsByPath[p] ?? [],
+      cleanupWorktree: (p: string) => {
+        for (const id of sessionsByPath[p] ?? []) killed.push(id);
+      },
+    };
+    const h = createQueryHandlers({
+      terminalManager: fakeTerminalManager as never,
+      claudeService: {} as never,
+      sessionStore: {} as never,
+    });
+    const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/a" })) as { closed: number };
+    expect(res).toEqual({ closed: 2 });
+    expect(killed).toEqual(["t1", "t2"]);
+  });
+
+  it("returns zero when no sessions match", async () => {
+    const fakeTerminalManager = {
+      getSessionsForWorktree: () => [],
+      cleanupWorktree: () => {},
+    };
+    const h = createQueryHandlers({
+      terminalManager: fakeTerminalManager as never,
+      claudeService: {} as never,
+      sessionStore: {} as never,
+    });
+    const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/none" })) as { closed: number };
+    expect(res).toEqual({ closed: 0 });
+  });
+});
+
 describe("fs.listDir", () => {
   let tmpDir: string;
 
