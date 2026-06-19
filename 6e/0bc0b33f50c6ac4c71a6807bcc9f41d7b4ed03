@@ -1,0 +1,21 @@
+src/renderer/src/components/FileTree.tsx
+  s_774de669bbd614::t_80e1c90030d7a9 75
+  s_774de669bbd614::t_e70ccf3440b580 1
+  s_774de669bbd614::t_9061cd3c5d4e44 53-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6e0bc0b33f50c6ac4c71a6807bcc9f41d7b4ed03",
+  "prompts": {},
+  "sessions": {
+    "s_774de669bbd614": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40fe9f19-6db4-4832-8a15-d115ddb6889c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
