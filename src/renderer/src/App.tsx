@@ -8,7 +8,7 @@ import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
-import { useHashRouter } from "./router";
+import { useHashRouter, useNavHistory, NavState } from "./router";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
 import AddProjectModal from "./components/AddProjectModal";
@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [taskLaunchState, setTaskLaunchState] = useState<TaskLaunchState | null>(null);
   const taskLaunchUnsubRef = useRef<(() => void) | null>(null);
   const { view: mainPaneView, navigate: setMainPaneView } = useHashRouter();
+  const navHistory = useNavHistory();
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(300);
@@ -69,6 +70,38 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
   const [selectedNode, setSelectedNode] = useState<ProjectNode | null>(null);
   const projectsPanelRef = useRef<ProjectsPanelHandle>(null);
+
+  // Record a navigation entry whenever the view or selection changes, so the
+  // back/forward buttons can step through past view+selection combinations.
+  // Restores from back/forward are suppressed inside the history hook.
+  const { record: recordNav } = navHistory;
+  useEffect(() => {
+    recordNav({
+      view: mainPaneView.type,
+      worktreePath: selectedWorktree?.path ?? null,
+      node: selectedNode,
+    });
+  }, [recordNav, mainPaneView.type, selectedWorktree?.path, selectedNode?.path]);
+
+  // Apply a history entry: switch tabs and restore the worktree/node that was
+  // selected then. The worktree path is resolved against the live list.
+  const applyNavState = useCallback((s: NavState) => {
+    setMainPaneView({ type: s.view });
+    setSelectedNode(s.node);
+    setSelectedWorktree(
+      s.worktreePath ? worktrees.find((w) => w.path === s.worktreePath) ?? null : null,
+    );
+  }, [setMainPaneView, worktrees]);
+
+  const goBack = useCallback(() => {
+    const s = navHistory.back();
+    if (s) applyNavState(s);
+  }, [navHistory, applyNavState]);
+
+  const goForward = useCallback(() => {
+    const s = navHistory.forward();
+    if (s) applyNavState(s);
+  }, [navHistory, applyNavState]);
 
   useEffect(() => {
     setSidebarCollapsed(isNarrow);
@@ -718,6 +751,10 @@ const App: React.FC = () => {
               onReorderWorktrees={handleReorderWorktrees}
               onGlobalSettings={() => setShowGlobalSettingsModal(true)}
               onCollapse={() => setSidebarCollapsed(true)}
+              onBack={goBack}
+              onForward={goForward}
+              canBack={navHistory.canBack}
+              canForward={navHistory.canForward}
             />
           </div>
           <div

@@ -85,6 +85,10 @@ interface SidebarProps {
   onReorderWorktrees: (orderedPaths: string[]) => void;
   onGlobalSettings: () => void;
   onCollapse?: () => void;
+  onBack?: () => void;
+  onForward?: () => void;
+  canBack?: boolean;
+  canForward?: boolean;
 }
 
 interface PoolGroup {
@@ -760,6 +764,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   onReorderWorktrees,
   onGlobalSettings,
   onCollapse,
+  onBack,
+  onForward,
+  canBack,
+  canForward,
 }) => {
   const hasTaskPools = pools?.some((p) => p.taskCommand) ?? false;
 
@@ -771,6 +779,22 @@ const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="text-lg font-semibold">Many</h2>
         </div>
         <div className="flex gap-1.5">
+          <button
+            onClick={onBack}
+            disabled={!canBack}
+            className="btn btn-soft btn-neutral btn-sm"
+            title="Back"
+          >
+            &#x2190;
+          </button>
+          <button
+            onClick={onForward}
+            disabled={!canForward}
+            className="btn btn-soft btn-neutral btn-sm"
+            title="Forward"
+          >
+            &#x2192;
+          </button>
           <button
             onClick={onGlobalSettings}
             className="btn btn-soft btn-neutral btn-sm"
