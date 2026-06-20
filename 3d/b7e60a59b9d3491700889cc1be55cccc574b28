@@ -1,0 +1,19 @@
+src/web/rpc-handlers.ts
+  s_fe1482312f9046::t_d05900758a8035 876
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3db7e60a59b9d3491700889cc1be55cccc574b28",
+  "prompts": {},
+  "sessions": {
+    "s_fe1482312f9046": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aff12337-6e62-45ff-8881-f40362504595",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
