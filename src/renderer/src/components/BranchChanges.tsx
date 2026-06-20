@@ -214,7 +214,7 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(() => {
     const stored = localStorage.getItem("branchChangesCollapsed");
-    return stored !== null ? stored === "true" : true;
+    return stored !== null ? stored === "true" : false;
   });
   const [diffStyle, setDiffStyle] = useState<DiffStyle>(() => {
     return (localStorage.getItem("diffStyle") as DiffStyle) || "unified";

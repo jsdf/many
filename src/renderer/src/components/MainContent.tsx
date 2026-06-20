@@ -7,12 +7,14 @@ import { useFileEditors } from "../useFileEditors";
 import TopBar from "./TopBar";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
+import ChangesTab from "./ChangesTab";
 import FileEditorTab from "./FileEditorTab";
 import ContextMenu from "./ContextMenu";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import { relativeToRoot } from "../paths";
 
 const DETAILS_TAB = "__details__";
+const CHANGES_TAB = "__changes__";
 
 interface MainContentProps {
   selectedWorktree: Worktree | null;
@@ -236,6 +238,12 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
       >
         <span>Details</span>
       </div>
+      <div
+        className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${activeFile === CHANGES_TAB ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+        onClick={() => setActiveFile(CHANGES_TAB)}
+      >
+        <span>Changes</span>
+      </div>
       {openFiles.map((f) => {
         const dirty = isDirty(f.path);
         return (
@@ -267,10 +275,18 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     </div>
   );
 
-  // Left-pane body: the worktree details or the active file's editor.
+  // Left-pane body: the worktree details, changes, or the active file's editor.
   const leftContent =
     activeFile === DETAILS_TAB ? (
       <div className="h-full overflow-y-auto">{worktreeDetailsEl}</div>
+    ) : activeFile === CHANGES_TAB ? (
+      <div className="h-full overflow-y-auto">
+        <ChangesTab
+          key={`changes-tab-${selectedWorktree.path}`}
+          worktree={selectedWorktree}
+          repoPath={currentRepo!}
+        />
+      </div>
     ) : active && fileData[active.path] ? (
       <FileEditorTab
         key={`${active.path}:${fileData[active.path].version}`}
@@ -392,6 +408,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
       {isNarrow ? (
         <div className="flex-1 overflow-y-auto min-h-0">
           {worktreeDetailsEl}
+          <ChangesTab
+            key={`changes-tab-${selectedWorktree.path}`}
+            worktree={selectedWorktree}
+            repoPath={currentRepo!}
+          />
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}
