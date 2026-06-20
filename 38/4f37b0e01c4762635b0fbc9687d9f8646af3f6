@@ -1,0 +1,21 @@
+src/renderer/src/theme-sharp.css
+  s_c8696a184f5e9a::t_925c5d128e7546 103-130
+src/renderer/src/App.tsx
+  s_c8696a184f5e9a::t_54f2b4684419e1 231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "384f37b0e01c4762635b0fbc9687d9f8646af3f6",
+  "prompts": {},
+  "sessions": {
+    "s_c8696a184f5e9a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47b095c8-907d-437c-830a-dcd150bed45b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
