@@ -1,0 +1,27 @@
+src/renderer/src/components/FsActionDialog.tsx
+  s_c8696a184f5e9a::t_bb6f74dc7947fb 130
+src/renderer/src/components/FileConflictModal.tsx
+  s_c8696a184f5e9a::t_5c5654afc7e31b 41
+src/renderer/src/components/AddProjectModal.tsx
+  s_c8696a184f5e9a::t_2bae441c2f1212 97
+src/renderer/src/components/CloseProjectDialog.tsx
+  s_c8696a184f5e9a::t_23838dd45b94a5 51
+src/renderer/src/styles.css
+  s_c8696a184f5e9a::t_f5cf9e75b667c9 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "ceb0a32d0adff1f83e02e38a1278c5006b839ae4",
+  "prompts": {},
+  "sessions": {
+    "s_c8696a184f5e9a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47b095c8-907d-437c-830a-dcd150bed45b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
