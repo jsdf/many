@@ -80,6 +80,14 @@
 
 /* 2. Outline style -------------------------------------------------------- */
 
+/* On hover, outline buttons fill with --btn-color (via base .btn:hover), but
+   --btn-fg also stays as --btn-color, giving no contrast. Force white text. */
+:root:not([data-theme]) .btn-outline:hover,
+[data-theme="acid"] .btn-outline:hover {
+  --btn-fg: oklch(100% 0 0);
+}
+
+
 /* Buttons opt into the outline look explicitly via btn-outline in the markup;
    no global conversion here. Destructive buttons (btn-error/btn-warning) stay
    filled for emphasis. */

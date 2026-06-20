@@ -86,19 +86,21 @@
    --color-primary is handled by theme-sharp.css (set to black for monochrome). */
 @media not (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --color-secondary: oklch(55% 0.2 48.25);
-    --color-accent: oklch(55% 0.2 122.962);
-    --color-info: oklch(42% 0.12 269.35);
-    --color-success: oklch(32% 0.13 158.53);
-    --color-warning: oklch(34% 0.11 100.5);
+    --color-secondary: #a626a4;
+    --color-accent: #4078f2;
+    --color-info: #0184bc;
+    --color-success: #50a14f;
+    --color-warning: #c18401;
+    --color-error: #e45649;
   }
 }
 [data-theme="acid"] {
-  --color-secondary: oklch(55% 0.2 48.25);
-  --color-accent: oklch(55% 0.2 122.962);
-  --color-info: oklch(42% 0.12 269.35);
-  --color-success: oklch(32% 0.13 158.53);
-  --color-warning: oklch(34% 0.11 100.5);
+  --color-secondary: #a626a4;
+  --color-accent: #4078f2;
+  --color-info: #0184bc;
+  --color-success: #50a14f;
+  --color-warning: #c18401;
+  --color-error: #e45649;
 }
 
 /* xterm terminal overrides */
