@@ -538,7 +538,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               data-testid="create-worktree-button"
               onClick={onCreateWorktree}
               disabled={!currentRepo}
-              className="btn btn-xs btn-soft btn-success"
+              className="btn btn-xs btn-outline btn-success"
             >
               Create Worktree
             </button>
@@ -557,7 +557,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               )}
             {onArchiveWorktrees && worktrees.some((w) => isArchivable(w)) && (
               <button
-                className="btn btn-xs btn-soft btn-warning"
+                className="btn btn-xs btn-outline btn-warning"
                 disabled={!currentRepo}
                 onClick={() => setMultiSelect(true)}
               >
