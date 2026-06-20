@@ -873,7 +873,7 @@ export function createQueryHandlers(opts: {
       // Kills terminals whose worktreePath equals this path. Note this is the
       // exact node path; the tree's count badge rolls descendants up, so a
       // project with terminals only in subfolders won't be cleared here.
-      const closed = terminalManager.getSessionsForWorktree(worktreePath).length;
+      const closed = (await terminalManager.getSessionsForWorktree(worktreePath)).length;
       terminalManager.cleanupWorktree(worktreePath);
       return { closed };
     },
