@@ -1,0 +1,19 @@
+vite.config.ts
+  s_c8696a184f5e9a::t_8ecaaa78b1bcea 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c49d5cf9f0bcfaf92077637502fd9d95f9de69c9",
+  "prompts": {},
+  "sessions": {
+    "s_c8696a184f5e9a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47b095c8-907d-437c-830a-dcd150bed45b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
