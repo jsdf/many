@@ -80,9 +80,20 @@
 
 /* Override acid theme colors for better text contrast on white backgrounds.
    The defaults are designed as background fills with dark -content text on top,
-   but we also use them as text colors (text-primary, text-success, etc.). */
+   but we also use them as text colors (text-primary, text-success, etc.).
+   Scoped to light mode only - dark mode uses forest theme values which are
+   already appropriate for dark backgrounds.
+   --color-primary is handled by theme-sharp.css (set to black for monochrome). */
+@media not (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-secondary: oklch(55% 0.2 48.25);
+    --color-accent: oklch(55% 0.2 122.962);
+    --color-info: oklch(42% 0.12 269.35);
+    --color-success: oklch(32% 0.13 158.53);
+    --color-warning: oklch(34% 0.11 100.5);
+  }
+}
 [data-theme="acid"] {
-  --color-primary: oklch(55% 0.3 330.759);
   --color-secondary: oklch(55% 0.2 48.25);
   --color-accent: oklch(55% 0.2 122.962);
   --color-info: oklch(42% 0.12 269.35);
