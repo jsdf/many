@@ -1,0 +1,22 @@
+src/renderer/src/App.tsx
+  s_370eddc856a88b::t_1af57a660a003e 26
+src/renderer/src/components/ProjectsTab.tsx
+  s_370eddc856a88b::t_91f2e176df486b 2
+  s_370eddc856a88b::t_c838a1dd36dcfa 418-433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "923a9a3a0dd82bc02d255bd564d674e26340f217",
+  "prompts": {},
+  "sessions": {
+    "s_370eddc856a88b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1338d3e3-97a6-41e8-8ccd-9bc38d686c8b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
