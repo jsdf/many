@@ -24,7 +24,6 @@ import {
   PoolConfig,
   ProjectEntry,
   ProjectNode,
-  OpenFile,
   isTmpBranch,
   formatBranchName,
   findWorktreePool,
@@ -78,8 +77,6 @@ interface SidebarProps {
   onNavigateTracked?: () => void;
   onNavigateProjects?: () => void;
   onSelectNode?: (node: ProjectNode) => void;
-  onOpenFile?: (file: OpenFile) => void;
-  onOpenWorktreeFile?: (file: OpenFile) => void;
   onAddProject?: () => void;
   onRemoveProject?: (project: ProjectEntry) => void;
   onAutomationsSubViewChange?: (view: AutomationsSubView) => void;
@@ -115,7 +112,6 @@ interface WorktreesTabProps {
   onCreateWorktree: () => void;
   onSwitchWorktree?: () => void;
   onNewTask?: () => void;
-  onOpenFile?: (file: OpenFile) => void;
   onArchiveWorktrees?: (worktrees: Worktree[]) => void;
   onToggleStar: (worktreePath: string) => void;
   onReorderWorktrees: (orderedPaths: string[]) => void;
@@ -177,7 +173,6 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   onCreateWorktree,
   onSwitchWorktree,
   onNewTask,
-  onOpenFile,
   onArchiveWorktrees,
   onToggleStar,
   onReorderWorktrees,
@@ -680,13 +675,12 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
         )}
       </div>
 
-      {selectedWorktree && onOpenFile && (
+      {selectedWorktree && (
         <WorktreeFileTree
           key={selectedWorktree.path}
           worktreePath={selectedWorktree.path}
           worktreeName={selectedWorktree.worktreeName}
           worktreeActivity={worktreeActivity}
-          onOpenFile={onOpenFile}
         />
       )}
     </>
@@ -770,8 +764,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateTracked,
   onNavigateProjects,
   onSelectNode,
-  onOpenFile,
-  onOpenWorktreeFile,
   onAddProject,
   onRemoveProject,
   onAutomationsSubViewChange,
@@ -892,7 +884,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           projects={projects}
           selectedNode={selectedNode}
           onSelectNode={(n) => onSelectNode?.(n)}
-          onOpenFile={(f) => onOpenFile?.(f)}
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}
           worktreeActivity={worktreeActivity}
@@ -925,7 +916,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           onCreateWorktree={onCreateWorktree}
           onSwitchWorktree={onSwitchWorktree}
           onNewTask={onNewTask}
-          onOpenFile={onOpenWorktreeFile}
           onArchiveWorktrees={onArchiveWorktrees}
           onToggleStar={onToggleStar}
           onReorderWorktrees={onReorderWorktrees}

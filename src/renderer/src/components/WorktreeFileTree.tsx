@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { OpenFile, ProjectEntry } from "../types";
+import { ProjectEntry } from "../types";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import FsActionDialog, { FsAction } from "./FsActionDialog";
 import FileTree, { FileTreeRow } from "./FileTree";
 import { useFsTree } from "../useFsTree";
+import { useOpenFile } from "../useFileEditors";
 import { buildTreeRows } from "../treeRows";
 import { relativeToRoot } from "../paths";
 
@@ -15,7 +16,6 @@ interface WorktreeFileTreeProps {
   worktreePath: string;
   worktreeName: string;
   worktreeActivity?: Record<string, { terminals: number; claudeSessions: number }>;
-  onOpenFile: (file: OpenFile) => void;
 }
 
 // File tree for the currently selected worktree, shown as a section below the
@@ -25,9 +25,9 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
   worktreePath,
   worktreeName,
   worktreeActivity,
-  onOpenFile,
 }) => {
   const { expanded, childrenByDir, loading, expandDir, handleToggleDir } = useFsTree();
+  const openFile = useOpenFile();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; row: FileTreeRow } | null>(null);
   const [fsAction, setFsAction] = useState<FsAction | null>(null);
@@ -67,10 +67,10 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
       if (row.entry.isDirectory) {
         handleToggleDir(row.entry.path, worktreePath);
       } else {
-        onOpenFile({ path: row.entry.path, name: row.entry.name });
+        openFile(worktreePath, { path: row.entry.path, name: row.entry.name });
       }
     },
-    [handleToggleDir, onOpenFile, worktreePath],
+    [handleToggleDir, openFile, worktreePath],
   );
 
   const handleToggleCaret = useCallback(

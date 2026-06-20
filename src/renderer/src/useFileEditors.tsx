@@ -1,78 +1,59 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { OpenFile } from "./types";
 import { getRpcClient } from "./rpc-client";
 import { FileData } from "./components/FileEditorTab";
+import FileConflictModal from "./components/FileConflictModal";
 
 const AUTOSAVE_DELAY = 600;
 
-const parentDir = (p: string) => {
+const baseName = (p: string) => {
   const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(0, i) : "";
+  return i >= 0 ? p.slice(i + 1) : p;
 };
 
-// A file belongs to a node when it lives directly in that node's directory.
-// Files are opened with the node set to their parent dir, so a subproject's
-// files belong to the subproject node, not an ancestor that contains them.
-export const belongsToDir = (filePath: string, rootPath: string) =>
-  parentDir(filePath) === rootPath;
-
-// A file belongs to a worktree when it lives anywhere under the worktree path.
-export const belongsUnder = (filePath: string, rootPath: string) => {
-  const sep = filePath.includes("\\") ? "\\" : "/";
-  return filePath === rootPath || filePath.startsWith(rootPath + sep);
-};
-
-export interface FileEditors {
+// The set of open file tabs and the active tab for a single root directory
+// (a project node or a worktree).
+interface RootEditors {
   openFiles: OpenFile[];
   activeFile: string;
-  setActiveFile: React.Dispatch<React.SetStateAction<string>>;
+}
+
+interface FileEditorsContextValue {
+  editorsByRoot: Record<string, RootEditors>;
   fileData: Record<string, FileData>;
-  openFile: (file: OpenFile) => void;
-  closeFile: (filePath: string) => void;
+  openFile: (rootPath: string, file: OpenFile) => void;
+  closeFile: (rootPath: string, filePath: string) => void;
+  setActiveFile: (rootPath: string, id: string) => void;
   updateContent: (filePath: string, content: string) => void;
   saveFile: (filePath: string) => void;
   isDirty: (filePath: string) => boolean;
-  conflict: { path: string; diskContent: string } | null;
-  setConflict: React.Dispatch<
-    React.SetStateAction<{ path: string; diskContent: string } | null>
-  >;
-  resolveKeepMine: () => void;
-  resolveReloadDisk: () => void;
 }
 
-// Owns the set of open file tabs and their editor state for a single root
-// directory (a project node or a worktree): content, autosave, on-disk conflict
-// detection, and live content subscriptions. Switching roots flushes pending
-// saves and keeps only the tabs whose files belong to the new root.
-//
-// `belongs` decides which open files survive a root change (direct-child for
-// project nodes, anywhere-under for worktrees). `defaultTab` is the id of the
-// non-file tab the active selection falls back to (e.g. "Sessions", "Details").
-export function useFileEditors(opts: {
-  rootPath: string | null;
-  defaultTab: string;
-  belongs: (filePath: string, rootPath: string) => boolean;
-}): FileEditors {
-  const { rootPath, defaultTab, belongs } = opts;
-  const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
-  const [activeFile, setActiveFile] = useState<string>(defaultTab);
+const FileEditorsContext = createContext<FileEditorsContextValue | null>(null);
+
+const NO_FILES: OpenFile[] = [];
+
+// Hoists open-file editor state above the panels so it survives panel
+// unmount/remount (switching between the Projects and Worktree views) and is
+// remembered per root: each worktree/project node keeps its own open tabs and
+// active tab. Owns content, autosave, on-disk conflict detection, and the live
+// `fs.fileUpdates` subscriptions for every open file across all roots.
+export const FileEditorsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Open tabs + active tab, keyed by root path.
+  const [editorsByRoot, setEditorsByRoot] = useState<Record<string, RootEditors>>({});
+  // File content + save state, keyed by file path (a file has one parent, so it
+  // belongs to at most one root; sharing by path keeps it simple).
   const [fileData, setFileData] = useState<Record<string, FileData>>({});
   // An unresolved on-disk conflict: the file changed externally while it had
   // unsaved edits. diskContent holds the new on-disk version.
   const [conflict, setConflict] = useState<{ path: string; diskContent: string } | null>(null);
   // Live file-content subscriptions, one per open file.
   const fileSubsRef = useRef<Map<string, () => void>>(new Map());
-  const prevPathRef = useRef<string | null>(null);
   // Latest fileData, readable from timers/cleanup without stale closures.
   const fileDataRef = useRef(fileData);
   fileDataRef.current = fileData;
   // Pending autosave timers, keyed by file path.
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  // Stable refs for the caller-supplied predicate / default tab.
-  const belongsRef = useRef(belongs);
-  belongsRef.current = belongs;
-  const defaultTabRef = useRef(defaultTab);
-  defaultTabRef.current = defaultTab;
 
   // Persist a file immediately if it has unsaved changes.
   const writeNow = useCallback((filePath: string) => {
@@ -97,40 +78,10 @@ export function useFileEditors(opts: {
     saveTimers.current[filePath] = setTimeout(() => writeNow(filePath), AUTOSAVE_DELAY);
   }, [writeNow]);
 
-  // Flush all pending saves (e.g. before switching roots or unmounting).
-  const flushSaves = useCallback(() => {
+  // Flush all pending saves when the app tears down.
+  useEffect(() => () => {
     for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
   }, [writeNow]);
-
-  // When switching roots, keep only the tabs that belong to the newly selected
-  // root (per the caller's predicate) and reset the active tab if it no longer
-  // belongs.
-  useEffect(() => {
-    const prev = prevPathRef.current;
-    const current = rootPath ?? null;
-    prevPathRef.current = current;
-    if (prev === null || prev === current) return;
-    flushSaves();
-    if (current === null) {
-      setOpenFiles([]);
-      setActiveFile(defaultTabRef.current);
-      setFileData({});
-      return;
-    }
-    const belongsToCurrent = (p: string) => belongsRef.current(p, current);
-    setOpenFiles((prev) => prev.filter((f) => belongsToCurrent(f.path)));
-    setFileData((prev) => {
-      const next: Record<string, FileData> = {};
-      for (const k of Object.keys(prev)) if (belongsToCurrent(k)) next[k] = prev[k];
-      return next;
-    });
-    setActiveFile((cur) =>
-      cur !== defaultTabRef.current && !belongsToCurrent(cur) ? defaultTabRef.current : cur,
-    );
-  }, [rootPath, flushSaves]);
-
-  // Flush any pending saves when the consumer unmounts.
-  useEffect(() => () => flushSaves(), [flushSaves]);
 
   const loadFile = useCallback((filePath: string) => {
     setFileData((prev) => ({
@@ -160,15 +111,49 @@ export function useFileEditors(opts: {
       });
   }, []);
 
-  const openFile = useCallback((file: OpenFile) => {
-    setOpenFiles((prev) => (prev.some((f) => f.path === file.path) ? prev : [...prev, file]));
-    setActiveFile(file.path);
+  const openFile = useCallback((rootPath: string, file: OpenFile) => {
+    setEditorsByRoot((prev) => {
+      const cur = prev[rootPath] ?? { openFiles: [], activeFile: "" };
+      const openFiles = cur.openFiles.some((f) => f.path === file.path)
+        ? cur.openFiles
+        : [...cur.openFiles, file];
+      return { ...prev, [rootPath]: { openFiles, activeFile: file.path } };
+    });
     setFileData((prev) => {
       if (prev[file.path]) return prev;
       loadFile(file.path);
       return prev;
     });
   }, [loadFile]);
+
+  const setActiveFile = useCallback((rootPath: string, id: string) => {
+    setEditorsByRoot((prev) => {
+      const cur = prev[rootPath] ?? { openFiles: [], activeFile: "" };
+      return { ...prev, [rootPath]: { ...cur, activeFile: id } };
+    });
+  }, []);
+
+  const closeFile = useCallback((rootPath: string, filePath: string) => {
+    // Flush any pending autosave before dropping the file's state.
+    writeNow(filePath);
+    setEditorsByRoot((prev) => {
+      const cur = prev[rootPath];
+      if (!cur) return prev;
+      const openFiles = cur.openFiles.filter((f) => f.path !== filePath);
+      const activeFile =
+        cur.activeFile === filePath
+          ? openFiles.length > 0
+            ? openFiles[openFiles.length - 1].path
+            : "" // empty falls back to the consumer's default tab
+          : cur.activeFile;
+      return { ...prev, [rootPath]: { openFiles, activeFile } };
+    });
+    setFileData((prev) => {
+      const next = { ...prev };
+      delete next[filePath];
+      return next;
+    });
+  }, [writeNow]);
 
   const updateContent = useCallback((filePath: string, content: string) => {
     setFileData((prev) => {
@@ -181,31 +166,10 @@ export function useFileEditors(opts: {
 
   const saveFile = useCallback((filePath: string) => writeNow(filePath), [writeNow]);
 
-  const isDirty = useCallback(
-    (filePath: string) => {
-      const d = fileData[filePath];
-      return !!d && d.loaded && d.content !== d.saved;
-    },
-    [fileData]
-  );
-
-  const closeFile = useCallback((filePath: string) => {
-    // Flush any pending autosave before dropping the file's state.
-    writeNow(filePath);
-    setOpenFiles((prev) => {
-      const next = prev.filter((f) => f.path !== filePath);
-      setActiveFile((current) => {
-        if (current !== filePath) return current;
-        return next.length > 0 ? next[next.length - 1].path : defaultTabRef.current;
-      });
-      return next;
-    });
-    setFileData((prev) => {
-      const next = { ...prev };
-      delete next[filePath];
-      return next;
-    });
-  }, [writeNow]);
+  const isDirty = useCallback((filePath: string) => {
+    const d = fileData[filePath];
+    return !!d && d.loaded && d.content !== d.saved;
+  }, [fileData]);
 
   // Handle a file's on-disk content changing while it's open in the editor.
   const handleDiskUpdate = useCallback((filePath: string, res: { content: string; tooLarge: boolean; binary: boolean }) => {
@@ -233,22 +197,31 @@ export function useFileEditors(opts: {
     }
   }, []);
 
+  // Every open file path across all roots; drives the subscription set.
+  const openPaths = useMemo(() => {
+    const set = new Set<string>();
+    for (const root of Object.values(editorsByRoot)) {
+      for (const f of root.openFiles) set.add(f.path);
+    }
+    return [...set];
+  }, [editorsByRoot]);
+
   // Subscribe to live content for each open file; unsubscribe when closed.
   useEffect(() => {
     const client = getRpcClient();
     const subs = fileSubsRef.current;
-    const want = new Set(openFiles.map((f) => f.path));
-    for (const f of openFiles) {
-      if (subs.has(f.path)) continue;
-      const unsubscribe = client.subscribe("fs.fileUpdates", (res) => handleDiskUpdate(f.path, res), { filePath: f.path });
-      subs.set(f.path, unsubscribe);
+    const want = new Set(openPaths);
+    for (const p of openPaths) {
+      if (subs.has(p)) continue;
+      const unsubscribe = client.subscribe("fs.fileUpdates", (res) => handleDiskUpdate(p, res), { filePath: p });
+      subs.set(p, unsubscribe);
     }
     for (const [p, unsubscribe] of subs) {
       if (want.has(p)) continue;
       unsubscribe();
       subs.delete(p);
     }
-  }, [openFiles, handleDiskUpdate]);
+  }, [openPaths, handleDiskUpdate]);
 
   useEffect(() => {
     const subs = fileSubsRef.current;
@@ -293,19 +266,63 @@ export function useFileEditors(opts: {
     });
   }, []);
 
+  const value = useMemo<FileEditorsContextValue>(
+    () => ({ editorsByRoot, fileData, openFile, closeFile, setActiveFile, updateContent, saveFile, isDirty }),
+    [editorsByRoot, fileData, openFile, closeFile, setActiveFile, updateContent, saveFile, isDirty],
+  );
+
+  return (
+    <FileEditorsContext.Provider value={value}>
+      {children}
+      {conflict && (
+        <FileConflictModal
+          fileName={baseName(conflict.path)}
+          onKeepMine={resolveKeepMine}
+          onReloadDisk={resolveReloadDisk}
+          onClose={() => setConflict(null)}
+        />
+      )}
+    </FileEditorsContext.Provider>
+  );
+};
+
+function useFileEditorsContext(): FileEditorsContextValue {
+  const ctx = useContext(FileEditorsContext);
+  if (!ctx) throw new Error("useFileEditors must be used within a FileEditorsProvider");
+  return ctx;
+}
+
+export interface FileEditors {
+  openFiles: OpenFile[];
+  activeFile: string;
+  setActiveFile: (id: string) => void;
+  fileData: Record<string, FileData>;
+  closeFile: (filePath: string) => void;
+  updateContent: (filePath: string, content: string) => void;
+  saveFile: (filePath: string) => void;
+  isDirty: (filePath: string) => boolean;
+}
+
+// Panel-facing view of the editor state for a single root. `defaultTab` is the
+// id of the non-file tab the active selection falls back to when no file is
+// open (e.g. "Sessions", "Details").
+export function useFileEditors(rootPath: string | null, defaultTab: string): FileEditors {
+  const ctx = useFileEditorsContext();
+  const root = rootPath ?? "";
+  const entry = ctx.editorsByRoot[root];
   return {
-    openFiles,
-    activeFile,
-    setActiveFile,
-    fileData,
-    openFile,
-    closeFile,
-    updateContent,
-    saveFile,
-    isDirty,
-    conflict,
-    setConflict,
-    resolveKeepMine,
-    resolveReloadDisk,
+    openFiles: entry?.openFiles ?? NO_FILES,
+    activeFile: entry?.activeFile || defaultTab,
+    setActiveFile: useCallback((id: string) => ctx.setActiveFile(root, id), [ctx, root]),
+    fileData: ctx.fileData,
+    closeFile: useCallback((filePath: string) => ctx.closeFile(root, filePath), [ctx, root]),
+    updateContent: ctx.updateContent,
+    saveFile: ctx.saveFile,
+    isDirty: ctx.isDirty,
   };
+}
+
+// Opens a file in the editor for an explicit root, for the file-tree sidebars.
+export function useOpenFile(): (rootPath: string, file: OpenFile) => void {
+  return useFileEditorsContext().openFile;
 }

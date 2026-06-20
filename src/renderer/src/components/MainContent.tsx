@@ -3,12 +3,11 @@ import { Folder, FileEdit, Terminal, Zap, Unlock, Package, GitPullRequest, X, Ci
 import { Worktree, PoolConfig, OpenFile, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { useFileEditors, belongsUnder } from "../useFileEditors";
+import { useFileEditors } from "../useFileEditors";
 import TopBar from "./TopBar";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
 import FileEditorTab from "./FileEditorTab";
-import FileConflictModal from "./FileConflictModal";
 import ContextMenu from "./ContextMenu";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import { relativeToRoot } from "../paths";
@@ -30,7 +29,6 @@ interface MainContentProps {
 
 export interface MainContentHandle {
   launchTaskTerminal: (env: Record<string, string>, initialCommand: string, taskId?: string) => void;
-  openFile: (file: OpenFile) => void;
 }
 
 const MIN_PANE_WIDTH = 200;
@@ -63,20 +61,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     activeFile,
     setActiveFile,
     fileData,
-    openFile,
     closeFile,
     updateContent,
     saveFile,
     isDirty,
-    conflict,
-    setConflict,
-    resolveKeepMine,
-    resolveReloadDisk,
-  } = useFileEditors({
-    rootPath: selectedWorktree?.path ?? null,
-    defaultTab: DETAILS_TAB,
-    belongs: belongsUnder,
-  });
+  } = useFileEditors(selectedWorktree?.path ?? null, DETAILS_TAB);
 
   // Fetch GitHub PR/branch link with periodic revalidation
   const fetchGhLink = useCallback(() => {
@@ -154,8 +143,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     launchTaskTerminal: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
       terminalStackRef.current?.createTerminalWithCommand(env, initialCommand, taskId);
     },
-    openFile,
-  }), [openFile]);
+  }), []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -446,15 +434,6 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             )}
           </div>
         </div>
-      )}
-
-      {conflict && (
-        <FileConflictModal
-          fileName={openFiles.find((f) => f.path === conflict.path)?.name ?? conflict.path}
-          onKeepMine={resolveKeepMine}
-          onReloadDisk={resolveReloadDisk}
-          onClose={() => setConflict(null)}
-        />
       )}
 
       {tabMenu && (

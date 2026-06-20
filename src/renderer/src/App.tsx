@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Menu } from "lucide-react";
-import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, ProjectNode, OpenFile, isTmpBranch } from "./types";
+import { Repository, Worktree, RepositoryConfig, PoolConfig, MergeOptions, ProjectEntry, ProjectNode, isTmpBranch } from "./types";
 import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
-import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
+import ProjectsPanel from "./components/ProjectsPanel";
+import { FileEditorsProvider } from "./useFileEditors";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
@@ -70,7 +71,6 @@ const App: React.FC = () => {
   const mainContentRef = useRef<MainContentHandle>(null);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
   const [selectedNode, setSelectedNode] = useState<ProjectNode | null>(null);
-  const projectsPanelRef = useRef<ProjectsPanelHandle>(null);
 
   // Record a navigation entry whenever the view or selection changes, so the
   // back/forward buttons can step through past view+selection combinations.
@@ -687,6 +687,7 @@ const App: React.FC = () => {
   };
 
   return (
+    <FileEditorsProvider>
     <div className="flex h-screen">
       {sidebarCollapsed ? (
         isNarrow ? null : (
@@ -740,8 +741,6 @@ const App: React.FC = () => {
                 setSelectedNode(node);
                 setMainPaneView({ type: 'projects' });
               }}
-              onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
-              onOpenWorktreeFile={(file: OpenFile) => mainContentRef.current?.openFile(file)}
               onAddProject={() => setShowAddProjectModal(true)}
               onRemoveProject={handleRemoveProject}
               onAutomationsSubViewChange={(view: AutomationsSubView) => {
@@ -816,7 +815,6 @@ const App: React.FC = () => {
       ) : mainPaneView.type === 'projects' ? (
         <div className="flex-1 min-w-0">
           <ProjectsPanel
-            ref={projectsPanelRef}
             project={selectedNode}
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
@@ -967,6 +965,7 @@ const App: React.FC = () => {
       )}
 
     </div>
+    </FileEditorsProvider>
   );
 };
 

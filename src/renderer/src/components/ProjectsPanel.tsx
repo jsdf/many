@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Folder, Terminal, X, Circle } from "lucide-react";
 import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { useFileEditors, belongsToDir } from "../useFileEditors";
+import { useFileEditors } from "../useFileEditors";
 import TopBar from "./TopBar";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import FileEditorTab from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
-import FileConflictModal from "./FileConflictModal";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import { relativeToRoot } from "../paths";
 
@@ -24,18 +23,14 @@ interface ProjectsPanelProps {
   onExpandSidebar?: () => void;
 }
 
-export interface ProjectsPanelHandle {
-  openFile: (file: OpenFile) => void;
-}
-
 const MIN_PANE_WIDTH = 200;
 const DEFAULT_SPLIT = 0.6;
 
-const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
+const ProjectsPanel: React.FC<ProjectsPanelProps> = ({
   project,
   sidebarCollapsed,
   onExpandSidebar,
-}, ref) => {
+}) => {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
@@ -51,16 +46,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     activeFile,
     setActiveFile,
     fileData,
-    openFile,
     closeFile,
     updateContent,
     saveFile,
     isDirty,
-    conflict,
-    setConflict,
-    resolveKeepMine,
-    resolveReloadDisk,
-  } = useFileEditors({ rootPath: project?.path ?? null, defaultTab: SESSIONS_TAB, belongs: belongsToDir });
+  } = useFileEditors(project?.path ?? null, SESSIONS_TAB);
 
   // Load the app-level default Claude Code command for launching Claude here.
   useEffect(() => {
@@ -69,8 +59,6 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       .then((settings) => setClaudeCommand(settings.defaultClaudeCommand || undefined))
       .catch((err) => console.error("Failed to load settings:", err));
   }, []);
-
-  useImperativeHandle(ref, () => ({ openFile }), [openFile]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -229,15 +217,6 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
         </div>
       </div>
 
-      {conflict && (
-        <FileConflictModal
-          fileName={openFiles.find((f) => f.path === conflict.path)?.name ?? conflict.path}
-          onKeepMine={resolveKeepMine}
-          onReloadDisk={resolveReloadDisk}
-          onClose={() => setConflict(null)}
-        />
-      )}
-
       {tabMenu && (
         <ContextMenu
           x={tabMenu.x}
@@ -248,6 +227,6 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
       )}
     </div>
   );
-});
+};
 
 export default ProjectsPanel;
