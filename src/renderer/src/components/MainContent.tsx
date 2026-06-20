@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { Folder, FileEdit, Terminal, Zap, Unlock, Package, GitPullRequest } from "lucide-react";
-import { Worktree, PoolConfig, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
+import { Folder, FileEdit, Terminal, Zap, Unlock, Package, GitPullRequest, X, Circle } from "lucide-react";
+import { Worktree, PoolConfig, OpenFile, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useFileEditors } from "../useFileEditors";
 import TopBar from "./TopBar";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
+import FileEditorTab from "./FileEditorTab";
+import ContextMenu from "./ContextMenu";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
+import { relativeToRoot } from "../paths";
+
+const DETAILS_TAB = "__details__";
 
 interface MainContentProps {
   selectedWorktree: Worktree | null;
@@ -46,8 +52,20 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const [ghLink, setGhLink] = useState<{ type: "pr" | "branch"; url: string } | null>(null);
   const [linearLink, setLinearLink] = useState<{ linearId: string; linearUrl: string } | null>(null);
   const [isTracked, setIsTracked] = useState(false);
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; file: OpenFile } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
+
+  const {
+    openFiles,
+    activeFile,
+    setActiveFile,
+    fileData,
+    closeFile,
+    updateContent,
+    saveFile,
+    isDirty,
+  } = useFileEditors(selectedWorktree?.path ?? null, DETAILS_TAB);
 
   // Fetch GitHub PR/branch link with periodic revalidation
   const fetchGhLink = useCallback(() => {
@@ -181,6 +199,88 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     );
   }
 
+  const worktreeDetailsEl = (
+    <WorktreeDetails
+      key={`worktree-details-${selectedWorktree.path}`}
+      worktree={selectedWorktree}
+      repoPath={currentRepo!}
+      onRetryTask={(env, command) => {
+        terminalStackRef.current?.createTerminalWithCommand(env, command);
+      }}
+      onViewTaskLog={(taskId, isSavedLog) => {
+        terminalStackRef.current?.openTaskLog(taskId, isSavedLog);
+      }}
+      onViewSessionHistory={(sessionId) => {
+        terminalStackRef.current?.openSessionHistory(sessionId);
+      }}
+      onResumeSession={(sessionId, sessionType) => {
+        if (sessionType === "chat") {
+          terminalStackRef.current?.openClaudeSession(sessionId);
+        } else {
+          const cmd = claudeCommand || "claude";
+          terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+        }
+      }}
+    />
+  );
+
+  const active = openFiles.find((f) => f.path === activeFile) ?? null;
+
+  // Tab strip across the left pane: a fixed Details tab plus one tab per open
+  // file, mirroring the Projects panel.
+  const tabBar = (
+    <div className="flex items-stretch overflow-x-auto bg-base-200 border-b border-base-300 shrink-0">
+      <div
+        className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${activeFile === DETAILS_TAB ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+        onClick={() => setActiveFile(DETAILS_TAB)}
+      >
+        <span>Details</span>
+      </div>
+      {openFiles.map((f) => {
+        const dirty = isDirty(f.path);
+        return (
+          <div
+            key={f.path}
+            className={`group flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${f.path === activeFile ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+            onClick={() => setActiveFile(f.path)}
+            onContextMenu={(e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, file: f }); }}
+            title={f.path}
+          >
+            <span className="truncate max-w-[160px]">{f.name}</span>
+            <button
+              className={`w-3 flex items-center justify-center ${dirty ? "text-base-content/70 group-hover:hidden" : "hidden"}`}
+              title="Unsaved changes"
+              onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+            >
+              <Circle size={8} className="fill-current" />
+            </button>
+            <button
+              className={`w-3 text-center text-base-content/40 hover:text-error ${dirty ? "hidden group-hover:inline" : ""}`}
+              title="Close"
+              onClick={(e) => { e.stopPropagation(); closeFile(f.path); }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Left-pane body: the worktree details or the active file's editor.
+  const leftContent =
+    activeFile === DETAILS_TAB ? (
+      <div className="h-full overflow-y-auto">{worktreeDetailsEl}</div>
+    ) : active && fileData[active.path] ? (
+      <FileEditorTab
+        key={`${active.path}:${fileData[active.path].version}`}
+        fileName={active.name}
+        data={fileData[active.path]}
+        onChange={(content) => updateContent(active.path, content)}
+        onSave={() => saveFile(active.path)}
+      />
+    ) : null;
+
   return (
     <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
       <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
@@ -291,28 +391,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
 
       {isNarrow ? (
         <div className="flex-1 overflow-y-auto min-h-0">
-          <WorktreeDetails
-            key={`worktree-details-${selectedWorktree.path}`}
-            worktree={selectedWorktree}
-            repoPath={currentRepo!}
-            onRetryTask={(env, command) => {
-              terminalStackRef.current?.createTerminalWithCommand(env, command);
-            }}
-            onViewTaskLog={(taskId, isSavedLog) => {
-              terminalStackRef.current?.openTaskLog(taskId, isSavedLog);
-            }}
-            onViewSessionHistory={(sessionId) => {
-              terminalStackRef.current?.openSessionHistory(sessionId);
-            }}
-            onResumeSession={(sessionId, sessionType) => {
-              if (sessionType === "chat") {
-                terminalStackRef.current?.openClaudeSession(sessionId);
-              } else {
-                const cmd = claudeCommand || "claude";
-                terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
-              }
-            }}
-          />
+          {worktreeDetailsEl}
           {selectedWorktree.path && (
             <TerminalStack
               key={`terminal-stack-${selectedWorktree.path}`}
@@ -331,31 +410,11 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           style={{ userSelect: dragging ? "none" : undefined }}
         >
           <div
-            className="overflow-y-auto min-w-[200px]"
+            className="flex flex-col overflow-hidden min-w-[200px]"
             style={{ flex: `0 0 ${splitFraction * 100}%` }}
           >
-            <WorktreeDetails
-              key={`worktree-details-${selectedWorktree.path}`}
-              worktree={selectedWorktree}
-              repoPath={currentRepo!}
-              onRetryTask={(env, command) => {
-                terminalStackRef.current?.createTerminalWithCommand(env, command);
-              }}
-              onViewTaskLog={(taskId, isSavedLog) => {
-                terminalStackRef.current?.openTaskLog(taskId, isSavedLog);
-              }}
-              onViewSessionHistory={(sessionId) => {
-                terminalStackRef.current?.openSessionHistory(sessionId);
-              }}
-              onResumeSession={(sessionId, sessionType) => {
-                if (sessionType === "chat") {
-                  terminalStackRef.current?.openClaudeSession(sessionId);
-                } else {
-                  const cmd = claudeCommand || "claude";
-                  terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
-                }
-              }}
-            />
+            {tabBar}
+            <div className="flex-1 overflow-hidden min-h-0">{leftContent}</div>
           </div>
 
           <div
@@ -375,6 +434,18 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
             )}
           </div>
         </div>
+      )}
+
+      {tabMenu && (
+        <ContextMenu
+          x={tabMenu.x}
+          y={tabMenu.y}
+          items={[
+            { label: "Copy relative path", onClick: () => navigator.clipboard.writeText(relativeToRoot(tabMenu.file.path, selectedWorktree.path)).catch(() => {}) },
+            { label: "Copy absolute path", onClick: () => navigator.clipboard.writeText(tabMenu.file.path).catch(() => {}) },
+          ]}
+          onClose={() => setTabMenu(null)}
+        />
       )}
     </div>
   );

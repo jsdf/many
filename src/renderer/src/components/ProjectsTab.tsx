@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Ban } from "lucide-react";
-import { ProjectEntry, ProjectNode, FsEntry, OpenFile } from "../types";
+import { ProjectEntry, ProjectNode, FsEntry } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import FsActionDialog, { FsAction } from "./FsActionDialog";
 import FileTree, { FileTreeRow } from "./FileTree";
 import { useFsTree } from "../useFsTree";
+import { useOpenFile } from "../useFileEditors";
 import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
 import { WorktreeActivity, isActive } from "../treeActivity";
 import { PinToggle, pinMenuItem } from "./pinControls";
@@ -19,7 +20,6 @@ interface ProjectsTabProps {
   projects: ProjectEntry[];
   selectedNode: ProjectNode | null;
   onSelectNode: (node: ProjectNode) => void;
-  onOpenFile: (file: OpenFile) => void;
   onAddProject: () => void;
   onRemoveProject: (project: ProjectEntry) => void;
   onCloseProject: (path: string, name: string) => void;
@@ -33,7 +33,6 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   projects,
   selectedNode,
   onSelectNode,
-  onOpenFile,
   onAddProject,
   onRemoveProject,
   onCloseProject,
@@ -43,6 +42,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   onTogglePin,
 }) => {
   const { expanded, childrenByDir, loading, toggleDir, expandDir, expandPath } = useFsTree();
+  const openFile = useOpenFile();
   const [filter, setFilter] = useState("");
   const query = filter.trim().toLowerCase();
   const filtering = query.length > 0;
@@ -217,9 +217,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
       onSelectNode(node);
       expandPath(parentPath, project.path);
-      onOpenFile({ path: entry.path, name: entry.name });
+      openFile(node.path, { path: entry.path, name: entry.name });
     },
-    [onSelectNode, onOpenFile, expandPath],
+    [onSelectNode, openFile, expandPath],
   );
 
   // Build context menu items for a row. Directories can spawn children and be

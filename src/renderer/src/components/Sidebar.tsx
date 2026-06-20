@@ -24,14 +24,14 @@ import {
   PoolConfig,
   ProjectEntry,
   ProjectNode,
-  OpenFile,
   isTmpBranch,
   formatBranchName,
   findWorktreePool,
 } from "../types";
 import { useWorktreeActivityTimes } from "../rpc-hooks";
 import ProjectsTab from "./ProjectsTab";
-import { Settings, ChevronLeft, Star, Circle } from "lucide-react";
+import WorktreeFileTree from "./WorktreeFileTree";
+import { Settings, ArrowLeft, ArrowRight, ChevronLeft, Star, Circle } from "lucide-react";
 
 function formatRelativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -78,7 +78,6 @@ interface SidebarProps {
   onNavigateTracked?: () => void;
   onNavigateProjects?: () => void;
   onSelectNode?: (node: ProjectNode) => void;
-  onOpenFile?: (file: OpenFile) => void;
   onAddProject?: () => void;
   onRemoveProject?: (project: ProjectEntry) => void;
   onCloseProject?: (path: string, name: string) => void;
@@ -498,7 +497,78 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto mb-3">
+      <div className="flex flex-wrap gap-1 mb-2 px-1">
+        {multiSelect ? (
+          <>
+            <button
+              className="btn btn-xs btn-warning flex-1"
+              disabled={selectedPaths.size === 0}
+              onClick={() => {
+                const selected = worktrees.filter((w) =>
+                  selectedPaths.has(w.path),
+                );
+                if (selected.length > 0 && onArchiveWorktrees) {
+                  onArchiveWorktrees(selected);
+                  exitMultiSelect();
+                }
+              }}
+            >
+              Archive {selectedPaths.size > 0 ? `${selectedPaths.size} ` : ""}
+              Selected
+            </button>
+            <button
+              className="btn btn-xs btn-outline btn-neutral"
+              onClick={exitMultiSelect}
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            {hasTaskPools && onNewTask && (
+              <button
+                onClick={onNewTask}
+                disabled={!currentRepo}
+                className="btn btn-xs btn-outline btn-success"
+              >
+                New Task
+              </button>
+            )}
+            <button
+              data-testid="create-worktree-button"
+              onClick={onCreateWorktree}
+              disabled={!currentRepo}
+              className="btn btn-xs btn-soft btn-success"
+            >
+              Create Worktree
+            </button>
+            {!hasAnyPoolGroups &&
+              ungroupedAvailable.length > 0 &&
+              onSwitchWorktree && (
+                <button
+                  data-testid="switch-worktree-button"
+                  onClick={onSwitchWorktree}
+                  disabled={!currentRepo}
+                  className="btn btn-xs btn-outline btn-neutral"
+                  title="Claim an available worktree for a branch"
+                >
+                  Switch Branch
+                </button>
+              )}
+            {onArchiveWorktrees && worktrees.some((w) => isArchivable(w)) && (
+              <button
+                className="btn btn-xs btn-soft btn-warning"
+                disabled={!currentRepo}
+                onClick={() => setMultiSelect(true)}
+              >
+                Batch Archive...
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0 mb-2">
         {worktrees.length === 0 ? (
           <p className="text-base-content/50 italic text-center mt-12">
             {currentRepo
@@ -605,76 +675,14 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        {multiSelect ? (
-          <>
-            <button
-              className="btn btn-warning w-full"
-              disabled={selectedPaths.size === 0}
-              onClick={() => {
-                const selected = worktrees.filter((w) =>
-                  selectedPaths.has(w.path),
-                );
-                if (selected.length > 0 && onArchiveWorktrees) {
-                  onArchiveWorktrees(selected);
-                  exitMultiSelect();
-                }
-              }}
-            >
-              Archive {selectedPaths.size > 0 ? `${selectedPaths.size} ` : ""}
-              Selected
-            </button>
-            <button
-              className="btn btn-outline btn-neutral w-full"
-              onClick={exitMultiSelect}
-            >
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            {hasTaskPools && onNewTask && (
-              <button
-                onClick={onNewTask}
-                disabled={!currentRepo}
-                className="btn btn-outline btn-success w-full"
-              >
-                New Task
-              </button>
-            )}
-            <button
-              data-testid="create-worktree-button"
-              onClick={onCreateWorktree}
-              disabled={!currentRepo}
-              className="btn btn-soft btn-success w-full"
-            >
-              Create Worktree
-            </button>
-            {!hasAnyPoolGroups &&
-              ungroupedAvailable.length > 0 &&
-              onSwitchWorktree && (
-                <button
-                  data-testid="switch-worktree-button"
-                  onClick={onSwitchWorktree}
-                  disabled={!currentRepo}
-                  className="btn btn-outline btn-neutral w-full"
-                  title="Claim an available worktree for a branch"
-                >
-                  Switch Branch
-                </button>
-              )}
-            {onArchiveWorktrees && worktrees.some((w) => isArchivable(w)) && (
-              <button
-                className="btn btn-soft btn-warning w-full"
-                disabled={!currentRepo}
-                onClick={() => setMultiSelect(true)}
-              >
-                Batch Archive...
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      {selectedWorktree && (
+        <WorktreeFileTree
+          key={selectedWorktree.path}
+          worktreePath={selectedWorktree.path}
+          worktreeName={selectedWorktree.worktreeName}
+          worktreeActivity={worktreeActivity}
+        />
+      )}
     </>
   );
 };
@@ -756,7 +764,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateTracked,
   onNavigateProjects,
   onSelectNode,
-  onOpenFile,
   onAddProject,
   onRemoveProject,
   onCloseProject,
@@ -859,7 +866,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           projects={projects}
           selectedNode={selectedNode}
           onSelectNode={(n) => onSelectNode?.(n)}
-          onOpenFile={(f) => onOpenFile?.(f)}
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}
           onCloseProject={(path, name) => onCloseProject?.(path, name)}

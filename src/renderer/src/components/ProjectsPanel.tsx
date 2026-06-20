@@ -3,11 +3,11 @@ import { Folder, Terminal, X, Circle } from "lucide-react";
 import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useFileEditors, useOpenFile } from "../useFileEditors";
 import TopBar from "./TopBar";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
-import FileEditorTab, { FileData } from "./FileEditorTab";
+import FileEditorTab from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
-import FileConflictModal from "./FileConflictModal";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import { relativeToRoot } from "../paths";
 
@@ -17,21 +17,17 @@ function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch((err) => console.error("Failed to copy:", err));
 }
 
+export interface ProjectsPanelHandle {
+  openFile: (file: OpenFile) => void;
+  newTerminal: () => void;
+}
+
 interface ProjectsPanelProps {
   project: ProjectNode | null;
-  // Open files for the current project, owned by App so they persist per project.
-  openFiles: OpenFile[];
-  onOpenFilesChange: (next: OpenFile[]) => void;
-  // A Claude session to resume once this panel is mounted for its project.
   pendingResume: { projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null;
   onPendingResumeConsumed: () => void;
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
-}
-
-export interface ProjectsPanelHandle {
-  openFile: (file: OpenFile) => void;
-  newTerminal: () => void;
 }
 
 const MIN_PANE_WIDTH = 200;
@@ -39,8 +35,6 @@ const DEFAULT_SPLIT = 0.6;
 
 const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   project,
-  openFiles,
-  onOpenFilesChange,
   pendingResume,
   onPendingResumeConsumed,
   sidebarCollapsed,
@@ -49,104 +43,26 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
   const [dragging, setDragging] = useState(false);
-  const [activeFile, setActiveFile] = useState<string>(SESSIONS_TAB);
-  // Latest open-files list, readable from timers/cleanup without stale closures.
-  const openFilesRef = useRef(openFiles);
-  openFilesRef.current = openFiles;
   // App-level default Claude Code command, used to launch Claude from this page.
   const [claudeCommand, setClaudeCommand] = useState<string | undefined>(undefined);
   const [claudeCommandLoaded, setClaudeCommandLoaded] = useState(false);
-  const [fileData, setFileData] = useState<Record<string, FileData>>({});
-  // An unresolved on-disk conflict: the file changed externally while it had
-  // unsaved edits. diskContent holds the new on-disk version.
-  const [conflict, setConflict] = useState<{ path: string; diskContent: string } | null>(null);
   // Right-click context menu for an open file's tab handle.
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; file: OpenFile } | null>(null);
-  // Live file-content subscriptions, one per open file.
-  const fileSubsRef = useRef<Map<string, () => void>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
-  const prevPathRef = useRef<string | null>(null);
-  // Latest fileData, readable from timers/cleanup without stale closures.
-  const fileDataRef = useRef(fileData);
-  fileDataRef.current = fileData;
-  // Pending autosave timers, keyed by file path.
-  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const AUTOSAVE_DELAY = 600;
+  const {
+    openFiles,
+    activeFile,
+    setActiveFile,
+    fileData,
+    closeFile,
+    updateContent,
+    saveFile,
+    isDirty,
+  } = useFileEditors(project?.path ?? null, SESSIONS_TAB);
 
-  // Persist a file immediately if it has unsaved changes.
-  const writeNow = useCallback((filePath: string) => {
-    const timer = saveTimers.current[filePath];
-    if (timer) {
-      clearTimeout(timer);
-      delete saveTimers.current[filePath];
-    }
-    const cur = fileDataRef.current[filePath];
-    if (!cur || !cur.loaded || cur.content === cur.saved) return;
-    const toSave = cur.content;
-    getRpcClient()
-      .query("fs.writeFile", { filePath, content: toSave })
-      .then(() => {
-        setFileData((p) => (p[filePath] ? { ...p, [filePath]: { ...p[filePath], saved: toSave } } : p));
-      })
-      .catch((err) => console.error("[fs.writeFile] failed:", err));
-  }, []);
-
-  const scheduleSave = useCallback((filePath: string) => {
-    if (saveTimers.current[filePath]) clearTimeout(saveTimers.current[filePath]);
-    saveTimers.current[filePath] = setTimeout(() => writeNow(filePath), AUTOSAVE_DELAY);
-  }, [writeNow]);
-
-  // Flush all pending saves (e.g. before switching nodes or unmounting).
-  const flushSaves = useCallback(() => {
-    for (const filePath of Object.keys(saveTimers.current)) writeNow(filePath);
-  }, [writeNow]);
-
-  // The open-files LIST is owned by App per project, so it persists across
-  // switches. Per-file editing state (fileData, subscriptions) is kept local and
-  // only for the visible project: on switch we flush pending saves and drop the
-  // local fileData, then reload the incoming project's files (see below). This
-  // bounds memory to one project's worth of file content.
-  useEffect(() => {
-    const prev = prevPathRef.current;
-    const current = project?.path ?? null;
-    prevPathRef.current = current;
-    if (prev === null || prev === current) return;
-    flushSaves();
-    setFileData({});
-    setActiveFile(SESSIONS_TAB);
-  }, [project?.path, flushSaves]);
-
-  // Load any open file that lacks local content yet (initial open or return to a
-  // project whose fileData was dropped on switch).
-  useEffect(() => {
-    for (const f of openFiles) {
-      if (!fileDataRef.current[f.path]) loadFile(f.path);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openFiles, project?.path]);
-
-  // When files are removed externally (e.g. closing the whole project), flush
-  // their pending saves, drop their local state, and fall back to the Sessions
-  // tab if the active file is gone.
-  useEffect(() => {
-    const want = new Set(openFiles.map((f) => f.path));
-    const removed = Object.keys(fileDataRef.current).filter((k) => !want.has(k));
-    if (removed.length > 0) {
-      for (const k of removed) writeNow(k);
-      setFileData((prev) => {
-        const next = { ...prev };
-        for (const k of removed) delete next[k];
-        return next;
-      });
-    }
-    setActiveFile((cur) => (cur !== SESSIONS_TAB && !want.has(cur) ? SESSIONS_TAB : cur));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openFiles]);
-
-  // Flush any pending saves when the panel unmounts.
-  useEffect(() => () => flushSaves(), [flushSaves]);
+  const openFileInContext = useOpenFile();
 
   // Load the app-level default Claude Code command for launching Claude here.
   useEffect(() => {
@@ -172,164 +88,15 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     onPendingResumeConsumed();
   }, [pendingResume, project?.path, claudeCommand, claudeCommandLoaded, onPendingResumeConsumed]);
 
-  const loadFile = useCallback((filePath: string) => {
-    setFileData((prev) => ({
-      ...prev,
-      [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: false, version: 0 },
-    }));
-    getRpcClient()
-      .query("fs.readFile", { filePath })
-      .then((res) => {
-        setFileData((prev) => ({
-          ...prev,
-          [filePath]: {
-            content: res.content,
-            saved: res.content,
-            tooLarge: res.tooLarge,
-            binary: res.binary,
-            loaded: true,
-            version: (prev[filePath]?.version ?? 0) + 1,
-          },
-        }));
-      })
-      .catch((err) => {
-        setFileData((prev) => ({
-          ...prev,
-          [filePath]: { content: "", saved: "", tooLarge: false, binary: false, loaded: true, version: 0, error: err instanceof Error ? err.message : String(err) },
-        }));
-      });
-  }, []);
-
   useImperativeHandle(ref, () => ({
     openFile: (file: OpenFile) => {
-      const cur = openFilesRef.current;
-      if (!cur.some((f) => f.path === file.path)) onOpenFilesChange([...cur, file]);
-      setActiveFile(file.path);
-      if (!fileDataRef.current[file.path]) loadFile(file.path);
+      if (project) {
+        openFileInContext(project.path, file);
+        setActiveFile(file.path);
+      }
     },
     newTerminal: () => terminalStackRef.current?.createTerminalWithCommand({}, ""),
-  }), [loadFile, onOpenFilesChange]);
-
-  const updateContent = useCallback((filePath: string, content: string) => {
-    setFileData((prev) => {
-      const cur = prev[filePath];
-      if (!cur || cur.content === content) return prev;
-      return { ...prev, [filePath]: { ...cur, content } };
-    });
-    scheduleSave(filePath);
-  }, [scheduleSave]);
-
-  const saveFile = useCallback((filePath: string) => writeNow(filePath), [writeNow]);
-
-  const isDirty = useCallback(
-    (filePath: string) => {
-      const d = fileData[filePath];
-      return !!d && d.loaded && d.content !== d.saved;
-    },
-    [fileData]
-  );
-
-  const closeFile = useCallback((filePath: string) => {
-    // Flush any pending autosave before dropping the file's state.
-    writeNow(filePath);
-    const next = openFilesRef.current.filter((f) => f.path !== filePath);
-    onOpenFilesChange(next);
-    setActiveFile((current) => {
-      if (current !== filePath) return current;
-      return next.length > 0 ? next[next.length - 1].path : SESSIONS_TAB;
-    });
-    setFileData((prev) => {
-      const next = { ...prev };
-      delete next[filePath];
-      return next;
-    });
-  }, [writeNow, onOpenFilesChange]);
-
-  // Handle a file's on-disk content changing while it's open in the editor.
-  const handleDiskUpdate = useCallback((filePath: string, res: { content: string; tooLarge: boolean; binary: boolean }) => {
-    const cur = fileDataRef.current[filePath];
-    if (!cur || !cur.loaded || res.tooLarge || res.binary) return;
-    const incoming = res.content;
-    // Matches our last persisted baseline (incl. our own writes echoing back).
-    if (incoming === cur.saved) return;
-    const dirty = cur.content !== cur.saved;
-    if (!dirty) {
-      // No unsaved edits: adopt the on-disk content and remount the editor.
-      setFileData((prev) => {
-        const c = prev[filePath];
-        if (!c) return prev;
-        return { ...prev, [filePath]: { ...c, content: incoming, saved: incoming, version: c.version + 1 } };
-      });
-    } else {
-      // Unsaved edits would be lost: cancel pending autosave (so we don't
-      // clobber the disk version before the user decides) and prompt.
-      if (saveTimers.current[filePath]) {
-        clearTimeout(saveTimers.current[filePath]);
-        delete saveTimers.current[filePath];
-      }
-      setConflict((c) => (c && c.path !== filePath ? c : { path: filePath, diskContent: incoming }));
-    }
-  }, []);
-
-  // Subscribe to live content for each open file; unsubscribe when closed.
-  useEffect(() => {
-    const client = getRpcClient();
-    const subs = fileSubsRef.current;
-    const want = new Set(openFiles.map((f) => f.path));
-    for (const f of openFiles) {
-      if (subs.has(f.path)) continue;
-      const unsubscribe = client.subscribe("fs.fileUpdates", (res) => handleDiskUpdate(f.path, res), { filePath: f.path });
-      subs.set(f.path, unsubscribe);
-    }
-    for (const [p, unsubscribe] of subs) {
-      if (want.has(p)) continue;
-      unsubscribe();
-      subs.delete(p);
-    }
-  }, [openFiles, handleDiskUpdate]);
-
-  useEffect(() => {
-    const subs = fileSubsRef.current;
-    return () => {
-      for (const unsubscribe of subs.values()) unsubscribe();
-      subs.clear();
-    };
-  }, []);
-
-  // Conflict resolution: discard the editor's edits and load the disk version.
-  const resolveReloadDisk = useCallback(() => {
-    setConflict((c) => {
-      if (!c) return null;
-      const { path: p, diskContent } = c;
-      if (saveTimers.current[p]) {
-        clearTimeout(saveTimers.current[p]);
-        delete saveTimers.current[p];
-      }
-      setFileData((prev) => {
-        const cur = prev[p];
-        if (!cur) return prev;
-        return { ...prev, [p]: { ...cur, content: diskContent, saved: diskContent, version: cur.version + 1 } };
-      });
-      return null;
-    });
-  }, []);
-
-  // Conflict resolution: keep the editor's edits and write them over disk.
-  const resolveKeepMine = useCallback(() => {
-    setConflict((c) => {
-      if (!c) return null;
-      const p = c.path;
-      const cur = fileDataRef.current[p];
-      if (cur) {
-        const mine = cur.content;
-        getRpcClient()
-          .query("fs.writeFile", { filePath: p, content: mine })
-          .then(() => setFileData((prev) => (prev[p] ? { ...prev, [p]: { ...prev[p], saved: mine } } : prev)))
-          .catch((err) => console.error("[fs.writeFile] failed:", err));
-      }
-      return null;
-    });
-  }, []);
+  }), [openFileInContext, project, setActiveFile]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -487,15 +254,6 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           />
         </div>
       </div>
-
-      {conflict && (
-        <FileConflictModal
-          fileName={openFiles.find((f) => f.path === conflict.path)?.name ?? conflict.path}
-          onKeepMine={resolveKeepMine}
-          onReloadDisk={resolveReloadDisk}
-          onClose={() => setConflict(null)}
-        />
-      )}
 
       {tabMenu && (
         <ContextMenu

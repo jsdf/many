@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 interface CloseProjectDialogProps {
   projectName: string;
   terminalCount: number;
-  fileCount: number;
+  fileCount?: number;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -14,7 +14,7 @@ interface CloseProjectDialogProps {
 const CloseProjectDialog: React.FC<CloseProjectDialogProps> = ({
   projectName,
   terminalCount,
-  fileCount,
+  fileCount = 0,
   onConfirm,
   onClose,
 }) => {

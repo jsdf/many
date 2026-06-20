@@ -5,6 +5,7 @@ import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
 import ProjectsPalette from "./components/ProjectsPalette";
+import { FileEditorsProvider } from "./useFileEditors";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
@@ -76,39 +77,19 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
   const [selectedNode, setSelectedNode] = useState<ProjectNode | null>(null);
   const projectsPanelRef = useRef<ProjectsPanelHandle>(null);
-  // Open files per project node path, lifted from ProjectsPanel so they persist
-  // across project switches and contribute to per-project activity counts.
-  const [openFilesByProject, setOpenFilesByProject] = useState<Record<string, OpenFile[]>>({});
   // A recent Claude session the user clicked: switch to its project, then resume
   // it once ProjectsPanel has remounted for that project (see ProjectsPanel).
   const [pendingResume, setPendingResume] = useState<{ projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null>(null);
   // A project pending a confirmed close (terminals would be killed).
-  const [closeProjectTarget, setCloseProjectTarget] = useState<{ path: string; name: string; terminalCount: number; fileCount: number } | null>(null);
+  const [closeProjectTarget, setCloseProjectTarget] = useState<{ path: string; name: string; terminalCount: number } | null>(null);
 
-  // Server activity (terminals + Claude sessions) merged with client-side open
-  // file counts, keyed by node path. Single source of truth for tree badges and
-  // the Active list.
   const mergedActivity = useMemo<Record<string, WorktreeActivity>>(() => {
     const out: Record<string, WorktreeActivity> = {};
     for (const [p, a] of Object.entries(worktreeActivity)) {
       out[p] = { terminals: a.terminals, claudeSessions: a.claudeSessions, openFiles: 0 };
     }
-    for (const [p, files] of Object.entries(openFilesByProject)) {
-      if (files.length === 0) continue;
-      const cur = out[p] ?? { terminals: 0, claudeSessions: 0, openFiles: 0 };
-      out[p] = { ...cur, openFiles: files.length };
-    }
     return out;
-  }, [worktreeActivity, openFilesByProject]);
-
-  const openFilesForSelected = selectedNode ? (openFilesByProject[selectedNode.path] ?? []) : [];
-
-  const handleOpenFilesChange = useCallback((next: OpenFile[]) => {
-    setSelectedNode((node) => {
-      if (node) setOpenFilesByProject((prev) => ({ ...prev, [node.path]: next }));
-      return node;
-    });
-  }, []);
+  }, [worktreeActivity]);
 
   // Switch to a recent session's project and queue its resume.
   const handleResumeRecentSession = useCallback(
@@ -122,20 +103,13 @@ const App: React.FC = () => {
     [setMainPaneView],
   );
 
-  // Close a project: kill its terminals and close its files. Confirms first when
-  // terminals would be killed (files autosave, so closing them is harmless).
+  // Close a project: kill its terminals. Confirms first when terminals would be killed.
   const performCloseProject = useCallback(async (path: string) => {
     try {
       await getRpcClient().query("terminal.closeWorktree", { worktreePath: path });
     } catch (err) {
       console.error("[terminal.closeWorktree] failed:", err);
     }
-    setOpenFilesByProject((prev) => {
-      if (!(path in prev)) return prev;
-      const next = { ...prev };
-      delete next[path];
-      return next;
-    });
     try {
       const activity = await getRpcClient().query("worktree.activity", {});
       setWorktreeActivity(activity);
@@ -145,13 +119,12 @@ const App: React.FC = () => {
   const handleCloseProject = useCallback((path: string, name: string) => {
     const a = mergedActivity[path];
     const terminalCount = a?.terminals ?? 0;
-    const fileCount = openFilesByProject[path]?.length ?? 0;
     if (terminalCount > 0) {
-      setCloseProjectTarget({ path, name, terminalCount, fileCount });
+      setCloseProjectTarget({ path, name, terminalCount });
     } else {
       performCloseProject(path);
     }
-  }, [mergedActivity, openFilesByProject, performCloseProject]);
+  }, [mergedActivity, performCloseProject]);
 
   // Record a navigation entry whenever the view or selection changes, so the
   // back/forward buttons can step through past view+selection combinations.
@@ -231,13 +204,6 @@ const App: React.FC = () => {
     try {
       await getRpcClient().query("projects.remove", { projectPath: project.path });
       if (selectedNode && (selectedNode.path === project.path || selectedNode.path.startsWith(project.path + "/"))) setSelectedNode(null);
-      setOpenFilesByProject((prev) => {
-        const next: Record<string, OpenFile[]> = {};
-        for (const [p, files] of Object.entries(prev)) {
-          if (p !== project.path && !p.startsWith(project.path + "/")) next[p] = files;
-        }
-        return next;
-      });
       await loadProjects();
     } catch (err) {
       console.error("Failed to remove project:", err);
@@ -794,6 +760,7 @@ const App: React.FC = () => {
 
   return (
     <NavContext.Provider value={{ onBack: goBack, onForward: goForward, canBack: navHistory.canBack, canForward: navHistory.canForward }}>
+    <FileEditorsProvider>
     <div className="flex flex-col h-screen">
       <ConnectionBanner status={connectionStatus} />
       <div className="flex flex-1 min-h-0">
@@ -849,7 +816,6 @@ const App: React.FC = () => {
                 setSelectedNode(node);
                 setMainPaneView({ type: 'projects' });
               }}
-              onOpenFile={(file: OpenFile) => projectsPanelRef.current?.openFile(file)}
               onAddProject={() => setShowAddProjectModal(true)}
               onRemoveProject={handleRemoveProject}
               onCloseProject={handleCloseProject}
@@ -924,8 +890,6 @@ const App: React.FC = () => {
           <ProjectsPanel
             ref={projectsPanelRef}
             project={selectedNode}
-            openFiles={openFilesForSelected}
-            onOpenFilesChange={handleOpenFilesChange}
             pendingResume={pendingResume}
             onPendingResumeConsumed={() => setPendingResume(null)}
             sidebarCollapsed={sidebarCollapsed && isNarrow}
@@ -1090,7 +1054,6 @@ const App: React.FC = () => {
         <CloseProjectDialog
           projectName={closeProjectTarget.name}
           terminalCount={closeProjectTarget.terminalCount}
-          fileCount={closeProjectTarget.fileCount}
           onConfirm={() => {
             performCloseProject(closeProjectTarget.path);
             setCloseProjectTarget(null);
@@ -1101,6 +1064,7 @@ const App: React.FC = () => {
 
       </div>
     </div>
+    </FileEditorsProvider>
     </NavContext.Provider>
   );
 };
