@@ -1,0 +1,41 @@
+src/renderer/src/components/ProjectsPanel.tsx
+  s_b73e6f21929284::t_2e3c0d55b275b7 230
+  s_b73e6f21929284::t_a1fd6fbca1555b 1,6,29,33,53
+src/renderer/src/components/MainContent.tsx
+  s_b73e6f21929284::t_e15715b75d4ffc 6
+  s_b73e6f21929284::t_bdf3d0d780cb63 146
+  s_b73e6f21929284::t_a3148f8e27414b 68
+src/renderer/src/useFileEditors.tsx
+  s_b73e6f21929284::t_593345016e23d4 1-328
+src/renderer/src/components/Sidebar.tsx
+  s_b73e6f21929284::t_ac5191eeadbaba 678
+src/renderer/src/components/ProjectsTab.tsx
+  s_b73e6f21929284::t_3bb40bf45ca465 172,174
+  s_b73e6f21929284::t_f6fa2706ed795a 3,9
+  s_b73e6f21929284::t_d080c1b7a44d9c 40
+src/renderer/src/components/WorktreeFileTree.tsx
+  s_b73e6f21929284::t_a11e7fe7246749 30
+  s_b73e6f21929284::t_541958037c560a 70,73
+  s_b73e6f21929284::t_3dadb1d057a3b0 2,7
+src/renderer/src/App.tsx
+  s_b73e6f21929284::t_68d18449a8dfff 968
+  s_b73e6f21929284::t_5ce5794f6fa935 6-7
+  s_b73e6f21929284::t_8b89e291d35280 690
+  s_b73e6f21929284::t_b36905f8c9f6cf 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "7aba4825f1705e70c242bb2bdbbc6fdfba9f97f0",
+  "prompts": {},
+  "sessions": {
+    "s_b73e6f21929284": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9a684af-c64e-4fd1-9922-30cf1ebad888",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
