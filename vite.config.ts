@@ -98,9 +98,7 @@ export default defineConfig({
       },
     ]
   },
-  server: {
-    open: '/?token=dev',
-  },
+  server: {},
   build: {
     outDir: resolve('out/renderer'),
     emptyOutDir: true,
