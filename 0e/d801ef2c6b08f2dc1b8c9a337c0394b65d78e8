@@ -1,0 +1,21 @@
+src/renderer/src/theme-sharp.css
+  s_c8696a184f5e9a::t_d137c83f8aabe1 83-90
+src/renderer/src/styles.css
+  s_c8696a184f5e9a::t_9c2f5f4ee3fe1b 89-94,98-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "0ed801ef2c6b08f2dc1b8c9a337c0394b65d78e8",
+  "prompts": {},
+  "sessions": {
+    "s_c8696a184f5e9a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47b095c8-907d-437c-830a-dcd150bed45b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
