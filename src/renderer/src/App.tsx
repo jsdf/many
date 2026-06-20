@@ -228,9 +228,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const repo = repositories.find(r => r.path === currentRepo);
-    document.title = repo
-      ? `${repo.name || repo.path} - Many`
-      : "Many - Worktree Manager";
+    document.title = "Many";
   }, [currentRepo, repositories]);
 
   // Subscribe to live worktree updates via WebSocket

@@ -100,3 +100,31 @@
   background-image: none;
   border-color: var(--badge-color, var(--color-base-content));
 }
+
+/* 3. Hard-edged drop shadows -----------------------------------------------
+   Replace all soft/blurred Tailwind shadow utilities with a crisp 1px
+   offset, no blur. Light mode uses a semi-transparent dark shadow;
+   dark mode uses a slightly more opaque one since backgrounds are near-black. */
+
+.shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
+  box-shadow: 1px 1px 0 rgb(0 0 0 / 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .shadow-sm,
+  :root:not([data-theme]) .shadow,
+  :root:not([data-theme]) .shadow-md,
+  :root:not([data-theme]) .shadow-lg,
+  :root:not([data-theme]) .shadow-xl,
+  :root:not([data-theme]) .shadow-2xl {
+    box-shadow: 1px 1px 0 rgb(0 0 0 / 0.5);
+  }
+}
+[data-theme="forest"] .shadow-sm,
+[data-theme="forest"] .shadow,
+[data-theme="forest"] .shadow-md,
+[data-theme="forest"] .shadow-lg,
+[data-theme="forest"] .shadow-xl,
+[data-theme="forest"] .shadow-2xl {
+  box-shadow: 1px 1px 0 rgb(0 0 0 / 0.5);
+}
