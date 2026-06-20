@@ -19,6 +19,7 @@
   },
   "include": [
     "src/cli/**/*",
+    "src/daemon/**/*",
     "src/web/**/*",
     "src/shared/**/*",
     "src/electron/**/*",

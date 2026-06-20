@@ -20,7 +20,7 @@ import {
   killTask as killTaskById,
 } from "../cli/task-registry.js";
 import * as gitPool from "../cli/git-pool.js";
-import { TerminalManager } from "./terminal-manager.js";
+import { TerminalManagerClient } from "../daemon/terminal-client.js";
 import { getClaudeSessions, getSessionMessages, getRecentSessionsForRoots } from "./claude-sessions.js";
 import { computeWorktreeActivityTimes } from "./worktree-activity.js";
 import { RepoWatcher } from "./git-watcher.js";
@@ -212,7 +212,7 @@ async function listDirEntries(dirPath: string): Promise<FsEntry[]> {
 // ---------------------------------------------------------------------------
 
 export function createQueryHandlers(opts: {
-  terminalManager: TerminalManager;
+  terminalManager: TerminalManagerClient;
   claudeService: ClaudeService;
   sessionStore: SessionStore;
 }): Partial<Record<QueryProcedure, QueryHandler>> {
@@ -242,7 +242,7 @@ export function createQueryHandlers(opts: {
       const { repoPath, worktreePath, force } = input as { repoPath: string; worktreePath: string; force?: boolean };
       const appData = await loadAppData();
       const repoConfig = getRepoConfig(appData, repoPath);
-      terminalManager.cleanupWorktree(worktreePath);
+      await terminalManager.cleanupWorktree(worktreePath);
       await serviceArchiveWorktree(repoPath, worktreePath, { force, mainBranch: repoConfig.mainBranch });
       return { ok: true };
     },
@@ -269,7 +269,7 @@ export function createQueryHandlers(opts: {
       const { repoPath, worktreePath, force } = input as { repoPath: string; worktreePath: string; force?: boolean };
       const appData = await loadAppData();
       const repoConfig = getRepoConfig(appData, repoPath);
-      terminalManager.cleanupWorktree(worktreePath);
+      await terminalManager.cleanupWorktree(worktreePath);
       await releaseWorktreeByPath(repoPath, worktreePath, repoConfig.mainBranch, force ?? false);
       return { ok: true };
     },
@@ -414,7 +414,7 @@ export function createQueryHandlers(opts: {
 
     // --- Worktree activity ---
     "worktree.activity": async () => {
-      const terminalCounts = terminalManager.getSessionCountsByWorktree();
+      const terminalCounts = await terminalManager.getSessionCountsByWorktree();
       const claudeCounts = claudeService.getSessionCountsByCwd();
       const allPaths = new Set([...Object.keys(terminalCounts), ...Object.keys(claudeCounts)]);
       const result: Record<string, { terminals: number; claudeSessions: number }> = {};
@@ -841,31 +841,31 @@ export function createQueryHandlers(opts: {
       if (msg.isDark) colorEnv.COLORFGBG = "15;0";
       else colorEnv.COLORFGBG = "0;15";
       const mergedEnv = { ...colorEnv, ...msg.env };
-      const existed = terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir);
+      const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir);
 
       if (msg.taskId && !existed) {
-        const pid = terminalManager.getSessionPid(msg.terminalId);
+        const pid = await terminalManager.getSessionPid(msg.terminalId);
         if (pid) updateTaskPid(msg.taskId, pid).catch(() => {});
-        terminalManager.addExitListener(msg.terminalId, () => {
+        terminalManager.onExit(msg.terminalId, () => {
           markTaskCompleted(msg.taskId!, 0).catch(() => {});
-        });
+        }).catch(() => {});
       }
 
       return { existed: !!existed };
     },
     "terminal.input": async (input) => {
       const { terminalId, data } = input as { terminalId: string; data: string };
-      terminalManager.sendData(terminalId, data);
+      await terminalManager.sendData(terminalId, data);
       return { ok: true };
     },
     "terminal.resize": async (input) => {
       const { terminalId, cols, rows } = input as { terminalId: string; cols: number; rows: number };
-      terminalManager.resize(terminalId, cols, rows);
+      await terminalManager.resize(terminalId, cols, rows);
       return { ok: true };
     },
     "terminal.close": async (input) => {
       const { terminalId } = input as { terminalId: string };
-      terminalManager.closeSession(terminalId);
+      await terminalManager.closeSession(terminalId);
       return { ok: true };
     },
     "terminal.closeWorktree": async (input) => {
@@ -1043,7 +1043,7 @@ export function createQueryHandlers(opts: {
 // ---------------------------------------------------------------------------
 
 export function createSubscriptionHandlers(opts: {
-  terminalManager: TerminalManager;
+  terminalManager: TerminalManagerClient;
   repoWatcher: RepoWatcher;
   claudeService: ClaudeService;
 }): Partial<Record<SubscriptionProcedure, SubscriptionHandler>> {
@@ -1168,21 +1168,21 @@ export function createSubscriptionHandlers(opts: {
     "terminal.events": (input, push) => {
       const { terminalId } = input as { terminalId: string };
 
-      // Send buffered output if reconnecting
-      const buffered = terminalManager.getBufferedOutput(terminalId);
-      if (buffered) {
-        push({ type: "buffered", data: buffered });
-      }
-
-      const dataListener = (data: string) => push({ type: "data", data });
-      const exitListener = () => push({ type: "exit" });
-
-      terminalManager.addDataListener(terminalId, dataListener);
-      terminalManager.addExitListener(terminalId, exitListener);
+      // The daemon delivers the buffered replay then live data/exit atomically
+      // (see attachConnection), so we just forward events in arrival order.
+      let unsub: (() => void) | null = null;
+      let cancelled = false;
+      terminalManager
+        .subscribe(terminalId, (event) => push(event))
+        .then((u) => {
+          if (cancelled) u();
+          else unsub = u;
+        })
+        .catch((err) => logger.error("[terminal.events] subscribe failed:", err));
 
       return () => {
-        terminalManager.removeDataListener(terminalId, dataListener);
-        terminalManager.removeExitListener(terminalId, exitListener);
+        cancelled = true;
+        if (unsub) unsub();
       };
     },
 
