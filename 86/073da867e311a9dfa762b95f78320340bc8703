@@ -1,0 +1,30 @@
+src/renderer/src/components/BranchChanges.tsx
+  s_5c7b7196f2e6e1::t_ef8973f3703dca 217
+src/renderer/src/components/ChangesTab.tsx
+  s_5c7b7196f2e6e1::t_98a0feefa2f21d 1-104
+src/renderer/src/components/WorktreeDetails.tsx
+  s_5c7b7196f2e6e1::t_ac5bdd7007fcdf 2
+  s_5c7b7196f2e6e1::t_d44b82dddb8440 156
+src/renderer/src/components/MainContent.tsx
+  s_5c7b7196f2e6e1::t_c2723b53a88868 241-246
+  s_5c7b7196f2e6e1::t_f1c2465b8b9fa1 278,282-289
+  s_5c7b7196f2e6e1::t_da7534c30fb8d6 411-415
+  s_5c7b7196f2e6e1::t_781f93ee6db1ac 10
+  s_5c7b7196f2e6e1::t_206898dbbaa93f 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "86073da867e311a9dfa762b95f78320340bc8703",
+  "prompts": {},
+  "sessions": {
+    "s_5c7b7196f2e6e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6173265b-0b45-46b8-8e8e-8620756f27b7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
