@@ -38,7 +38,7 @@ const FileConflictModal: React.FC<FileConflictModalProps> = ({ fileName, onKeepM
           <button type="button" className="btn btn-outline btn-neutral btn-sm" onClick={onReloadDisk}>
             Discard mine, reload from disk
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={onKeepMine}>
+          <button type="button" className="btn btn-outline btn-primary btn-sm" onClick={onKeepMine}>
             Keep my changes
           </button>
         </div>

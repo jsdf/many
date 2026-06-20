@@ -48,7 +48,7 @@ const CloseProjectDialog: React.FC<CloseProjectDialogProps> = ({
           <p className="text-xs text-base-content/60 mt-2">Claude sessions are left running.</p>
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-base-300">
-          <button type="button" className="btn btn-neutral btn-sm" onClick={onClose}>
+          <button type="button" className="btn btn-outline btn-neutral btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button type="button" className="btn btn-error btn-sm" onClick={onConfirm}>

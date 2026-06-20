@@ -127,7 +127,7 @@ const FsActionDialog: React.FC<FsActionDialogProps> = ({ action, onClose, onReve
             </button>
             <button
               type="submit"
-              className={`btn btn-sm ${isDelete ? "btn-error" : "btn-primary"}`}
+              className={`btn btn-sm ${isDelete ? "btn-error" : "btn-outline btn-primary"}`}
               disabled={busy || (!isDelete && !name.trim())}
             >
               {busy ? "Working..." : isDelete ? "Delete" : "OK"}

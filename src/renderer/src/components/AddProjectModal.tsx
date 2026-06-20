@@ -94,7 +94,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd }) => 
             <button type="button" className="btn btn-outline btn-neutral" onClick={onClose} disabled={isLoading}>
               Cancel
             </button>
-            <button type="submit" data-testid="add-project-submit" className="btn btn-primary" disabled={isLoading || !projectPath.trim()}>
+            <button type="submit" data-testid="add-project-submit" className="btn btn-outline btn-primary" disabled={isLoading || !projectPath.trim()}>
               {isLoading ? "Adding..." : "Add Project"}
             </button>
           </div>
