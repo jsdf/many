@@ -1,4 +1,4 @@
-export type WorktreeActivity = { terminals: number; claudeSessions: number };
+export type WorktreeActivity = { terminals: number; claudeSessions: number; openFiles: number };
 
 const sepOf = (p: string) => (p.includes("\\") ? "\\" : "/");
 
@@ -9,19 +9,20 @@ export function sumActivityUnder(
   activity: Record<string, WorktreeActivity> | undefined,
   dirPath: string,
 ): WorktreeActivity {
-  const out: WorktreeActivity = { terminals: 0, claudeSessions: 0 };
+  const out: WorktreeActivity = { terminals: 0, claudeSessions: 0, openFiles: 0 };
   if (!activity) return out;
   const sep = sepOf(dirPath);
   for (const [p, a] of Object.entries(activity)) {
     if (p === dirPath || p.startsWith(dirPath + sep)) {
       out.terminals += a.terminals;
       out.claudeSessions += a.claudeSessions;
+      out.openFiles += a.openFiles;
     }
   }
   return out;
 }
 
-// A folder is "in use" if it has any active terminal or Claude session.
+// A folder is "in use" if it has any active terminal, Claude session, or open file.
 export function isActive(a: WorktreeActivity): boolean {
-  return a.terminals > 0 || a.claudeSessions > 0;
+  return a.terminals > 0 || a.claudeSessions > 0 || a.openFiles > 0;
 }

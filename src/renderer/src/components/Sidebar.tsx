@@ -47,6 +47,7 @@ function formatRelativeTime(ms: number): string {
 interface WorktreeActivity {
   terminals: number;
   claudeSessions: number;
+  openFiles: number;
 }
 
 export type AutomationsSubView = "running" | "definitions";
@@ -80,6 +81,8 @@ interface SidebarProps {
   onOpenFile?: (file: OpenFile) => void;
   onAddProject?: () => void;
   onRemoveProject?: (project: ProjectEntry) => void;
+  onCloseProject?: (path: string, name: string) => void;
+  onResumeRecentSession?: (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => void;
   onAutomationsSubViewChange?: (view: AutomationsSubView) => void;
   onArchiveWorktrees?: (worktrees: Worktree[]) => void;
   onToggleStar: (worktreePath: string) => void;
@@ -756,6 +759,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenFile,
   onAddProject,
   onRemoveProject,
+  onCloseProject,
+  onResumeRecentSession,
   onAutomationsSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
@@ -857,6 +862,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           onOpenFile={(f) => onOpenFile?.(f)}
           onAddProject={() => onAddProject?.()}
           onRemoveProject={(p) => onRemoveProject?.(p)}
+          onCloseProject={(path, name) => onCloseProject?.(path, name)}
+          onResumeRecentSession={(wt, id, type) => onResumeRecentSession?.(wt, id, type)}
           worktreeActivity={worktreeActivity}
           pinnedFolders={pinnedFolders}
           onTogglePin={onTogglePin}

@@ -21,7 +21,7 @@ import {
 } from "../cli/task-registry.js";
 import * as gitPool from "../cli/git-pool.js";
 import { TerminalManager } from "./terminal-manager.js";
-import { getClaudeSessions, getSessionMessages } from "./claude-sessions.js";
+import { getClaudeSessions, getSessionMessages, getRecentSessionsForRoots } from "./claude-sessions.js";
 import { computeWorktreeActivityTimes } from "./worktree-activity.js";
 import { RepoWatcher } from "./git-watcher.js";
 import {
@@ -868,6 +868,15 @@ export function createQueryHandlers(opts: {
       terminalManager.closeSession(terminalId);
       return { ok: true };
     },
+    "terminal.closeWorktree": async (input) => {
+      const { worktreePath } = input as { worktreePath: string };
+      // Kills terminals whose worktreePath equals this path. Note this is the
+      // exact node path; the tree's count badge rolls descendants up, so a
+      // project with terminals only in subfolders won't be cleared here.
+      const closed = terminalManager.getSessionsForWorktree(worktreePath).length;
+      terminalManager.cleanupWorktree(worktreePath);
+      return { closed };
+    },
     "terminal.listSessions": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
       return terminalManager.getSessionsForWorktree(worktreePath);
@@ -890,6 +899,21 @@ export function createQueryHandlers(opts: {
         }
       }
       return sessions;
+    },
+    "claude.recentSessions": async (input) => {
+      const { rootPaths, limit } = input as { rootPaths: string[]; limit?: number };
+      const sessions = await getRecentSessionsForRoots(rootPaths, limit);
+      const appData = await loadAppData();
+      const meta = appData.sessionMeta || {};
+      return sessions.map((s) => ({
+        sessionId: s.sessionId,
+        worktreePath: s.projectPath,
+        firstPrompt: s.firstPrompt,
+        summary: s.summary,
+        modified: s.modified,
+        gitBranch: s.gitBranch,
+        sessionType: meta[s.sessionId]?.type ?? s.sessionType,
+      }));
     },
     "claude.sessionMessages": async (input) => {
       const { sessionId, worktreePath, offset, limit } = input as any;

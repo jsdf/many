@@ -12,6 +12,7 @@ export interface TreeRowItemProps {
   dimmed?: boolean;
   title?: string;
   terminalCount?: number;
+  openFileCount?: number;
   onClick: () => void;
   // Caret click handler. When omitted, clicking the caret falls through to
   // onClick (used by the curated active-sessions tree, which is always open).
@@ -32,6 +33,7 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
   dimmed,
   title,
   terminalCount,
+  openFileCount,
   onClick,
   onToggleCaret,
   rightSlot,
@@ -60,6 +62,14 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
         title={`${terminalCount} terminal${terminalCount > 1 ? "s" : ""}`}
       >
         <Terminal size={10} /> {terminalCount}
+      </span>
+    ) : null}
+    {openFileCount ? (
+      <span
+        className="text-[10px] text-base-content/60 shrink-0 px-1"
+        title={`${openFileCount} open file${openFileCount > 1 ? "s" : ""}`}
+      >
+        📄 {openFileCount}
       </span>
     ) : null}
     {rightSlot}

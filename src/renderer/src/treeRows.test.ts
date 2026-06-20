@@ -14,7 +14,12 @@ const projectRoot: FileTreeRow = {
 
 describe("activeRoots", () => {
   it("includes folders with live sessions", () => {
-    const roots = activeRoots(projects, { "/repo/src": { terminals: 1, claudeSessions: 0 } }, []);
+    const roots = activeRoots(projects, { "/repo/src": { terminals: 1, claudeSessions: 0, openFiles: 0 } }, []);
+    expect(roots.map((r) => r.entry.path)).toEqual(["/repo/src"]);
+  });
+
+  it("includes folders active only via open files", () => {
+    const roots = activeRoots(projects, { "/repo/src": { terminals: 0, claudeSessions: 0, openFiles: 2 } }, []);
     expect(roots.map((r) => r.entry.path)).toEqual(["/repo/src"]);
   });
 
@@ -24,7 +29,7 @@ describe("activeRoots", () => {
   });
 
   it("dedupes a folder that is both active and pinned", () => {
-    const roots = activeRoots(projects, { "/repo/src": { terminals: 2, claudeSessions: 0 } }, ["/repo/src"]);
+    const roots = activeRoots(projects, { "/repo/src": { terminals: 2, claudeSessions: 0, openFiles: 0 } }, ["/repo/src"]);
     expect(roots.filter((r) => r.entry.path === "/repo/src")).toHaveLength(1);
   });
 
@@ -108,7 +113,7 @@ describe("buildTreeRows", () => {
   });
 
   it("expands a subfolder root the same way as a project root", () => {
-    const [root] = activeRoots(projects, { "/repo/src": { terminals: 1, claudeSessions: 0 } }, []);
+    const [root] = activeRoots(projects, { "/repo/src": { terminals: 1, claudeSessions: 0, openFiles: 0 } }, []);
     const rows = buildTreeRows(
       [root],
       new Set(["/repo/src"]),
