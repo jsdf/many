@@ -4,10 +4,26 @@
  * Sourced from ~/code/libclaude/packages/core/src/session.ts
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import readline from "node:readline";
 import crypto from "node:crypto";
 import type { ClaudeEvent, SessionOptions, SessionStatus, TurnResult } from "./types.js";
+
+function resolveClaudeBin(): string {
+  const home = process.env.HOME ?? "";
+  const candidates = [
+    `${home}/.local/bin/claude`,
+    "/usr/local/bin/claude",
+    "/opt/homebrew/bin/claude",
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return "claude";
+}
+
+const DEFAULT_CLAUDE_BIN = resolveClaudeBin();
 
 export class ClaudeSession extends EventEmitter {
   private proc: ChildProcess | null = null;
@@ -32,7 +48,7 @@ export class ClaudeSession extends EventEmitter {
     this.cwd = options.cwd ?? process.cwd();
     this.model = options.model ?? "";
     this.permissionMode = options.permissionMode ?? "auto";
-    this.claudeBin = options.claudeBin ?? "claude";
+    this.claudeBin = options.claudeBin ?? DEFAULT_CLAUDE_BIN;
     this.extraArgs = options.extraArgs ?? [];
     this.env = options.env ?? process.env;
     this.maxCrashes = options.maxCrashes ?? 5;
