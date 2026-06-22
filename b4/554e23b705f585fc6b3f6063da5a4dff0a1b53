@@ -1,0 +1,30 @@
+src/renderer/src/components/Sidebar.tsx
+  s_09d3ddb0231d94::t_cfd1fc785de624 926
+  s_09d3ddb0231d94::t_b2134c0590036d 86
+  s_09d3ddb0231d94::t_e643df25582125 1062
+src/renderer/src/components/MainContent.tsx
+  s_09d3ddb0231d94::t_0e8d01950585c5 52-53
+  s_09d3ddb0231d94::t_23112ff9f25633 30-31
+  s_09d3ddb0231d94::t_162ccb732d5ebf 192-202
+src/renderer/src/App.tsx
+  s_09d3ddb0231d94::t_ee158cfa544813 84
+  s_09d3ddb0231d94::t_f9e5c7c4fdcae1 938-939
+  s_09d3ddb0231d94::t_8e2ec13b45a93d 848
+  s_09d3ddb0231d94::t_3b4a59ae2d92b0 108-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "b4554e23b705f585fc6b3f6063da5a4dff0a1b53",
+  "prompts": {},
+  "sessions": {
+    "s_09d3ddb0231d94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08ad43d4-ca4f-4f88-925c-e1851d9e12a6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
