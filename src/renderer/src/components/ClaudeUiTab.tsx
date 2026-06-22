@@ -271,31 +271,21 @@ export default function ClaudeUiTab({ worktreePath }: ClaudeUiTabProps) {
           />
           <div className="flex flex-col gap-1">
             <button
-              className="btn btn-primary btn-sm px-2"
-              onClick={send}
-              disabled={!canSend}
-              title="Send (Enter)"
+              className={`btn btn-sm px-2 ${busy ? "btn-ghost text-warning" : "btn-primary"}`}
+              onClick={busy ? interrupt : send}
+              disabled={!busy && !canSend}
+              title={busy ? "Interrupt current turn" : "Send (Enter)"}
             >
-              Send
+              {busy ? "Stop" : "Send"}
             </button>
-            {busy ? (
-              <button
-                className="btn btn-ghost btn-sm px-2 text-warning"
-                onClick={interrupt}
-                title="Interrupt current turn"
-              >
-                Stop
-              </button>
-            ) : (
-              <button
-                className="btn btn-ghost btn-sm px-2 opacity-50 hover:opacity-100"
-                onClick={reset}
-                disabled={!sessionId || items.length === 0}
-                title="Reset conversation"
-              >
-                Reset
-              </button>
-            )}
+            <button
+              className="btn btn-ghost btn-sm px-2 opacity-50 hover:opacity-100"
+              onClick={reset}
+              disabled={!sessionId || items.length === 0}
+              title="Reset: kill and restart the session, clearing history"
+            >
+              Reset
+            </button>
           </div>
         </div>
       </div>
