@@ -329,7 +329,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       const childrenFor = (dirPath: string): FsEntry[] => {
         const map = new Map<string, FsEntry>();
         for (const e of searchChildren.get(dirPath) ?? []) map.set(e.path, e);
-        if (selPath && dirPath === selPath) {
+        // While search is loading, supplement with cached children to avoid blank flash.
+        // Once results arrive, only show filtered results.
+        if (searching && selPath && dirPath === selPath) {
           for (const e of childrenByDir.get(dirPath) ?? []) map.set(e.path, e);
         }
         if (selPath && selPath !== dirPath && isAncestorOf(dirPath, selPath)) {
@@ -343,7 +345,8 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
       const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): FileTreeRow[] => {
         const out: FileTreeRow[] = [];
-        const immediateOfSel = !!selPath && dirPath === selPath;
+        // Only bypass filter for selected dir's children while search is still loading.
+        const immediateOfSel = searching && !!selPath && dirPath === selPath;
         for (const entry of childrenFor(dirPath)) {
           if (entry.isDirectory) {
             const childRows = matchedRows(entry.path, depth + 1, project);
@@ -376,7 +379,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     }
 
     return buildTreeRows(projectRoots, expanded, childrenByDir);
-  }, [projectRoots, projects, childrenByDir, searchChildren, expanded, filtering, query, selectedNode?.path]);
+  }, [projectRoots, projects, childrenByDir, searchChildren, expanded, filtering, searching, query, selectedNode?.path]);
 
   // The Active tree is just the project tree rooted at active + pinned folders,
   // expanded with the same shared state, so it behaves identically.
