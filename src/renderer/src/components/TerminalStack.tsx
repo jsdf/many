@@ -42,6 +42,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
   const [terminalTitles, setTerminalTitles] = useState<Record<string, string>>({});
+  const [userLabels, setUserLabels] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const claudeUiRefs = useRef<Map<string, ClaudeUiTabHandle>>(new Map());
 
@@ -52,9 +55,14 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const tabs: TerminalInfo[] = [];
 
       try {
-        const existingIds = await getRpcClient().query("terminal.listSessions", { worktreePath });
+        const sessions = await getRpcClient().query("terminal.listSessions", { worktreePath });
         if (cancelled) return;
-        for (const id of existingIds) tabs.push({ id });
+        const labels: Record<string, string> = {};
+        for (const { id, userLabel } of sessions) {
+          tabs.push({ id });
+          if (userLabel) labels[id] = userLabel;
+        }
+        if (Object.keys(labels).length > 0) setUserLabels((prev) => ({ ...prev, ...labels }));
       } catch (err) {
         console.error("Failed to load terminal sessions:", err);
       }
@@ -325,15 +333,59 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
               }
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
-                <span className="text-xs text-base-content/60 truncate">
-                  {term.isClaudeUi
-                    ? (terminalTitles[term.id] ? `Claude UI: ${terminalTitles[term.id]}` : "Claude UI")
-                    : term.isClaudeSession ? "Claude Session"
-                    : term.isSessionHistory ? "Session History"
-                    : term.isSavedLog ? "Saved Log (read-only)"
-                    : term.isTaskLog ? "Task Log (read-only)"
-                    : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
-                </span>
+                {(() => {
+                  const isRenameable = !term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession;
+                  const dynamicTitle = terminalTitles[term.id];
+                  const userLabel = userLabels[term.id];
+                  let displayTitle: string;
+                  if (term.isClaudeSession) displayTitle = "Claude Session";
+                  else if (term.isSessionHistory) displayTitle = "Session History";
+                  else if (term.isSavedLog) displayTitle = "Saved Log (read-only)";
+                  else if (term.isTaskLog) displayTitle = "Task Log (read-only)";
+                  else if (userLabel) displayTitle = dynamicTitle ? `${userLabel} | ${dynamicTitle}` : userLabel;
+                  else if (term.isClaudeUi) displayTitle = dynamicTitle ? `Claude UI: ${dynamicTitle}` : "Claude UI";
+                  else displayTitle = dynamicTitle ? `Terminal ${i + 1}: ${dynamicTitle}` : `Terminal ${i + 1}`;
+
+                  if (editingId === term.id) {
+                    return (
+                      <input
+                        autoFocus
+                        className="text-xs bg-transparent border border-primary rounded px-1 outline-none text-base-content min-w-0 flex-1 mr-2"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const label = editValue.trim();
+                            getRpcClient().query("terminal.setLabel", { terminalId: term.id, label });
+                            setUserLabels((prev) => label
+                              ? { ...prev, [term.id]: label }
+                              : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== term.id)));
+                            setEditingId(null);
+                          } else if (e.key === "Escape") {
+                            setEditingId(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          const label = editValue.trim();
+                          getRpcClient().query("terminal.setLabel", { terminalId: term.id, label });
+                          setUserLabels((prev) => label
+                            ? { ...prev, [term.id]: label }
+                            : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== term.id)));
+                          setEditingId(null);
+                        }}
+                      />
+                    );
+                  }
+                  return (
+                    <span
+                      className={`text-xs text-base-content/60 truncate${isRenameable ? " cursor-text select-none" : ""}`}
+                      title={isRenameable ? "Double-click to rename" : undefined}
+                      onDoubleClick={isRenameable ? () => { setEditValue(userLabel || ""); setEditingId(term.id); } : undefined}
+                    >
+                      {displayTitle}
+                    </span>
+                  );
+                })()}
                 <div className="flex items-center">
                   {term.isClaudeUi && (
                     <div className="dropdown dropdown-end">

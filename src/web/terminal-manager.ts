@@ -20,6 +20,8 @@ interface TerminalSession {
   lastInputAt: number;
   // Window title set by the shell/program via OSC 0/2 escape sequences.
   title?: string;
+  // User-assigned persistent label (overrides the default "Terminal N" display).
+  userLabel?: string;
   // Trailing output buffer used to detect title sequences split across chunks.
   titleBuf: string;
   outputBlocks: OutputBlock[];
@@ -38,6 +40,7 @@ export interface TerminalSessionInfo {
   createdAt: number;
   lastInputAt: number;
   title?: string;
+  userLabel?: string;
 }
 
 // Pick up the latest OSC 0/1/2 window-title sequence from a session's output,
@@ -205,6 +208,11 @@ export class TerminalManager {
     }
   }
 
+  setLabel(terminalId: string, label: string): void {
+    const session = this.sessions.get(terminalId);
+    if (session) session.userLabel = label || undefined;
+  }
+
   sessionExists(terminalId: string): boolean {
     return this.sessions.has(terminalId);
   }
@@ -234,6 +242,7 @@ export class TerminalManager {
         createdAt: session.createdAt,
         lastInputAt: session.lastInputAt,
         title: session.title,
+        userLabel: session.userLabel,
       });
     }
     return result;

@@ -45,6 +45,7 @@ export type DaemonRequest =
   | { reqId: number; op: "cleanupWorktree"; worktreePath: string }
   | { reqId: number; op: "getBufferedOutput"; terminalId: string }
   | { reqId: number; op: "saveAllSessionLogs"; logDir: string }
+  | { reqId: number; op: "setLabel"; terminalId: string; label: string }
   | { reqId: number; op: "shutdown" }
   | { reqId: number; op: "ping" }
   | { reqId: number; op: "subscribe"; terminalId: string; subId: number }
@@ -69,6 +70,7 @@ export interface DaemonResultMap {
   cleanupWorktree: { ok: true };
   getBufferedOutput: { output: string };
   saveAllSessionLogs: { saved: SavedSessionLog[] };
+  setLabel: { ok: true };
   shutdown: { ok: true };
   ping: { ok: true; version: number };
   subscribe: { ok: true };

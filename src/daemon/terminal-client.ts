@@ -239,6 +239,10 @@ export class TerminalManagerClient {
     return saved;
   }
 
+  async setLabel(terminalId: string, label: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "setLabel", terminalId, label });
+  }
+
   // --- subscriptions --------------------------------------------------------
 
   /**

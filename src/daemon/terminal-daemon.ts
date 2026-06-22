@@ -48,6 +48,7 @@ export interface DaemonManager {
   getSessionsForWorktree(worktreePath: string): string[];
   listAllSessions(): TerminalSessionInfo[];
   getSessionCountsByWorktree(): Record<string, number>;
+  setLabel(terminalId: string, label: string): void;
   cleanupWorktree(worktreePath: string): void;
   getBufferedOutput(terminalId: string): string;
   saveAllSessionLogs(logDir: string): Promise<SavedSessionLog[]>;
@@ -141,6 +142,10 @@ export function attachConnection(
         break;
       case "counts":
         respond(req.reqId, { counts: manager.getSessionCountsByWorktree() });
+        break;
+      case "setLabel":
+        manager.setLabel(req.terminalId, req.label);
+        respond(req.reqId, { ok: true });
         break;
       case "cleanupWorktree":
         manager.cleanupWorktree(req.worktreePath);

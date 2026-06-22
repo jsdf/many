@@ -881,7 +881,19 @@ export function createQueryHandlers(opts: {
     },
     "terminal.listSessions": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
-      return terminalManager.getSessionsForWorktree(worktreePath);
+      const [ids, all] = await Promise.all([
+        terminalManager.getSessionsForWorktree(worktreePath),
+        terminalManager.listAllSessions(),
+      ]);
+      return ids.map((id) => {
+        const info = all.find((s) => s.terminalId === id);
+        return { id, userLabel: info?.userLabel };
+      });
+    },
+    "terminal.setLabel": async (input) => {
+      const { terminalId, label } = input as { terminalId: string; label: string };
+      await terminalManager.setLabel(terminalId, label);
+      return { ok: true };
     },
     "terminal.listAll": async () => {
       return terminalManager.listAllSessions();

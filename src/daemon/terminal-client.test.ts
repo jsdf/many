@@ -68,6 +68,10 @@ class FakeManager implements DaemonManager {
     }
     return counts;
   }
+  setLabel(terminalId: string, label: string): void {
+    const s = this.sessions.get(terminalId);
+    if (s) (s as any).userLabel = label || undefined;
+  }
   cleanupWorktree(worktreePath: string): void {
     for (const id of this.getSessionsForWorktree(worktreePath)) this.closeSession(id);
   }

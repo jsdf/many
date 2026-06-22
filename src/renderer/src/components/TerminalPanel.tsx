@@ -29,9 +29,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
         if (cancelled) return;
 
         if (existingIds.length > 0) {
-          const terminalInfos = existingIds.map((id) => ({ id }));
+          const terminalInfos = existingIds.map(({ id }) => ({ id }));
           setTerminals(terminalInfos);
-          setActiveTerminalId(existingIds[0]);
+          setActiveTerminalId(existingIds[0].id);
           setIsCollapsed(false);
         }
       } catch (err) {

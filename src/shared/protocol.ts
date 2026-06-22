@@ -629,7 +629,11 @@ export interface QueryProcedures {
   };
   "terminal.listSessions": {
     input: { worktreePath: string };
-    output: string[];
+    output: Array<{ id: string; userLabel?: string }>;
+  };
+  "terminal.setLabel": {
+    input: { terminalId: string; label: string };
+    output: { ok: boolean };
   };
   "terminal.listAll": {
     input: {};
@@ -639,6 +643,7 @@ export interface QueryProcedures {
       createdAt: number;
       lastInputAt: number;
       title?: string;
+      userLabel?: string;
     }>;
   };
 
