@@ -13,9 +13,9 @@ interface ManagedSession {
 export class ClaudeUiService {
   private sessions = new Map<string, ManagedSession>();
 
-  create(worktreePath: string): string {
+  create(worktreePath: string, claudeBin?: string): string {
     const sessionId = crypto.randomUUID();
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "bypassPermissions" });
+    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "bypassPermissions", claudeBin });
 
     const managed: ManagedSession = {
       session,

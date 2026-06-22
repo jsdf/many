@@ -1041,7 +1041,9 @@ export function createQueryHandlers(opts: {
     // --- Claude UI (CLI-backed sessions) ---
     "claudeui.create": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
-      const sessionId = claudeUiService.create(worktreePath);
+      const appData = await loadAppData();
+      const { defaultClaudeCommand } = getGlobalSettings(appData);
+      const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
       return { sessionId };
     },
     "claudeui.send": async (input) => {
