@@ -1,0 +1,20 @@
+src/web/claude-ui/session.ts
+  s_619d0981d741ad::t_7e314801b15f50 7,13-26
+  s_619d0981d741ad::t_e5ed0a49a80a80 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "05a85e41d21a87436a4486af7cc4c3a869374b76",
+  "prompts": {},
+  "sessions": {
+    "s_619d0981d741ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc7ec96c-9e88-466d-be4f-f1948eb6c1fa",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
