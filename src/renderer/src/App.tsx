@@ -81,6 +81,7 @@ const App: React.FC = () => {
   // A recent Claude session the user clicked: switch to its project, then resume
   // it once ProjectsPanel has remounted for that project (see ProjectsPanel).
   const [pendingResume, setPendingResume] = useState<{ projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null>(null);
+  const [worktreePendingResume, setWorktreePendingResume] = useState<{ worktreePath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null>(null);
   // A project pending a confirmed close (terminals would be killed).
   const [closeProjectTarget, setCloseProjectTarget] = useState<{ path: string; name: string; terminalCount: number } | null>(null);
 
@@ -102,6 +103,17 @@ const App: React.FC = () => {
       setPendingResume({ projectPath: worktreePath, sessionId, sessionType });
     },
     [setMainPaneView],
+  );
+
+  // Resume a session from the worktrees sidebar: select the worktree and queue a resume
+  // in MainContent's terminal stack (no navigation to the projects pane).
+  const handleResumeWorktreeSession = useCallback(
+    (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => {
+      const wt = worktrees.find((w) => w.path === worktreePath);
+      if (wt) setSelectedWorktree(wt);
+      setWorktreePendingResume({ worktreePath, sessionId, sessionType });
+    },
+    [worktrees],
   );
 
   // Close a project: kill its terminals. Confirms first when terminals would be killed.
@@ -833,6 +845,7 @@ const App: React.FC = () => {
               onRemoveProject={handleRemoveProject}
               onCloseProject={handleCloseProject}
               onResumeRecentSession={handleResumeRecentSession}
+              onResumeWorktreeSession={handleResumeWorktreeSession}
               onAutomationsSubViewChange={(view: AutomationsSubView) => {
                 if (view === 'running') setMainPaneView({ type: 'runningTasks' });
                 else if (view === 'definitions') setMainPaneView({ type: 'automations' });
@@ -922,6 +935,8 @@ const App: React.FC = () => {
           onRebaseWorktree={openRebaseModal}
           onReleaseWorktree={openReleaseModal}
           onClaimWorktree={handleClaimWorktree}
+          pendingResume={worktreePendingResume}
+          onPendingResumeConsumed={() => setWorktreePendingResume(null)}
         />
       )}
 

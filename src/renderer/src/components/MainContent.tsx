@@ -27,6 +27,8 @@ interface MainContentProps {
   onRebaseWorktree: (worktree: Worktree) => void;
   onReleaseWorktree?: (worktree: Worktree) => void;
   onClaimWorktree?: (worktree: Worktree) => void;
+  pendingResume?: { worktreePath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null;
+  onPendingResumeConsumed?: () => void;
 }
 
 export interface MainContentHandle {
@@ -47,6 +49,8 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   onRebaseWorktree,
   onReleaseWorktree,
   onClaimWorktree,
+  pendingResume,
+  onPendingResumeConsumed,
 }, ref) => {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
@@ -184,6 +188,18 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
   const claudeCommand = worktreePool?.claudeCommand
     || pools?.map(p => p.claudeCommand).find(Boolean)
     || undefined;
+
+  useEffect(() => {
+    if (!pendingResume || !selectedWorktree) return;
+    if (pendingResume.worktreePath !== selectedWorktree.path) return;
+    const { sessionId, sessionType } = pendingResume;
+    if (sessionType === "chat") {
+      terminalStackRef.current?.openClaudeSession(sessionId);
+    } else {
+      terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
+    }
+    onPendingResumeConsumed?.();
+  }, [pendingResume, selectedWorktree?.path, claudeCommand, onPendingResumeConsumed]);
 
   const handleArchive = () => {
     if (!selectedWorktree) return;

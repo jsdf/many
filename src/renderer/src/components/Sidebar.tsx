@@ -83,6 +83,7 @@ interface SidebarProps {
   onRemoveProject?: (project: ProjectEntry) => void;
   onCloseProject?: (path: string, name: string) => void;
   onResumeRecentSession?: (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => void;
+  onResumeWorktreeSession?: (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => void;
   onAutomationsSubViewChange?: (view: AutomationsSubView) => void;
   onArchiveWorktrees?: (worktrees: Worktree[]) => void;
   onToggleStar: (worktreePath: string) => void;
@@ -922,6 +923,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRemoveProject,
   onCloseProject,
   onResumeRecentSession,
+  onResumeWorktreeSession,
   onAutomationsSubViewChange,
   onArchiveWorktrees,
   onToggleStar,
@@ -1057,7 +1059,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onArchiveWorktrees={onArchiveWorktrees}
           onToggleStar={onToggleStar}
           onReorderWorktrees={onReorderWorktrees}
-          onResumeRecentSession={onResumeRecentSession}
+          onResumeRecentSession={onResumeWorktreeSession}
         />
       )}
     </div>
