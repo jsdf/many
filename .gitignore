@@ -133,3 +133,6 @@ agent-status/
 many.db
 many.db-wal
 many.db-shm
+
+
+*.png
