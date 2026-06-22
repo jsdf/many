@@ -55,9 +55,11 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
   const pinned = useMemo(() => new Set(pinnedFolders), [pinnedFolders]);
 
-  // Active pane mode: the folder tree ("by folder"), or a flat list of all live
-  // terminals ordered by recency ("recent").
+  // Active pane mode: the folder tree ("folders"), or a flat list of all live
+  // terminals ordered by recency ("sessions").
   const [activeMode, setActiveMode] = useState<"byFolder" | "recent">("byFolder");
+  // Tracks the specific recent item that was last clicked (key = "t:<terminalId>" or "c:<sessionId>").
+  const [selectedRecentKey, setSelectedRecentKey] = useState<string | null>(null);
   const [recentTerminals, setRecentTerminals] = useState<
     { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
   >([]);
@@ -459,13 +461,13 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 className={`join-item btn btn-xs ${activeMode === "recent" ? "btn-primary" : "btn-outline btn-neutral"}`}
                 onClick={() => setActiveMode("recent")}
               >
-                recent
+                sessions
               </button>
               <button
                 className={`join-item btn btn-xs ${activeMode === "byFolder" ? "btn-primary" : "btn-outline btn-neutral"}`}
                 onClick={() => setActiveMode("byFolder")}
               >
-                by folder
+                folders
               </button>
             </div>
           </div>
@@ -493,14 +495,15 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                   <p className="text-base-content/50 text-xs px-2 py-1">Nothing recent</p>
                 ) : (
                   recentItems.map((item) => {
-                    const selected = selectedNode?.path === item.worktreePath;
+                    const itemKey = item.kind === "terminal" ? `t:${item.terminalId}` : `c:${item.sessionId}`;
+                    const selected = selectedRecentKey === itemKey;
                     const onClick =
                       item.kind === "terminal"
-                        ? () => onSelectNode({ name: baseName(item.worktreePath), path: item.worktreePath })
-                        : () => onResumeRecentSession(item.worktreePath, item.sessionId, item.sessionType);
+                        ? () => { setSelectedRecentKey(itemKey); onSelectNode({ name: baseName(item.worktreePath), path: item.worktreePath }); }
+                        : () => { setSelectedRecentKey(itemKey); onResumeRecentSession(item.worktreePath, item.sessionId, item.sessionType); };
                     return (
                       <div
-                        key={item.kind === "terminal" ? `t:${item.terminalId}` : `c:${item.sessionId}`}
+                        key={itemKey}
                         className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
                         title={item.worktreePath}
                         onClick={onClick}
