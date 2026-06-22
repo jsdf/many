@@ -1,0 +1,21 @@
+src/renderer/src/components/TerminalStack.tsx
+  s_1688639ba8fdfd::t_2703af30d10880 2
+  s_1688639ba8fdfd::t_418e0772424f70 335
+  s_1688639ba8fdfd::t_63166457eb410b 380-390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "f7071e87b1aab1ace0d669516a90132f1278fcdd",
+  "prompts": {},
+  "sessions": {
+    "s_1688639ba8fdfd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51e7067a-62e3-4a5c-9aa4-c961840530e6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
