@@ -1,0 +1,22 @@
+{
+  "name": "@libclaude/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "libclaude-server": "src/main.ts"
+  },
+  "scripts": {
+    "dev": "LIBCLAUDE_NO_AUTH=true PORT=4000 tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "check": "tsc -b"
+  },
+  "dependencies": {
+    "@libclaude/core": "0.1.0",
+    "@libclaude/rpc": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "tsx": "^4.19.4"
+  }
+}

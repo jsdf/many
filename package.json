@@ -28,9 +28,13 @@
     "README.md"
   ],
   "main": "dist-cli/electron/main.js",
+  "workspaces": [
+    "libclaude/packages/core"
+  ],
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:libclaude": "tsc -p libclaude/packages/core/tsconfig.build.json",
+    "build:cli": "npm run build:libclaude && tsc -p tsconfig.cli.json",
     "dev": "vite",
     "start": "npm run build && npm run build:cli && node dist-cli/cli/index.js web",
     "cli": "npm run build:cli && node dist-cli/cli/index.js",

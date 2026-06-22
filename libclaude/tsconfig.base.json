@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@libclaude/core": ["packages/core/src/index.ts"],
+      "@libclaude/core/types": ["packages/core/src/types.ts"],
+      "@libclaude/rpc": ["packages/rpc/src/index.ts"],
+      "@libclaude/rpc/ws-client": ["packages/rpc/src/transports/websocket-client.ts"],
+      "@libclaude/rpc/ws-server": ["packages/rpc/src/transports/websocket-server.ts"],
+      "@libclaude/react": ["packages/react/src/index.ts"]
+    }
+  }
+}

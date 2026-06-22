@@ -1,30 +1,28 @@
-/**
- * Persistent multi-turn Claude session backed by a single long-lived
- * `claude -p` process in bidirectional stream-json mode.
- * Sourced from ~/code/libclaude/packages/core/src/session.ts
- */
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import readline from "node:readline";
 import crypto from "node:crypto";
-import type { ClaudeEvent, SessionOptions, SessionStatus, TurnResult } from "./types.js";
+import type {
+  ClaudeEvent,
+  SessionOptions,
+  SessionStatus,
+  TurnResult,
+} from "./types.js";
 
-function resolveClaudeBin(): string {
-  const home = process.env.HOME ?? "";
-  const candidates = [
-    `${home}/.local/bin/claude`,
-    "/usr/local/bin/claude",
-    "/opt/homebrew/bin/claude",
-  ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return "claude";
-}
-
-const DEFAULT_CLAUDE_BIN = resolveClaudeBin();
-
+/**
+ * A persistent, multi-turn Claude session backed by a single long-lived
+ * `claude -p` process in bidirectional stream-json mode. Each prompt is one
+ * turn in the *same* conversation. Turns are serialized: one runs at a time and
+ * extra prompts queue.
+ *
+ * This is the same approach as the `claude-line` HTTP wrapper, lifted into a
+ * reusable Node API surface modelled on the Claude Agent SDK's `query()`.
+ *
+ * Emits:
+ *  - "event"  (event: ClaudeEvent)        every raw CLI event, across all turns
+ *  - "status" (status: SessionStatus)     whenever ready/busy/queue/session change
+ *  - "error"  (err: Error)                non-fatal background errors
+ */
 export class ClaudeSession extends EventEmitter {
   private proc: ChildProcess | null = null;
   private ready = false;
@@ -48,7 +46,7 @@ export class ClaudeSession extends EventEmitter {
     this.cwd = options.cwd ?? process.cwd();
     this.model = options.model ?? "";
     this.permissionMode = options.permissionMode ?? "auto";
-    this.claudeBin = options.claudeBin ?? DEFAULT_CLAUDE_BIN;
+    this.claudeBin = options.claudeBin ?? "claude";
     this.extraArgs = options.extraArgs ?? [];
     this.env = options.env ?? process.env;
     this.maxCrashes = options.maxCrashes ?? 5;
@@ -65,6 +63,12 @@ export class ClaudeSession extends EventEmitter {
     };
   }
 
+  /**
+   * Run one turn and stream its events as they arrive. The generator's return
+   * value is the buffered {@link TurnResult} for the turn.
+   *
+   *   for await (const event of session.query("hello")) { ... }
+   */
   async *query(prompt: string): AsyncGenerator<ClaudeEvent, TurnResult, void> {
     const sink = new EventSink();
     const job: Job = {
@@ -81,6 +85,7 @@ export class ClaudeSession extends EventEmitter {
     return sink.result!;
   }
 
+  /** Run one turn and return its buffered result. */
   prompt(prompt: string): Promise<TurnResult> {
     return new Promise<TurnResult>((resolve, reject) => {
       const job: Job = {
@@ -95,6 +100,7 @@ export class ClaudeSession extends EventEmitter {
     });
   }
 
+  /** Restart the underlying claude process with a fresh, empty conversation. */
   reset(): void {
     this.failInFlight(new Error("session reset"));
     this.shuttingDown = false;
@@ -107,6 +113,7 @@ export class ClaudeSession extends EventEmitter {
     this.spawnClaude();
   }
 
+  /** Best-effort interrupt of the in-flight turn via a stream-json control request. */
   interrupt(): void {
     if (!this.proc || !this.current) return;
     const msg = {
@@ -121,6 +128,7 @@ export class ClaudeSession extends EventEmitter {
     }
   }
 
+  /** Shut down the session and its child process. */
   dispose(): void {
     this.shuttingDown = true;
     this.failInFlight(new Error("session disposed"));
@@ -130,6 +138,8 @@ export class ClaudeSession extends EventEmitter {
     }
     this.removeAllListeners();
   }
+
+  // ---- internals ----
 
   private buildArgs(): string[] {
     const args = [
@@ -151,9 +161,11 @@ export class ClaudeSession extends EventEmitter {
     const proc = spawn(this.claudeBin, this.buildArgs(), {
       cwd: this.cwd,
       stdio: ["pipe", "pipe", "inherit"],
-      env: this.env as NodeJS.ProcessEnv,
+      env: this.env,
     });
     this.proc = proc;
+    // claude emits its init event only after the first input, so readiness is
+    // gated on the process being spawned with a writable stdin, not on init.
     this.ready = true;
     this.crashes = 0;
     this.sessionId = null;
@@ -168,7 +180,7 @@ export class ClaudeSession extends EventEmitter {
       try {
         evt = JSON.parse(trimmed);
       } catch {
-        return;
+        return; // ignore non-JSON noise
       }
       this.handleEvent(evt);
     });
@@ -203,7 +215,7 @@ export class ClaudeSession extends EventEmitter {
     this.emit("event", evt);
 
     const job = this.current;
-    if (!job) return;
+    if (!job) return; // stray events between turns
 
     job.events.push(evt);
     job.onEvent?.(evt);
@@ -316,6 +328,11 @@ interface Job {
   onError?: (err: Error) => void;
 }
 
+/**
+ * Bridges the push-based event callbacks into a pull-based async iterator for
+ * {@link ClaudeSession.query}. Buffers events that arrive before the consumer
+ * asks for them.
+ */
 class EventSink {
   result: TurnResult | null = null;
   private buffer: ClaudeEvent[] = [];

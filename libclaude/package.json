@@ -1,0 +1,23 @@
+{
+  "name": "libclaude",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Wrap the local claude CLI in a TypeScript Node API, with a transport-pluggable typed RPC layer and a React web UI.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm -w @libclaude/server run dev",
+    "dev:web": "npm -w @libclaude/web run dev",
+    "build": "npm -w @libclaude/web run build",
+    "start": "npm -w @libclaude/server run start",
+    "check": "tsc --noEmit -p packages/core && tsc --noEmit -p packages/rpc && tsc --noEmit -p packages/react && tsc --noEmit -p apps/server && tsc --noEmit -p apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "~5.8.3"
+  }
+}

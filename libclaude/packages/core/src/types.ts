@@ -1,6 +1,10 @@
 /**
  * Event types emitted by the `claude` CLI in stream-json mode.
- * Sourced from ~/code/libclaude/packages/core/src/types.ts
+ *
+ * These mirror the shapes the CLI writes to stdout when run with
+ * `--output-format stream-json --verbose`. We keep them loose (raw passthrough
+ * plus the fields we rely on) rather than exhaustively typing every block: the
+ * CLI owns this schema and adds fields over time.
  */
 
 export interface TextBlock {
@@ -24,6 +28,7 @@ export interface ToolResultBlock {
 
 export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock | { type: string; [k: string]: unknown };
 
+/** `{type:"system", subtype:"init", ...}` emitted once per session start. */
 export interface SystemInitEvent {
   type: "system";
   subtype: "init";
@@ -34,18 +39,21 @@ export interface SystemInitEvent {
   [k: string]: unknown;
 }
 
+/** An assistant turn (text and/or tool_use blocks). */
 export interface AssistantEvent {
   type: "assistant";
   session_id?: string;
   message: { role: "assistant"; content: ContentBlock[]; [k: string]: unknown };
 }
 
+/** A user turn — in practice tool_result blocks fed back into the model. */
 export interface UserEvent {
   type: "user";
   session_id?: string;
   message: { role: "user"; content: ContentBlock[] | string; [k: string]: unknown };
 }
 
+/** Terminal event for a turn. */
 export interface ResultEvent {
   type: "result";
   subtype?: string;
@@ -66,6 +74,7 @@ export type ClaudeEvent =
   | ResultEvent
   | { type: string; session_id?: string; [k: string]: unknown };
 
+/** Buffered summary of a single completed turn. */
 export interface TurnResult {
   ok: boolean;
   result: string;
@@ -75,18 +84,26 @@ export interface TurnResult {
   numTurns?: number;
   durationMs?: number;
   costUsd?: number;
+  /** Every raw event observed during the turn, in order. */
   events: ClaudeEvent[];
 }
 
 export type PermissionMode = "auto" | "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
 export interface SessionOptions {
+  /** Working directory the agent operates in. Defaults to process.cwd(). */
   cwd?: string;
+  /** `--model`. Defaults to the CLI's own default. */
   model?: string;
+  /** `--permission-mode`. Defaults to "auto". */
   permissionMode?: PermissionMode;
+  /** Path to the claude binary. Defaults to "claude". */
   claudeBin?: string;
+  /** Extra CLI flags appended verbatim, e.g. ["--add-dir", "/data"]. */
   extraArgs?: string[];
+  /** Environment for the child process. Defaults to process.env. */
   env?: Record<string, string | undefined>;
+  /** Max consecutive crashes before the session stops respawning. Default 5. */
   maxCrashes?: number;
 }
 

@@ -1,0 +1,5 @@
+{
+  "files": [],
+  "include": [],
+  "comment": "Per-project typechecking is driven by the root `check` script; see each workspace's tsconfig.json."
+}

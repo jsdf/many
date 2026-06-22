@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { ClaudeSession } from "./session.js";
-import type { ClaudeEvent, SessionStatus } from "./types.js";
+import { ClaudeSession } from "@libclaude/core";
+import type { ClaudeEvent, SessionStatus } from "@libclaude/core";
 import type { ClaudeUiEvent, ClaudeUiContentBlock } from "../../shared/protocol.js";
 
 interface ManagedSession {
