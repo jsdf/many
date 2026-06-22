@@ -76,6 +76,9 @@ export class TerminalManager {
     terminalLogDir?: string | null,
     taskId?: string
   ): boolean {
+    if (!terminalId) {
+      throw new Error(`createSession called with invalid terminalId: ${JSON.stringify(terminalId)}`);
+    }
     // If session already exists, the client is reconnecting (e.g. after
     // switching worktrees and back). The PTY kept its previous size while
     // detached, so resize it to the reconnecting client's current dimensions —

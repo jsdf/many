@@ -65,6 +65,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         if (cancelled) return;
         const labels: Record<string, string> = {};
         for (const { id, userLabel, taskId } of sessions) {
+          if (!id) continue; // skip corrupt sessions with no id (would collide as duplicate keys)
           tabs.push({ id, taskId });
           if (userLabel) labels[id] = userLabel;
         }
@@ -93,6 +94,20 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     loadExisting();
     return () => { cancelled = true; };
   }, [worktreePath]);
+
+  // Keep sizes a valid, length-matched, sum-1 array. Heals any stale/corrupted
+  // state (wrong length, non-finite values, or drifted sum) without a reload.
+  useEffect(() => {
+    if (terminals.length === 0) return;
+    setSizes((prev) => {
+      if (prev.length !== terminals.length || prev.some((n) => !Number.isFinite(n) || n <= 0)) {
+        return terminals.map(() => 1 / terminals.length);
+      }
+      const sum = prev.reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - 1) < 1e-6) return prev;
+      return prev.map((n) => n / sum);
+    });
+  }, [terminals.length]);
 
   // Check for running tasks without an owning terminal (e.g. CLI-launched tasks)
   useEffect(() => {
@@ -329,7 +344,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           </div>
         )}
         {terminals.map((term, i) => {
-          const isMaximized = maximizedId === term.id;
+          const isMaximized = maximizedId !== null && maximizedId === term.id;
           const isCollapsed = maximizedId !== null && !isMaximized;
           return (
           <React.Fragment key={term.id}>
@@ -364,7 +379,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   else if (term.isClaudeUi) displayTitle = dynamicTitle ? `Claude UI: ${dynamicTitle}` : "Claude UI";
                   else displayTitle = dynamicTitle ? `Terminal ${i + 1}: ${dynamicTitle}` : `Terminal ${i + 1}`;
 
-                  if (editingId === term.id) {
+                  if (editingId !== null && editingId === term.id) {
                     return (
                       <input
                         autoFocus
