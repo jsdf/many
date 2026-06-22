@@ -59,17 +59,16 @@ const ProjectsPalette: React.FC<{
 
   const close = () => setMode(null);
 
-  // Claim Cmd/Ctrl+P app-wide in the capture phase so the browser's print
-  // dialog never opens, no matter which pane has focus (e.g. a terminal).
-  // Cmd+P -> quick open, Cmd+Shift+P -> commands, but only on the projects
-  // screen; elsewhere the key is simply swallowed. Always mounted so this
-  // single handler is the only one - no per-pane listeners to conflict.
+  // The projects screen's Cmd+P behavior: Cmd+P -> file quick open,
+  // Cmd+Shift+P -> commands. Only registered while the projects screen is
+  // active; other screens register their own Cmd+P (App mounts a global
+  // fallback that suppresses the browser print dialog regardless).
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.code !== "KeyP") return;
       e.preventDefault();
       e.stopPropagation();
-      if (!active) return;
       setMode(e.shiftKey ? "commands" : "quickOpen");
       setQuery("");
     };

@@ -31,56 +31,62 @@ function highlight(text: string, positions: Set<number>): React.ReactNode {
   return <>{parts}</>;
 }
 
-// Worktree quick-open palette. Cmd+K opens it app-wide. Always mounted so the
-// shortcut is captured even when a terminal pane has focus.
+type Entry = { wt: Worktree; branch: string };
+
+// Cmd+P quick-open for worktrees. Registered only while `active` (App gates it
+// to every screen except the projects screen, which uses Cmd+P for files). App
+// also mounts a global fallback that suppresses the browser print dialog, so
+// this handler only needs to implement behavior.
 const WorktreePalette: React.FC<{
+  active: boolean;
   worktrees: Worktree[];
   onWorktreeSelect: (worktree: Worktree) => void;
-}> = ({ worktrees, onWorktreeSelect }) => {
+}> = ({ active, worktrees, onWorktreeSelect }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.code !== "KeyK") return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.code !== "KeyP") return;
       e.preventDefault();
       e.stopPropagation();
-      setOpen((prev) => !prev);
+      setOpen(true);
       setQuery("");
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  }, [active]);
 
-  const fzf = useMemo(
-    () => new Fzf(worktrees, { selector: (w) => `${w.branch ?? ""} ${w.worktreeName}`, limit: 50 }),
+  // Close if the palette is open when the screen becomes inactive.
+  useEffect(() => {
+    if (!active) setOpen(false);
+  }, [active]);
+
+  const entries = useMemo<Entry[]>(
+    () => worktrees.map((wt) => ({ wt, branch: formatBranchName(wt.branch) })),
     [worktrees],
   );
+
+  // Match against the formatted branch so highlight positions line up with the
+  // displayed label; worktree name is shown as detail.
+  const fzf = useMemo(() => new Fzf(entries, { selector: (e) => e.branch, limit: 50 }), [entries]);
 
   const items = useMemo<PaletteItem[]>(() => {
     const q = query.trim();
     const results = q
       ? fzf.find(q)
-      : worktrees.map((w) => ({ item: w, positions: new Set<number>() }));
-    return results.map(({ item: w, positions }) => {
-      const branch = w.branch ?? "(no branch)";
-      const displayBranch = formatBranchName(branch);
-      const branchPositions = new Set<number>();
-      // positions are over the combined selector string; extract only the branch part
-      for (const p of positions) {
-        if (p < branch.length) branchPositions.add(p);
-      }
-      return {
-        id: w.path,
-        label: highlight(displayBranch, branchPositions),
-        detail: w.worktreeName,
-        onSelect: () => {
-          onWorktreeSelect(w);
-          setOpen(false);
-        },
-      };
-    });
-  }, [query, fzf, worktrees, onWorktreeSelect]);
+      : entries.map((e) => ({ item: e, positions: new Set<number>() }));
+    return results.map(({ item: e, positions }) => ({
+      id: e.wt.path,
+      label: highlight(e.branch, positions),
+      detail: e.wt.worktreeName,
+      onSelect: () => {
+        onWorktreeSelect(e.wt);
+        setOpen(false);
+      },
+    }));
+  }, [query, fzf, entries, onWorktreeSelect]);
 
   if (!open) return null;
 

@@ -262,6 +262,20 @@ const App: React.FC = () => {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
+  // Fallback for Cmd/Ctrl+P, app-wide: always swallow it so the browser print
+  // dialog never opens, even on screens that don't implement quick-open. Each
+  // screen registers its own Cmd+P behavior (see ProjectsPalette/WorktreePalette);
+  // this guarantees the print dialog is suppressed regardless of who handles it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.code === "KeyP") {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
   // Load pinned folders once; they persist globally (not per-repo).
   useEffect(() => {
     getRpcClient()
@@ -911,8 +925,10 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Always mounted so Cmd+K opens the worktree quick-switcher from any pane. */}
+      {/* Cmd+P quick-open for worktrees, everywhere except the projects screen
+          (where Cmd+P opens file quick-open instead). */}
       <WorktreePalette
+        active={mainPaneView.type !== 'projects'}
         worktrees={worktrees}
         onWorktreeSelect={(wt) => handleWorktreeSelect(wt)}
       />
