@@ -142,9 +142,24 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   // Unified "recent" list: project-attached terminals plus recent Claude
   // sessions for those projects, ordered by recency (newest first).
   type RecentItem =
-    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string }
+    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number }
     | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
   const recentItems = useMemo<RecentItem[]>(() => {
+    // Assign stable per-worktree numbers to terminals by creation order so that
+    // multiple terminals in the same folder are distinguishable in the list.
+    const byWorktree = new Map<string, { terminalId: string; createdAt: number }[]>();
+    for (const t of recentTerminals) {
+      if (!isUnderAnyProject(t.worktreePath)) continue;
+      const group = byWorktree.get(t.worktreePath) ?? [];
+      group.push({ terminalId: t.terminalId, createdAt: t.createdAt });
+      byWorktree.set(t.worktreePath, group);
+    }
+    const terminalNumbers = new Map<string, number>();
+    for (const group of byWorktree.values()) {
+      group.sort((a, b) => a.createdAt - b.createdAt);
+      group.forEach(({ terminalId }, idx) => terminalNumbers.set(terminalId, idx + 1));
+    }
+
     const items: RecentItem[] = [];
     for (const t of recentTerminals) {
       if (!isUnderAnyProject(t.worktreePath)) continue;
@@ -154,6 +169,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
         terminalId: t.terminalId,
         worktreePath: t.worktreePath,
         title: t.title,
+        terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
       });
     }
     for (const s of recentSessions) {
@@ -515,7 +531,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                           {baseName(item.worktreePath)}
                         </span>
                         <span className="flex-1 truncate">
-                          {item.kind === "terminal" ? item.title || "Terminal" : item.label}
+                          {item.kind === "terminal" ? (item.title ? `Terminal ${item.terminalNumber}: ${item.title}` : `Terminal ${item.terminalNumber}`) : item.label}
                         </span>
                       </div>
                     );
