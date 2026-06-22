@@ -1,0 +1,23 @@
+src/renderer/src/components/FileEditorTab.tsx
+  s_785980b70f98b7::t_b1c80f3cfc586e 15
+  s_785980b70f98b7::t_9dcdc6977ab6c9 57-60
+  s_785980b70f98b7::t_fb4a954baf44c8 102
+src/renderer/src/url-linker.ts
+  s_785980b70f98b7::t_bf346d1af2f326 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "d5882ecede9bde660251a5e60935127f830f4490",
+  "prompts": {},
+  "sessions": {
+    "s_785980b70f98b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57c3f4e5-923f-429c-be42-a721af0be5b5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
