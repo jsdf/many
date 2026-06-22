@@ -12,7 +12,7 @@ import { loadAppData } from "../cli/config.js";
 import { startTrackedPoller } from "./tracked-poller.js";
 import { reconcileTasks } from "../cli/task-registry.js";
 import { TerminalManagerClient } from "../daemon/terminal-client.js";
-import { RepoWatcher } from "./git-watcher.js";
+import { RepoWatcher, WorkdirWatcher } from "./git-watcher.js";
 import { RpcServer } from "./rpc-server.js";
 import { createQueryHandlers, createSubscriptionHandlers } from "./rpc-handlers.js";
 import { ClaudeService } from "../claude-session/server/claude-service.js";
@@ -148,13 +148,14 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const claudeService = new ClaudeService();
   const sessionStore = new SessionStore();
   const repoWatcher = new RepoWatcher();
+  const worktreeWatcher = new WorkdirWatcher();
   const claudeUiService = new ClaudeUiService();
 
   const rpcServer = new RpcServer({
     noServer: true,
     token,
     queryHandlers: createQueryHandlers({ terminalManager, claudeService, sessionStore, claudeUiService }),
-    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, claudeService, claudeUiService }),
+    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, worktreeWatcher, claudeService, claudeUiService }),
   });
 
   // Start watching all known repos
@@ -194,6 +195,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     shuttingDown = true;
     trackedPoller.stop();
     repoWatcher.close();
+    worktreeWatcher.close();
     claudeService.destroy();
     claudeUiService.destroy();
     rpcServer.destroy();

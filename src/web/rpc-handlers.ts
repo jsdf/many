@@ -23,7 +23,7 @@ import * as gitPool from "../cli/git-pool.js";
 import { TerminalManagerClient } from "../daemon/terminal-client.js";
 import { getClaudeSessions, getSessionMessages, getRecentSessionsForRoots } from "./claude-sessions.js";
 import { computeWorktreeActivityTimes } from "./worktree-activity.js";
-import { RepoWatcher } from "./git-watcher.js";
+import { RepoWatcher, WorkdirWatcher } from "./git-watcher.js";
 import {
   resolveStartingPoint,
   archiveWorktree as serviceArchiveWorktree,
@@ -1071,13 +1071,31 @@ export function createQueryHandlers(opts: {
 // Subscription handlers
 // ---------------------------------------------------------------------------
 
+// Builds a SubscriptionHandler from a fetch function + a watch-setup function.
+// On subscribe: runs fetch immediately and pushes the result, then re-runs on
+// each watcher event. The watch function returns a cleanup to call on unsub.
+function makeLiveHandler<I>(opts: {
+  fetch: (input: I) => Promise<unknown>;
+  watch: (input: I, onChange: () => void) => (() => void) | void;
+}): SubscriptionHandler {
+  return (input, push) => {
+    const typed = input as I;
+    opts.fetch(typed).then(push).catch(() => {});
+    const cleanup = opts.watch(typed, () => {
+      opts.fetch(typed).then(push).catch(() => {});
+    });
+    return cleanup ?? undefined;
+  };
+}
+
 export function createSubscriptionHandlers(opts: {
   terminalManager: TerminalManagerClient;
   repoWatcher: RepoWatcher;
+  worktreeWatcher: WorkdirWatcher;
   claudeService: ClaudeService;
   claudeUiService: ClaudeUiService;
 }): Partial<Record<SubscriptionProcedure, SubscriptionHandler>> {
-  const { terminalManager, repoWatcher, claudeService, claudeUiService } = opts;
+  const { terminalManager, repoWatcher, worktreeWatcher, claudeService, claudeUiService } = opts;
 
   return {
     "worktree.updates": (input, push) => {
@@ -1099,6 +1117,37 @@ export function createSubscriptionHandlers(opts: {
       repoWatcher.on("changed", handler);
       return () => { repoWatcher.removeListener("changed", handler); };
     },
+
+    "worktree.statusUpdates": makeLiveHandler({
+      fetch: async ({ worktreePath }: { worktreePath: string; repoPath: string }) =>
+        getWorktreeStatus(worktreePath),
+      watch: ({ worktreePath, repoPath }, onChange) => {
+        // Watch working files for edits/creates/deletes and git index changes
+        const unwatchWorkdir = worktreeWatcher.watch(worktreePath, onChange);
+        // Also watch git state so git add/commit/stash/reset fire updates
+        repoWatcher.watchRepo(repoPath).catch(() => {});
+        const handler = (changedRepo: string) => { if (changedRepo === repoPath) onChange(); };
+        repoWatcher.on("changed", handler);
+        return () => {
+          unwatchWorkdir();
+          repoWatcher.removeListener("changed", handler);
+        };
+      },
+    }),
+
+    "worktree.branchDiffUpdates": makeLiveHandler({
+      fetch: async ({ worktreePath, repoPath }: { worktreePath: string; repoPath: string }) => {
+        const appData = await loadAppData();
+        const repoConfig = getRepoConfig(appData, repoPath);
+        return getBranchDiff(worktreePath, repoPath, repoConfig.mainBranch);
+      },
+      watch: ({ repoPath }, onChange) => {
+        repoWatcher.watchRepo(repoPath).catch(() => {});
+        const handler = (changedRepo: string) => { if (changedRepo === repoPath) onChange(); };
+        repoWatcher.on("changed", handler);
+        return () => repoWatcher.removeListener("changed", handler);
+      },
+    }),
 
     "worktree.activityTimes": (input, push) => {
       const { repoPath } = input as { repoPath: string };

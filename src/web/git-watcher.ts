@@ -6,6 +6,68 @@ import { readFile, readdir, stat } from "fs/promises";
 import path from "path";
 import { EventEmitter } from "events";
 
+// ---------------------------------------------------------------------------
+// WorkdirWatcher — watches a worktree's working directory for file changes
+// ---------------------------------------------------------------------------
+
+interface WorkdirEntry {
+  fsWatcher: FSWatcher | null;
+  listeners: Set<() => void>;
+  debounce: ReturnType<typeof setTimeout> | null;
+}
+
+export class WorkdirWatcher {
+  private watches = new Map<string, WorkdirEntry>();
+
+  watch(worktreePath: string, onChange: () => void): () => void {
+    if (!this.watches.has(worktreePath)) {
+      const entry: WorkdirEntry = { fsWatcher: null, listeners: new Set(), debounce: null };
+
+      const fire = () => {
+        if (entry.debounce) clearTimeout(entry.debounce);
+        entry.debounce = setTimeout(() => {
+          entry.debounce = null;
+          for (const l of entry.listeners) l();
+        }, 500);
+      };
+
+      try {
+        entry.fsWatcher = watch(worktreePath, { recursive: true }, (_event, filename) => {
+          const f = filename?.toString() ?? "";
+          // Skip bulk git internal paths that don't affect working tree status
+          if (f.startsWith(".git/objects/") || f.startsWith(".git/logs/")) return;
+          fire();
+        });
+        entry.fsWatcher.on("error", () => {});
+      } catch {
+        // Worktree path may not exist or watch not supported — no-op
+      }
+
+      this.watches.set(worktreePath, entry);
+    }
+
+    const entry = this.watches.get(worktreePath)!;
+    entry.listeners.add(onChange);
+
+    return () => {
+      entry.listeners.delete(onChange);
+      if (entry.listeners.size === 0) {
+        if (entry.debounce) clearTimeout(entry.debounce);
+        try { entry.fsWatcher?.close(); } catch {}
+        this.watches.delete(worktreePath);
+      }
+    };
+  }
+
+  close(): void {
+    for (const entry of this.watches.values()) {
+      if (entry.debounce) clearTimeout(entry.debounce);
+      try { entry.fsWatcher?.close(); } catch {}
+    }
+    this.watches.clear();
+  }
+}
+
 export interface GitWatcher extends EventEmitter {
   on(event: "changed", listener: (repoPath: string) => void): this;
   emit(event: "changed", repoPath: string): boolean;

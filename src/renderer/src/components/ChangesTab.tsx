@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Worktree, GitStatus } from "../types";
-import { getRpcClient } from "../rpc-client";
+import { useSubscription } from "../hooks";
 import BranchChanges from "./BranchChanges";
 
 interface ChangesTabProps {
@@ -9,25 +9,10 @@ interface ChangesTabProps {
 }
 
 const ChangesTab: React.FC<ChangesTabProps> = ({ worktree, repoPath }) => {
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
-
-  const loadGitStatus = async () => {
-    if (!worktree.path) return;
-    setStatusLoading(true);
-    try {
-      const status = await getRpcClient().query("worktree.status", { worktreePath: worktree.path });
-      setGitStatus(status);
-    } catch (err) {
-      console.error("Failed to load git status:", err);
-    } finally {
-      setStatusLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGitStatus();
-  }, [worktree.path]);
+  const { data: gitStatus } = useSubscription("worktree.statusUpdates", {
+    worktreePath: worktree.path,
+    repoPath,
+  });
 
   return (
     <div className="p-5 overflow-auto h-full w-full min-w-0">
@@ -50,18 +35,11 @@ const ChangesTab: React.FC<ChangesTabProps> = ({ worktree, repoPath }) => {
               </span>
             )}
           </h3>
-          <button
-            className="btn btn-outline btn-neutral btn-sm"
-            onClick={loadGitStatus}
-            disabled={statusLoading}
-          >
-            {statusLoading ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
         <div className="bg-neutral border border-base-content/10 rounded-lg p-4 text-neutral-content">
-          {statusLoading && !gitStatus ? (
+          {!gitStatus ? (
             <p className="text-neutral-content/60 italic m-0">Loading...</p>
-          ) : gitStatus && gitStatus.hasChanges ? (
+          ) : gitStatus.hasChanges ? (
             <div className="flex flex-col gap-3">
               <pre className="text-sm m-0"><code>{[
                 ...gitStatus.staged.map((file) => (
@@ -86,16 +64,14 @@ const ChangesTab: React.FC<ChangesTabProps> = ({ worktree, repoPath }) => {
                 </div>
               )}
             </div>
-          ) : gitStatus ? (
-            <p className="text-success m-0">Working tree clean</p>
           ) : (
-            <p className="text-neutral-content/60 italic m-0">Failed to load status</p>
+            <p className="text-success m-0">Working tree clean</p>
           )}
         </div>
       </div>
 
       {worktree.path && repoPath && (
-        <BranchChanges worktreePath={worktree.path} repoPath={repoPath} commit={worktree.commit} />
+        <BranchChanges worktreePath={worktree.path} repoPath={repoPath} />
       )}
     </div>
   );

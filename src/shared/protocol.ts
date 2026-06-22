@@ -780,6 +780,16 @@ export interface SubscriptionProcedures {
     input: { repoPath: string };
     output: Worktree[];
   };
+  /** Live git status for a worktree — updates whenever working files or the index change */
+  "worktree.statusUpdates": {
+    input: { worktreePath: string; repoPath: string };
+    output: GitStatus;
+  };
+  /** Live branch diff for a worktree — updates whenever new commits land on the branch */
+  "worktree.branchDiffUpdates": {
+    input: { worktreePath: string; repoPath: string };
+    output: { diff: string; truncated?: boolean };
+  };
   /** Live per-worktree last-activity timestamps (ms): max of last Claude session and last git commit */
   "worktree.activityTimes": {
     input: { repoPath: string };

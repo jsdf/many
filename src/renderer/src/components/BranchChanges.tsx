@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react";
+import React, { useState, useMemo, useSyncExternalStore } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
-import { getRpcClient } from "../rpc-client";
+import { useSubscription } from "../hooks";
 import { ChevronRight, ChevronDown } from "lucide-react";
 
 function useDarkMode(): boolean {
@@ -60,6 +60,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 const FILE_PATCH_MAX_LINES = 5000;
 
+import { getRpcClient } from "../rpc-client";
+
 const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultCollapsed?: boolean; worktreePath: string }> = ({ patch, diffStyle, defaultCollapsed = false, worktreePath }) => {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const filename = useMemo(() => getFilename(patch), [patch]);
@@ -117,61 +119,17 @@ const FileDiffEntry: React.FC<{ patch: string; diffStyle: DiffStyle; defaultColl
 interface BranchDiffContentProps {
   worktreePath: string;
   repoPath: string;
-  refreshKey: number;
-  commit?: string;
+  diffStyle: DiffStyle;
 }
 
-const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyle }> = ({
-  worktreePath,
-  repoPath,
-  refreshKey,
-  commit,
-  diffStyle,
-}) => {
-  const [diff, setDiff] = useState<string | null>(null);
-  const [truncated, setTruncated] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const BranchDiffContent: React.FC<BranchDiffContentProps> = ({ worktreePath, repoPath, diffStyle }) => {
+  const { data } = useSubscription("worktree.branchDiffUpdates", { worktreePath, repoPath });
+  const filePatches = useMemo(() => (data?.diff ? splitPatch(data.diff) : []), [data?.diff]);
 
-  const filePatches = useMemo(() => (diff ? splitPatch(diff) : []), [diff]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getRpcClient().query("worktree.branchDiff", { worktreePath, repoPath })
-      .then((result) => {
-        if (!cancelled) {
-          setDiff(result.diff);
-          setTruncated(result.truncated ?? false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.error("Failed to load branch diff:", err);
-          setError(err instanceof Error ? err.message : "Failed to load diff");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [worktreePath, repoPath, refreshKey, commit]);
-
-  if (loading && !diff) {
+  if (!data) {
     return (
       <div className="bg-base-200 border border-base-300 rounded-lg p-4">
         <p className="text-base-content/60 italic m-0">Loading...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-base-200 border border-base-300 rounded-lg p-4">
-        <p className="text-error m-0">{error}</p>
       </div>
     );
   }
@@ -190,7 +148,7 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
         {filePatches.map((filePatch, i) => (
           <FileDiffEntry key={i} patch={filePatch} diffStyle={diffStyle} defaultCollapsed={filePatches.length > 10} worktreePath={worktreePath} />
         ))}
-        {truncated && (
+        {data.truncated && (
           <div className="text-warning text-xs p-2 bg-warning/10 rounded">
             Output truncated - diff is too large to display in full.
           </div>
@@ -203,15 +161,9 @@ const BranchDiffContent: React.FC<BranchDiffContentProps & { diffStyle: DiffStyl
 interface BranchChangesProps {
   worktreePath: string;
   repoPath: string;
-  /** Current commit hash - when this changes, the diff is re-fetched */
-  commit?: string;
 }
 
-const BranchChanges: React.FC<BranchChangesProps> = ({
-  worktreePath,
-  repoPath,
-  commit,
-}) => {
+const BranchChanges: React.FC<BranchChangesProps> = ({ worktreePath, repoPath }) => {
   const [collapsed, setCollapsed] = useState(() => {
     const stored = localStorage.getItem("branchChangesCollapsed");
     return stored !== null ? stored === "true" : false;
@@ -219,7 +171,6 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
   const [diffStyle, setDiffStyle] = useState<DiffStyle>(() => {
     return (localStorage.getItem("diffStyle") as DiffStyle) || "unified";
   });
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -240,29 +191,19 @@ const BranchChanges: React.FC<BranchChangesProps> = ({
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />} Branch Changes
         </h3>
         {!collapsed && (
-          <div className="flex gap-2">
-            <button
-              className="btn btn-outline btn-neutral btn-sm"
-              onClick={toggleDiffStyle}
-              title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
-            >
-              {diffStyle === "unified" ? "Split" : "Unified"}
-            </button>
-            <button
-              className="btn btn-outline btn-neutral btn-sm"
-              onClick={() => setRefreshKey((k) => k + 1)}
-            >
-              Refresh
-            </button>
-          </div>
+          <button
+            className="btn btn-outline btn-neutral btn-sm"
+            onClick={toggleDiffStyle}
+            title={`Switch to ${diffStyle === "unified" ? "split" : "unified"} view`}
+          >
+            {diffStyle === "unified" ? "Split" : "Unified"}
+          </button>
         )}
       </div>
       {!collapsed && (
         <BranchDiffContent
           worktreePath={worktreePath}
           repoPath={repoPath}
-          refreshKey={refreshKey}
-          commit={commit}
           diffStyle={diffStyle}
         />
       )}
