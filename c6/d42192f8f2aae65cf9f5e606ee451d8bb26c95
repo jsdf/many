@@ -1,0 +1,21 @@
+src/web/rpc-handlers.ts
+  s_619d0981d741ad::t_03705843971378 1044-1046
+src/web/claude-ui/service.ts
+  s_619d0981d741ad::t_03a769277d4305 16,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c6d42192f8f2aae65cf9f5e606ee451d8bb26c95",
+  "prompts": {},
+  "sessions": {
+    "s_619d0981d741ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc7ec96c-9e88-466d-be4f-f1948eb6c1fa",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
