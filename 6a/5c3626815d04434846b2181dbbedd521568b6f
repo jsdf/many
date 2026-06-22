@@ -1,0 +1,19 @@
+src/renderer/src/components/WorktreeDetails.tsx
+  s_83a72452f5cffa::t_a786854bf30eee 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "6a5c3626815d04434846b2181dbbedd521568b6f",
+  "prompts": {},
+  "sessions": {
+    "s_83a72452f5cffa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ceb6979-2901-4544-91b1-4d4e2d087189",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
