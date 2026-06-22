@@ -51,6 +51,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     setMaximizedId((prev) => (prev === terminalId ? null : terminalId));
   }, []);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ divider: HTMLElement; dividerIndex: number } | null>(null);
   const claudeUiRefs = useRef<Map<string, ClaudeUiTabHandle>>(new Map());
 
   useEffect(() => {
@@ -63,8 +64,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         const sessions = await getRpcClient().query("terminal.listSessions", { worktreePath });
         if (cancelled) return;
         const labels: Record<string, string> = {};
-        for (const { id, userLabel } of sessions) {
-          tabs.push({ id });
+        for (const { id, userLabel, taskId } of sessions) {
+          tabs.push({ id, taskId });
           if (userLabel) labels[id] = userLabel;
         }
         if (Object.keys(labels).length > 0) setUserLabels((prev) => ({ ...prev, ...labels }));
@@ -240,6 +241,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const handleMouseDown = useCallback(
     (dividerIndex: number, e: React.MouseEvent) => {
       e.preventDefault();
+      dragRef.current = { divider: e.currentTarget as HTMLElement, dividerIndex };
       setDragging(dividerIndex);
     },
     []
@@ -249,30 +251,33 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     if (dragging === null) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const totalHeight = rect.height;
-      const relY = e.clientY - rect.top;
-      const fraction = relY / totalHeight;
+      const info = dragRef.current;
+      if (!info) return;
+      const paneA = info.divider.previousElementSibling as HTMLElement | null;
+      const paneB = info.divider.nextElementSibling as HTMLElement | null;
+      if (!paneA || !paneB) return;
+
+      // Derive the split from actual rendered pixel heights so the divider tracks
+      // the cursor exactly, regardless of header/divider chrome or stale sizes.
+      const aRect = paneA.getBoundingClientRect();
+      const bRect = paneB.getBoundingClientRect();
+      const totalPx = aRect.height + bRect.height;
+      const minPx = Math.min(60, totalPx / 2);
+      const newApx = Math.max(minPx, Math.min(totalPx - minPx, e.clientY - aRect.top));
+      const ratio = newApx / totalPx;
 
       setSizes((prev) => {
         const next = [...prev];
-        let sumBefore = 0;
-        for (let i = 0; i <= dragging; i++) sumBefore += next[i];
-        const pairSize = next[dragging] + next[dragging + 1];
-        const pairStart = sumBefore - next[dragging];
-
-        const minSize = 0.05;
-        let newTop = fraction - pairStart;
-        newTop = Math.max(minSize, Math.min(pairSize - minSize, newTop));
-
-        next[dragging] = newTop;
-        next[dragging + 1] = pairSize - newTop;
+        const d = info.dividerIndex;
+        const pairSize = (next[d] ?? 0) + (next[d + 1] ?? 0);
+        next[d] = pairSize * ratio;
+        next[d + 1] = pairSize * (1 - ratio);
         return next;
       });
     };
 
     const handleMouseUp = () => {
+      dragRef.current = null;
       setDragging(null);
     };
 
@@ -287,7 +292,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const hasTerminals = terminals.length > 0;
 
   return (
-    <div className={`flex flex-col ${fixedTerminalHeight ? '' : 'h-full overflow-hidden'}`} ref={containerRef}>
+    <div className={`flex flex-col ${fixedTerminalHeight ? '' : 'h-full overflow-hidden'}`}>
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
@@ -306,6 +311,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         </div>
       </div>
       <div
+        ref={containerRef}
         className={`flex-1 flex flex-col ${fixedTerminalHeight ? '' : 'overflow-hidden'} min-h-0`}
         style={{ userSelect: dragging !== null ? "none" : undefined }}
       >
@@ -434,7 +440,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden min-h-0">
+              <div className={`flex-1 overflow-hidden min-h-0 ${isCollapsed ? 'hidden' : ''}`}>
                 {term.isClaudeUi ? (
                   <ClaudeUiTab
                     ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}

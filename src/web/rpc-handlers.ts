@@ -843,7 +843,7 @@ export function createQueryHandlers(opts: {
       if (msg.isDark) colorEnv.COLORFGBG = "15;0";
       else colorEnv.COLORFGBG = "0;15";
       const mergedEnv = { ...colorEnv, ...msg.env };
-      const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir);
+      const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir, msg.taskId);
 
       if (msg.taskId && !existed) {
         const pid = await terminalManager.getSessionPid(msg.terminalId);
@@ -887,7 +887,7 @@ export function createQueryHandlers(opts: {
       ]);
       return ids.map((id) => {
         const info = all.find((s) => s.terminalId === id);
-        return { id, userLabel: info?.userLabel };
+        return { id, userLabel: info?.userLabel, taskId: info?.taskId };
       });
     },
     "terminal.setLabel": async (input) => {

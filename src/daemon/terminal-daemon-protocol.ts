@@ -34,6 +34,7 @@ export type DaemonRequest =
       extraEnv?: Record<string, string>;
       initialCommand?: string;
       logDir?: string | null;
+      taskId?: string;
     }
   | { reqId: number; op: "input"; terminalId: string; data: string }
   | { reqId: number; op: "resize"; terminalId: string; cols: number; rows: number }

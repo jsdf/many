@@ -22,6 +22,8 @@ interface TerminalSession {
   title?: string;
   // User-assigned persistent label (overrides the default "Terminal N" display).
   userLabel?: string;
+  // Task ID if this terminal was launched as part of a task.
+  taskId?: string;
   // Trailing output buffer used to detect title sequences split across chunks.
   titleBuf: string;
   outputBlocks: OutputBlock[];
@@ -41,6 +43,7 @@ export interface TerminalSessionInfo {
   lastInputAt: number;
   title?: string;
   userLabel?: string;
+  taskId?: string;
 }
 
 // Pick up the latest OSC 0/1/2 window-title sequence from a session's output,
@@ -70,7 +73,8 @@ export class TerminalManager {
     rows: number,
     extraEnv?: Record<string, string>,
     initialCommand?: string,
-    terminalLogDir?: string | null
+    terminalLogDir?: string | null,
+    taskId?: string
   ): boolean {
     // If session already exists, the client is reconnecting (e.g. after
     // switching worktrees and back). The PTY kept its previous size while
@@ -123,6 +127,7 @@ export class TerminalManager {
       dataListeners: new Set(),
       exitListeners: new Set(),
       logBytesWritten: 0,
+      taskId,
     };
 
     this.sessions.set(terminalId, session);
@@ -243,6 +248,7 @@ export class TerminalManager {
         lastInputAt: session.lastInputAt,
         title: session.title,
         userLabel: session.userLabel,
+        taskId: session.taskId,
       });
     }
     return result;
