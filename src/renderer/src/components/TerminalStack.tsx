@@ -324,7 +324,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
               }
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
-                <span className="text-xs text-base-content/60 truncate">
+                <span className="text-xs text-base-content truncate">
                   {term.isClaudeUi ? "Claude UI" : term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
                 </span>
                 <button
