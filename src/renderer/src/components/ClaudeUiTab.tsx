@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { getRpcClient } from "../rpc-client";
 import { Settings2, ChevronUp, ChevronDown, Check, X, AlertTriangle } from "lucide-react";
 import type { ClaudeUiEvent, ClaudeUiContentBlock } from "../../../shared/protocol";
@@ -83,11 +83,16 @@ function nextId() { return String(++itemCounter); }
 // Main component
 // ---------------------------------------------------------------------------
 
-interface ClaudeUiTabProps {
-  worktreePath: string;
+export interface ClaudeUiTabHandle {
+  reset: () => void;
 }
 
-export default function ClaudeUiTab({ worktreePath }: ClaudeUiTabProps) {
+interface ClaudeUiTabProps {
+  worktreePath: string;
+  onTitleChange?: (title: string) => void;
+}
+
+const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ worktreePath, onTitleChange }, ref) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -166,11 +171,16 @@ export default function ClaudeUiTab({ worktreePath }: ClaudeUiTabProps) {
     const text = input.trim();
     if (!text || !sessionId) return;
     setInput("");
-    setItems((prev) => [...prev, { kind: "prompt", id: nextId(), text }]);
+    setItems((prev) => {
+      if (prev.filter((i) => i.kind === "prompt").length === 0) {
+        onTitleChange?.(text.length > 60 ? text.slice(0, 60) + "..." : text);
+      }
+      return [...prev, { kind: "prompt", id: nextId(), text }];
+    });
     getRpcClient().query("claudeui.send", { sessionId, prompt: text }).catch((err) => {
       setItems((prev) => [...prev, { kind: "error", id: nextId(), message: String(err) }]);
     });
-  }, [input, sessionId]);
+  }, [input, sessionId, onTitleChange]);
 
   const interrupt = useCallback(() => {
     if (!sessionId) return;
@@ -180,8 +190,11 @@ export default function ClaudeUiTab({ worktreePath }: ClaudeUiTabProps) {
   const reset = useCallback(() => {
     if (!sessionId) return;
     setItems([]);
+    onTitleChange?.("");
     getRpcClient().query("claudeui.reset", { sessionId }).catch(() => {});
-  }, [sessionId]);
+  }, [sessionId, onTitleChange]);
+
+  useImperativeHandle(ref, () => ({ reset }), [reset]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -269,26 +282,18 @@ export default function ClaudeUiTab({ worktreePath }: ClaudeUiTabProps) {
             disabled={!sessionId}
             rows={2}
           />
-          <div className="flex flex-col gap-1">
-            <button
-              className={`btn btn-sm px-2 ${busy ? "btn-ghost text-warning" : "btn-primary"}`}
-              onClick={busy ? interrupt : send}
-              disabled={!busy && !canSend}
-              title={busy ? "Interrupt current turn" : "Send (Enter)"}
-            >
-              {busy ? "Stop" : "Send"}
-            </button>
-            <button
-              className="btn btn-ghost btn-sm px-2 opacity-50 hover:opacity-100"
-              onClick={reset}
-              disabled={!sessionId || items.length === 0}
-              title="Reset: kill and restart the session, clearing history"
-            >
-              Reset
-            </button>
-          </div>
+          <button
+            className={`btn btn-sm px-3 ${busy ? "btn-ghost text-warning" : "btn-primary"}`}
+            onClick={busy ? interrupt : send}
+            disabled={!busy && !canSend}
+            title={busy ? "Interrupt current turn" : "Send (Enter)"}
+          >
+            {busy ? "Stop" : "Send"}
+          </button>
         </div>
       </div>
     </div>
   );
-}
+});
+
+export default ClaudeUiTab;

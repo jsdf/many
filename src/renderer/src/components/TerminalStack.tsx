@@ -5,7 +5,7 @@ import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
 import SessionHistoryTab from "./SessionHistoryTab";
 import ClaudeSessionTab from "./ClaudeSessionTab";
-import ClaudeUiTab from "./ClaudeUiTab";
+import ClaudeUiTab, { type ClaudeUiTabHandle } from "./ClaudeUiTab";
 
 interface TerminalStackProps {
   worktreePath: string;
@@ -43,6 +43,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [dragging, setDragging] = useState<number | null>(null);
   const [terminalTitles, setTerminalTitles] = useState<Record<string, string>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const claudeUiRefs = useRef<Map<string, ClaudeUiTabHandle>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -324,20 +325,44 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
               }
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
-                <span className="text-xs text-base-content truncate">
-                  {term.isClaudeUi ? "Claude UI" : term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
+                <span className="text-xs text-base-content/60 truncate">
+                  {term.isClaudeUi
+                    ? (terminalTitles[term.id] ? `Claude UI: ${terminalTitles[term.id]}` : "Claude UI")
+                    : term.isClaudeSession ? "Claude Session"
+                    : term.isSessionHistory ? "Session History"
+                    : term.isSavedLog ? "Saved Log (read-only)"
+                    : term.isTaskLog ? "Task Log (read-only)"
+                    : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
                 </span>
-                <button
-                  className="btn btn-ghost btn-xs"
-                  onClick={() => closeTerminal(term.id)}
-                  title={term.isSavedLog ? "Dismiss saved log" : term.isTaskLog ? "Close and kill task" : "Close terminal"}
-                >
-                  <X size={14} />
-                </button>
+                <div className="flex items-center">
+                  {term.isClaudeUi && (
+                    <div className="dropdown dropdown-end">
+                      <button tabIndex={0} className="btn btn-ghost btn-xs opacity-60 hover:opacity-100">&#8943;</button>
+                      <ul tabIndex={0} className="dropdown-content menu p-1 shadow bg-base-200 rounded-box w-36 z-50 text-xs">
+                        <li>
+                          <button onClick={() => { claudeUiRefs.current.get(term.id)?.reset(); }}>
+                            Reset session
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    onClick={() => closeTerminal(term.id)}
+                    title={term.isSavedLog ? "Dismiss saved log" : term.isTaskLog ? "Close and kill task" : "Close terminal"}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
                 {term.isClaudeUi ? (
-                  <ClaudeUiTab worktreePath={worktreePath} />
+                  <ClaudeUiTab
+                    ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}
+                    worktreePath={worktreePath}
+                    onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
+                  />
                 ) : term.isClaudeSession ? (
                   <ClaudeSessionTab
                     worktreePath={worktreePath}

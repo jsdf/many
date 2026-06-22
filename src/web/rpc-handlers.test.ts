@@ -17,6 +17,7 @@ const handlers = createQueryHandlers({
 const subHandlers = createSubscriptionHandlers({
   terminalManager: {} as never,
   repoWatcher: {} as never,
+  worktreeWatcher: {} as never,
   claudeService: {} as never,
   claudeUiService: {} as never,
 });
