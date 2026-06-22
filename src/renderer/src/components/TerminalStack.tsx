@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -332,7 +332,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                 : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
               }
             >
-              <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
+              <div className="group flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
                 {(() => {
                   const isRenameable = !term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession;
                   const dynamicTitle = terminalTitles[term.id];
@@ -377,12 +377,17 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     );
                   }
                   return (
-                    <span
-                      className={`text-xs text-base-content/60 truncate${isRenameable ? " cursor-text select-none" : ""}`}
-                      title={isRenameable ? "Double-click to rename" : undefined}
-                      onDoubleClick={isRenameable ? () => { setEditValue(userLabel || ""); setEditingId(term.id); } : undefined}
-                    >
-                      {displayTitle}
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="text-xs text-base-content/60 truncate">{displayTitle}</span>
+                      {isRenameable && (
+                        <button
+                          className="btn btn-ghost btn-xs opacity-0 group-hover:opacity-60 hover:!opacity-100 p-0 h-auto min-h-0"
+                          onClick={() => { setEditValue(userLabel || ""); setEditingId(term.id); }}
+                          title="Rename"
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      )}
                     </span>
                   );
                 })()}
