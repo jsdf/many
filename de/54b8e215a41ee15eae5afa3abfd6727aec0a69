@@ -1,0 +1,19 @@
+package.json
+  s_62a5b52cadfada::t_5a9d34cb9fbdb4 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "de54b8e215a41ee15eae5afa3abfd6727aec0a69",
+  "prompts": {},
+  "sessions": {
+    "s_62a5b52cadfada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0d90d49-4657-4355-a7be-a021ad015875",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
