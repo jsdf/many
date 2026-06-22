@@ -60,6 +60,7 @@ import type { RunCommand } from "../services/types.js";
 // Import ClaudeService and SessionStore types — instantiated externally
 import { ClaudeService } from "../claude-session/server/claude-service.js";
 import { SessionStore } from "../claude-session/server/session-store.js";
+import { ClaudeUiService } from "./claude-ui/service.js";
 
 const userShell = process.env.SHELL || "/bin/bash";
 
@@ -215,8 +216,9 @@ export function createQueryHandlers(opts: {
   terminalManager: TerminalManagerClient;
   claudeService: ClaudeService;
   sessionStore: SessionStore;
+  claudeUiService: ClaudeUiService;
 }): Partial<Record<QueryProcedure, QueryHandler>> {
-  const { terminalManager, claudeService, sessionStore } = opts;
+  const { terminalManager, claudeService, sessionStore, claudeUiService } = opts;
 
   return {
     // --- Worktree ---
@@ -1035,6 +1037,33 @@ export function createQueryHandlers(opts: {
       await cancelAutomationRun(runId);
       return { ok: true };
     },
+
+    // --- Claude UI (CLI-backed sessions) ---
+    "claudeui.create": async (input) => {
+      const { worktreePath } = input as { worktreePath: string };
+      const sessionId = claudeUiService.create(worktreePath);
+      return { sessionId };
+    },
+    "claudeui.send": async (input) => {
+      const { sessionId, prompt } = input as { sessionId: string; prompt: string };
+      claudeUiService.send(sessionId, prompt);
+      return { ok: true };
+    },
+    "claudeui.interrupt": async (input) => {
+      const { sessionId } = input as { sessionId: string };
+      claudeUiService.interrupt(sessionId);
+      return { ok: true };
+    },
+    "claudeui.reset": async (input) => {
+      const { sessionId } = input as { sessionId: string };
+      claudeUiService.reset(sessionId);
+      return { ok: true };
+    },
+    "claudeui.close": async (input) => {
+      const { sessionId } = input as { sessionId: string };
+      claudeUiService.close(sessionId);
+      return { ok: true };
+    },
   };
 }
 
@@ -1046,8 +1075,9 @@ export function createSubscriptionHandlers(opts: {
   terminalManager: TerminalManagerClient;
   repoWatcher: RepoWatcher;
   claudeService: ClaudeService;
+  claudeUiService: ClaudeUiService;
 }): Partial<Record<SubscriptionProcedure, SubscriptionHandler>> {
-  const { terminalManager, repoWatcher, claudeService } = opts;
+  const { terminalManager, repoWatcher, claudeService, claudeUiService } = opts;
 
   return {
     "worktree.updates": (input, push) => {
@@ -1285,6 +1315,11 @@ export function createSubscriptionHandlers(opts: {
     "session.events": (input, push) => {
       const { sessionId } = input as { sessionId: string };
       return claudeService.subscribe(sessionId, (event) => push(event));
+    },
+
+    "claudeui.events": (input, push) => {
+      const { sessionId } = input as { sessionId: string };
+      return claudeUiService.subscribe(sessionId, (event) => push(event));
     },
 
     "session.list.updates": (input, push) => {

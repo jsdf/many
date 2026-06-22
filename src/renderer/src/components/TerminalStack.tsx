@@ -5,6 +5,7 @@ import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
 import SessionHistoryTab from "./SessionHistoryTab";
 import ClaudeSessionTab from "./ClaudeSessionTab";
+import ClaudeUiTab from "./ClaudeUiTab";
 
 interface TerminalStackProps {
   worktreePath: string;
@@ -18,6 +19,7 @@ export interface TerminalStackHandle {
   openSessionHistory: (sessionId: string) => void;
   openTaskLog: (taskId: string, isSavedLog?: boolean) => void;
   openClaudeSession: (sessionId?: string) => void;
+  openClaudeUiSession: () => void;
 }
 
 interface TerminalInfo {
@@ -30,6 +32,7 @@ interface TerminalInfo {
   isSessionHistory?: boolean;
   sessionId?: string;
   isClaudeSession?: boolean;
+  isClaudeUi?: boolean;
 }
 
 let terminalCounter = 0;
@@ -165,14 +168,25 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
+  const openClaudeUiSession = useCallback(() => {
+    terminalCounter++;
+    const id = `claude-ui-${Date.now()}-${terminalCounter}`;
+    setTerminals((prev) => {
+      const next = [...prev, { id, isClaudeUi: true }];
+      setSizes(next.map(() => 1 / next.length));
+      return next;
+    });
+  }, []);
+
   useImperativeHandle(ref, () => ({
     createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
       addTerminal(env, initialCommand, taskId);
     },
     openSessionHistory,
     openClaudeSession,
+    openClaudeUiSession,
     openTaskLog,
-  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession]);
+  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, openClaudeUiSession]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
@@ -189,7 +203,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         } catch {
           // Task may already be dead
         }
-      } else if (!term?.isTaskLog && !term?.isSessionHistory) {
+      } else if (!term?.isTaskLog && !term?.isSessionHistory && !term?.isClaudeUi) {
         try {
           await getRpcClient().query("terminal.close", { terminalId });
         } catch {
@@ -263,6 +277,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={openClaudeUiSession}>
+            + Claude UI
+          </button>
           <button className="btn btn-outline btn-neutral btn-xs" onClick={() => openClaudeSession()}>
             + Chat
           </button>
@@ -308,7 +325,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
             >
               <div className="flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
                 <span className="text-xs text-base-content/60 truncate">
-                  {term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
+                  {term.isClaudeUi ? "Claude UI" : term.isClaudeSession ? "Claude Session" : term.isSessionHistory ? "Session History" : term.isSavedLog ? "Saved Log (read-only)" : term.isTaskLog ? "Task Log (read-only)" : (terminalTitles[term.id] ? `Terminal ${i + 1}: ${terminalTitles[term.id]}` : `Terminal ${i + 1}`)}
                 </span>
                 <button
                   className="btn btn-ghost btn-xs"
@@ -319,7 +336,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                 </button>
               </div>
               <div className="flex-1 overflow-hidden min-h-0">
-                {term.isClaudeSession ? (
+                {term.isClaudeUi ? (
+                  <ClaudeUiTab worktreePath={worktreePath} />
+                ) : term.isClaudeSession ? (
                   <ClaudeSessionTab
                     worktreePath={worktreePath}
                     sessionId={term.sessionId}

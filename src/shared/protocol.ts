@@ -262,6 +262,23 @@ export interface SessionResult {
 }
 
 // ---------------------------------------------------------------------------
+// Claude UI session types (CLI-backed sessions via libclaude)
+// ---------------------------------------------------------------------------
+
+export type ClaudeUiContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown }
+  | { type: "tool_result"; toolUseId: string; content: string; isError: boolean };
+
+export type ClaudeUiEvent =
+  | { type: "init"; sessionId: string }
+  | { type: "status"; ready: boolean; busy: boolean; queued: number; sessionId: string | null }
+  | { type: "assistant"; content: ClaudeUiContentBlock[] }
+  | { type: "user"; content: ClaudeUiContentBlock[] }
+  | { type: "result"; isError: boolean; costUsd?: number; durationMs?: number }
+  | { type: "error"; message: string };
+
+// ---------------------------------------------------------------------------
 // Query procedures (one-shot request → response)
 // ---------------------------------------------------------------------------
 
@@ -729,6 +746,28 @@ export interface QueryProcedures {
     input: { runId: string };
     output: { ok: boolean };
   };
+
+  // --- Claude UI (CLI-backed sessions) ---
+  "claudeui.create": {
+    input: { worktreePath: string };
+    output: { sessionId: string };
+  };
+  "claudeui.send": {
+    input: { sessionId: string; prompt: string };
+    output: { ok: boolean };
+  };
+  "claudeui.interrupt": {
+    input: { sessionId: string };
+    output: { ok: boolean };
+  };
+  "claudeui.reset": {
+    input: { sessionId: string };
+    output: { ok: boolean };
+  };
+  "claudeui.close": {
+    input: { sessionId: string };
+    output: { ok: boolean };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -799,6 +838,11 @@ export interface SubscriptionProcedures {
   "session.list.updates": {
     input: { dir: string };
     output: SessionInfo[];
+  };
+  /** Claude UI session events (CLI-backed, streaming assistant/tool events) */
+  "claudeui.events": {
+    input: { sessionId: string };
+    output: ClaudeUiEvent;
   };
   /** Run a single automation on a worktree */
   "stream.runAutomation": {

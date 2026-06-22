@@ -17,6 +17,7 @@ import { RpcServer } from "./rpc-server.js";
 import { createQueryHandlers, createSubscriptionHandlers } from "./rpc-handlers.js";
 import { ClaudeService } from "../claude-session/server/claude-service.js";
 import { SessionStore } from "../claude-session/server/session-store.js";
+import { ClaudeUiService } from "./claude-ui/service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -147,12 +148,13 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const claudeService = new ClaudeService();
   const sessionStore = new SessionStore();
   const repoWatcher = new RepoWatcher();
+  const claudeUiService = new ClaudeUiService();
 
   const rpcServer = new RpcServer({
     noServer: true,
     token,
-    queryHandlers: createQueryHandlers({ terminalManager, claudeService, sessionStore }),
-    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, claudeService }),
+    queryHandlers: createQueryHandlers({ terminalManager, claudeService, sessionStore, claudeUiService }),
+    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, claudeService, claudeUiService }),
   });
 
   // Start watching all known repos
@@ -193,6 +195,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     trackedPoller.stop();
     repoWatcher.close();
     claudeService.destroy();
+    claudeUiService.destroy();
     rpcServer.destroy();
     try {
       const count = await terminalManager.getRunningCount();

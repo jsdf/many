@@ -10,6 +10,7 @@ const handlers = createQueryHandlers({
   terminalManager: {} as never,
   claudeService: {} as never,
   sessionStore: {} as never,
+  claudeUiService: {} as never,
 });
 
 // The fs.* subscription handlers likewise ignore the injected services.
@@ -17,6 +18,7 @@ const subHandlers = createSubscriptionHandlers({
   terminalManager: {} as never,
   repoWatcher: {} as never,
   claudeService: {} as never,
+  claudeUiService: {} as never,
 });
 
 const listDir = (dirPath: string) =>
@@ -66,6 +68,7 @@ describe("terminal.closeWorktree", () => {
       terminalManager: fakeTerminalManager as never,
       claudeService: {} as never,
       sessionStore: {} as never,
+      claudeUiService: {} as never,
     });
     const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/a" })) as { closed: number };
     expect(res).toEqual({ closed: 2 });
@@ -81,6 +84,7 @@ describe("terminal.closeWorktree", () => {
       terminalManager: fakeTerminalManager as never,
       claudeService: {} as never,
       sessionStore: {} as never,
+      claudeUiService: {} as never,
     });
     const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/none" })) as { closed: number };
     expect(res).toEqual({ closed: 0 });
