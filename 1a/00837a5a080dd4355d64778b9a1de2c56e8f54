@@ -1,0 +1,51 @@
+src/web/terminal-manager.ts
+  s_be86cf949d8abb::t_749276db9e5404 46
+  s_be86cf949d8abb::t_cf0cbac0b569eb 130
+  s_be86cf949d8abb::t_fd7bb757260989 251
+  s_be86cf949d8abb::t_9dcd54a317df81 25-26
+  s_be86cf949d8abb::t_b3e11cdbbecdf7 76-77
+src/web/rpc-handlers.ts
+  s_be86cf949d8abb::t_6199c1183e986d 846
+  s_be86cf949d8abb::t_9464e09e274ea8 890
+src/daemon/terminal-client.ts
+  s_be86cf949d8abb::t_90068ff8547334 180-181,193
+src/daemon/terminal-daemon.ts
+  s_be86cf949d8abb::t_a4ca0c4dd7630b 42-43
+  s_be86cf949d8abb::t_4f22c24bb2991f 114-115
+src/shared/protocol.ts
+  s_be86cf949d8abb::t_6ff87081f05ff3 632
+src/daemon/terminal-daemon-protocol.ts
+  s_be86cf949d8abb::t_338a3b7c3d23dd 37
+src/renderer/src/components/TerminalStack.tsx
+  s_d390560d2ec9c0::t_0bee063ad4a7bc 54
+  s_be86cf949d8abb::t_8619654d26829a 67-68
+  s_d390560d2ec9c0::t_1fcfb92cb03946 280
+  s_d390560d2ec9c0::t_0c24f03daedff8 443
+  s_d390560d2ec9c0::t_d7ce1978d59c03 314
+  s_d390560d2ec9c0::t_588fe2ce91a16c 295
+  s_d390560d2ec9c0::t_1450231bdf32c6 244,254-267,271-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "1a00837a5a080dd4355d64778b9a1de2c56e8f54",
+  "prompts": {},
+  "sessions": {
+    "s_be86cf949d8abb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66d88b7b-e4e3-4abb-a08e-39ed9c6df284",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_d390560d2ec9c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94b4a778-308b-4d47-9eca-aab08917756f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
