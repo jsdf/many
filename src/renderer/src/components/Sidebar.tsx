@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -28,6 +28,7 @@ import {
   formatBranchName,
   findWorktreePool,
 } from "../types";
+import { getRpcClient } from "../rpc-client";
 import { useWorktreeActivityTimes } from "../rpc-hooks";
 import ProjectsTab from "./ProjectsTab";
 import WorktreeFileTree from "./WorktreeFileTree";
@@ -114,6 +115,7 @@ interface WorktreesTabProps {
   onArchiveWorktrees?: (worktrees: Worktree[]) => void;
   onToggleStar: (worktreePath: string) => void;
   onReorderWorktrees: (orderedPaths: string[]) => void;
+  onResumeRecentSession?: (worktreePath: string, sessionId: string, sessionType?: "chat" | "claude-code") => void;
 }
 
 function sortWorktreeList(
@@ -175,11 +177,91 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   onArchiveWorktrees,
   onToggleStar,
   onReorderWorktrees,
+  onResumeRecentSession,
 }) => {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
   const [sortMode, setSortMode] = useState<"pool" | "date">("pool");
+  const [viewMode, setViewMode] = useState<"worktrees" | "sessions">("worktrees");
+  const [selectedRecentKey, setSelectedRecentKey] = useState<string | null>(null);
+  const [recentTerminals, setRecentTerminals] = useState<
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
+  >([]);
+  const [recentSessions, setRecentSessions] = useState<
+    { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
+  >([]);
+
+  const worktreePaths = useMemo(() => new Set(worktrees.map((w) => w.path)), [worktrees]);
+
+  useEffect(() => {
+    if (viewMode !== "sessions") return;
+    let cancelled = false;
+    const poll = async () => {
+      const client = getRpcClient();
+      const rootPaths = worktrees.map((w) => w.path);
+      try {
+        const [terminals, sessions] = await Promise.all([
+          client.query("terminal.listAll", {}),
+          client.query("claude.recentSessions", { rootPaths, limit: 20 }),
+        ]);
+        if (!cancelled) {
+          setRecentTerminals(terminals);
+          setRecentSessions(sessions);
+        }
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [viewMode, worktrees]);
+
+  type RecentItem =
+    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number }
+    | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
+
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const byWorktree = new Map<string, { terminalId: string; createdAt: number }[]>();
+    for (const t of recentTerminals) {
+      if (!worktreePaths.has(t.worktreePath)) continue;
+      const group = byWorktree.get(t.worktreePath) ?? [];
+      group.push({ terminalId: t.terminalId, createdAt: t.createdAt });
+      byWorktree.set(t.worktreePath, group);
+    }
+    const terminalNumbers = new Map<string, number>();
+    for (const group of byWorktree.values()) {
+      group.sort((a, b) => a.createdAt - b.createdAt);
+      group.forEach(({ terminalId }, idx) => terminalNumbers.set(terminalId, idx + 1));
+    }
+    const items: RecentItem[] = [];
+    for (const t of recentTerminals) {
+      if (!worktreePaths.has(t.worktreePath)) continue;
+      items.push({
+        kind: "terminal",
+        recency: Math.max(t.lastInputAt, t.createdAt),
+        terminalId: t.terminalId,
+        worktreePath: t.worktreePath,
+        title: t.title,
+        terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
+      });
+    }
+    for (const s of recentSessions) {
+      items.push({
+        kind: "claude",
+        recency: Date.parse(s.modified) || 0,
+        sessionId: s.sessionId,
+        worktreePath: s.worktreePath,
+        sessionType: s.sessionType,
+        label: (s.summary || s.firstPrompt || "").replace(/<[^>]+>/g, "").trim() || "Claude session",
+      });
+    }
+    return items.sort((a, b) => b.recency - a.recency);
+  }, [recentTerminals, recentSessions, worktreePaths]);
+
+  const baseName = (p: string) => {
+    const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+    return i >= 0 ? p.slice(i + 1) : p;
+  };
 
   const activityTimes = useWorktreeActivityTimes(
     currentRepo,
@@ -575,8 +657,80 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
               ? "No worktrees found"
               : "Select a repository to view worktrees"}
           </p>
+        ) : viewMode === "sessions" ? (
+          <div className="px-1">
+            <div className="join w-full mb-2">
+              <button
+                className={`join-item btn btn-xs flex-1 ${viewMode === "sessions" ? "btn-primary" : "btn-outline btn-neutral"}`}
+                onClick={() => setViewMode("sessions")}
+              >
+                sessions
+              </button>
+              <button
+                className={`join-item btn btn-xs btn-outline btn-neutral flex-1`}
+                onClick={() => setViewMode("worktrees")}
+              >
+                worktrees
+              </button>
+            </div>
+            {recentItems.length === 0 ? (
+              <p className="text-base-content/50 text-xs px-2 py-1">Nothing recent</p>
+            ) : (
+              recentItems.map((item) => {
+                const itemKey = item.kind === "terminal" ? `t:${item.terminalId}` : `c:${item.sessionId}`;
+                const selected = selectedRecentKey === itemKey;
+                const onClick =
+                  item.kind === "terminal"
+                    ? () => {
+                        setSelectedRecentKey(itemKey);
+                        const wt = worktrees.find((w) => w.path === item.worktreePath);
+                        if (wt) onWorktreeSelect(wt);
+                      }
+                    : () => {
+                        setSelectedRecentKey(itemKey);
+                        onResumeRecentSession?.(item.worktreePath, item.sessionId, item.sessionType);
+                      };
+                return (
+                  <div
+                    key={itemKey}
+                    className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
+                    title={item.worktreePath}
+                    onClick={onClick}
+                  >
+                    <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">
+                      {item.kind === "terminal" ? ">_" : "◆"}
+                    </span>
+                    <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
+                      {baseName(item.worktreePath)}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {item.kind === "terminal"
+                        ? item.title
+                          ? `Terminal ${item.terminalNumber}: ${item.title}`
+                          : `Terminal ${item.terminalNumber}`
+                        : item.label}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
         ) : (
           <>
+            <div className="join w-full mb-2 px-1">
+              <button
+                className={`join-item btn btn-xs btn-outline btn-neutral flex-1`}
+                onClick={() => setViewMode("sessions")}
+              >
+                sessions
+              </button>
+              <button
+                className={`join-item btn btn-xs flex-1 ${viewMode === "worktrees" ? "btn-primary" : "btn-outline btn-neutral"}`}
+                onClick={() => setViewMode("worktrees")}
+              >
+                worktrees
+              </button>
+            </div>
             <div className="join w-full mb-2 px-1">
               <button
                 className={`join-item btn btn-xs flex-1 ${sortMode === 'pool' ? 'btn-outline btn-primary' : 'btn-outline btn-neutral'}`}
@@ -903,6 +1057,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onArchiveWorktrees={onArchiveWorktrees}
           onToggleStar={onToggleStar}
           onReorderWorktrees={onReorderWorktrees}
+          onResumeRecentSession={onResumeRecentSession}
         />
       )}
     </div>
