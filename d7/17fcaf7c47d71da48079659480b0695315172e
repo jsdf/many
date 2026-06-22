@@ -1,0 +1,29 @@
+libclaude/packages/core/package.json
+  s_be86cf949d8abb::t_630ef3e7ee118c 6-15
+package.json
+  s_be86cf949d8abb::t_33788d8f407364 31-33,36-37
+src/web/claude-ui/service.ts
+  s_be86cf949d8abb::t_cfb37ee6a136b4 2-3
+libclaude/packages/core/src/index.ts
+  s_be86cf949d8abb::t_5eab976e3697be 1-24
+libclaude/packages/core/src/session.ts
+  s_be86cf949d8abb::t_5eab976e3697be 1-376
+libclaude/packages/core/tsconfig.build.json
+  s_be86cf949d8abb::t_2cf9170e562714 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "d717fcaf7c47d71da48079659480b0695315172e",
+  "prompts": {},
+  "sessions": {
+    "s_be86cf949d8abb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66d88b7b-e4e3-4abb-a08e-39ed9c6df284",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
