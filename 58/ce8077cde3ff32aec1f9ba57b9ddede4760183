@@ -1,0 +1,19 @@
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_be86cf949d8abb::t_e55fbd124d9975 274-277,279-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "58ce8077cde3ff32aec1f9ba57b9ddede4760183",
+  "prompts": {},
+  "sessions": {
+    "s_be86cf949d8abb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66d88b7b-e4e3-4abb-a08e-39ed9c6df284",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
