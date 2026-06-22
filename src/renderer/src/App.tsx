@@ -5,6 +5,7 @@ import Sidebar, { AutomationsSubView } from "./components/Sidebar";
 import MainContent, { MainContentHandle } from "./components/MainContent";
 import ProjectsPanel, { ProjectsPanelHandle } from "./components/ProjectsPanel";
 import ProjectsPalette from "./components/ProjectsPalette";
+import WorktreePalette from "./components/WorktreePalette";
 import { FileEditorsProvider } from "./useFileEditors";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import TaskQueuePanel from "./components/TaskQueuePanel";
@@ -909,6 +910,12 @@ const App: React.FC = () => {
           onClaimWorktree={handleClaimWorktree}
         />
       )}
+
+      {/* Always mounted so Cmd+K opens the worktree quick-switcher from any pane. */}
+      <WorktreePalette
+        worktrees={worktrees}
+        onWorktreeSelect={(wt) => handleWorktreeSelect(wt)}
+      />
 
       {/* Always mounted so Cmd+P is claimed on every pane (never the browser
           print dialog); it only opens the palette on the projects screen. */}
