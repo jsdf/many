@@ -12,6 +12,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import { Markdown, type MarkdownStorage } from "tiptap-markdown";
 import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
+import { urlLinker } from "../url-linker";
 
 // Task lists are conventionally tight (no blank lines between checkboxes), but
 // tiptap-markdown only teaches bulletList/orderedList about the `tight` attribute,
@@ -51,6 +52,10 @@ interface FileEditorTabProps {
 
 function isMarkdownFile(fileName: string): boolean {
   return /\.(md|markdown)$/i.test(fileName);
+}
+
+function isYamlFile(fileName: string): boolean {
+  return /\.(yaml|yml)$/i.test(fileName);
 }
 
 // --- CodeMirror source editor (editable) ---
@@ -94,6 +99,7 @@ function CodeEditor({
       languageConf.of([]),
     ];
     extensions.push(isDark ? oneDark : syntaxHighlighting(defaultHighlightStyle, { fallback: true }));
+    if (isYamlFile(fileName)) extensions.push(...urlLinker);
 
     const view = new EditorView({
       parent: containerRef.current,
