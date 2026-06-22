@@ -1,0 +1,26 @@
+src/web/terminal-manager.test.ts
+  s_d390560d2ec9c0::t_84244d24009ae0 1-12
+src/renderer/src/components/TerminalStack.tsx
+  s_d390560d2ec9c0::t_72fdde64ef4733 382
+  s_d390560d2ec9c0::t_528e1fed84f321 68
+  s_d390560d2ec9c0::t_688e4bc0fef2be 347
+  s_d390560d2ec9c0::t_0bfd032c013f36 98-111
+src/web/terminal-manager.ts
+  s_d390560d2ec9c0::t_2e2c7a2cabdcce 79-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "2d29641628d197ba9e0c8453f163dcb516f12721",
+  "prompts": {},
+  "sessions": {
+    "s_d390560d2ec9c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94b4a778-308b-4d47-9eca-aab08917756f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
