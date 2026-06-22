@@ -1,0 +1,24 @@
+src/renderer/src/components/Sidebar.tsx
+  s_09d3ddb0231d94::t_3c52e060f48bd6 1
+  s_09d3ddb0231d94::t_c8a8b9ec4df237 1060
+  s_09d3ddb0231d94::t_7ec7874139c17f 118
+  s_09d3ddb0231d94::t_da08625cde9b12 31
+  s_09d3ddb0231d94::t_09c8f84584fe16 660-717,720-733
+  s_09d3ddb0231d94::t_70021fd1285a32 180,186-264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "fec720fc84244cd8698afc1570010e293a2406f5",
+  "prompts": {},
+  "sessions": {
+    "s_09d3ddb0231d94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08ad43d4-ca4f-4f88-925c-e1851d9e12a6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
