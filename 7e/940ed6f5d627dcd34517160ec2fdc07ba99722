@@ -1,0 +1,29 @@
+src/web/rpc-handlers.test.ts
+  s_be86cf949d8abb::t_8c95196ad20ced 20
+src/renderer/src/components/TerminalStack.tsx
+  s_be86cf949d8abb::t_3ed742c3a05695 328-335,337-357,361-365
+  s_be86cf949d8abb::t_8622eac0a90f92 8
+  s_be86cf949d8abb::t_965cf6bf3f13c5 46
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_be86cf949d8abb::t_d574b647fe2b5f 174-179,183
+  s_be86cf949d8abb::t_9041837b1d9360 1
+  s_be86cf949d8abb::t_4e0c7c9d5b95d3 285-292,297-299
+  s_be86cf949d8abb::t_8666eca20c355c 86-89,92,95
+  s_be86cf949d8abb::t_1ff81f07a421fe 193,195-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "7e940ed6f5d627dcd34517160ec2fdc07ba99722",
+  "prompts": {},
+  "sessions": {
+    "s_be86cf949d8abb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66d88b7b-e4e3-4abb-a08e-39ed9c6df284",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
