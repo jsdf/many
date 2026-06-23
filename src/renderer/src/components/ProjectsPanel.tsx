@@ -83,7 +83,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     if (sessionType === "chat") {
       terminalStackRef.current?.openClaudeSession(sessionId);
     } else {
-      terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
+      terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
     }
     onPendingResumeConsumed();
   }, [pendingResume, project?.path, claudeCommand, claudeCommandLoaded, onPendingResumeConsumed]);
@@ -224,7 +224,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                   if (sessionType === "chat") {
                     terminalStackRef.current?.openClaudeSession(sessionId);
                   } else {
-                    terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
+                    terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
                   }
                 }}
               />

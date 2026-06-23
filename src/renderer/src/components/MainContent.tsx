@@ -196,7 +196,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     if (sessionType === "chat") {
       terminalStackRef.current?.openClaudeSession(sessionId);
     } else {
-      terminalStackRef.current?.createTerminalWithCommand({}, `${claudeCommand || "claude"} --resume ${sessionId}`);
+      terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
     }
     onPendingResumeConsumed?.();
   }, [pendingResume, selectedWorktree?.path, claudeCommand, onPendingResumeConsumed]);
@@ -236,7 +236,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           terminalStackRef.current?.openClaudeSession(sessionId);
         } else {
           const cmd = claudeCommand || "claude";
-          terminalStackRef.current?.createTerminalWithCommand({}, `${cmd} --resume ${sessionId}`);
+          terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${cmd} --resume ${sessionId}`);
         }
       }}
     />

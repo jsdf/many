@@ -20,6 +20,7 @@ export interface TerminalStackHandle {
   openSessionHistory: (sessionId: string) => void;
   openTaskLog: (taskId: string, isSavedLog?: boolean) => void;
   openClaudeSession: (sessionId?: string) => void;
+  resumeClaudeCodeSession: (sessionId: string, command: string) => void;
   openClaudeUiSession: () => void;
 }
 
@@ -34,6 +35,7 @@ interface TerminalInfo {
   sessionId?: string;
   isClaudeSession?: boolean;
   isClaudeUi?: boolean;
+  resumeSessionId?: string; // claude-code session this terminal was opened to resume
 }
 
 let terminalCounter = 0;
@@ -200,6 +202,18 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
+  const resumeClaudeCodeSession = useCallback((sessionId: string, command: string) => {
+    setTerminals((prev) => {
+      // Don't open a duplicate pane when this session is already being resumed.
+      if (prev.some((t) => t.resumeSessionId === sessionId)) return prev;
+      terminalCounter++;
+      const id = `claude-resume-${sessionId}`;
+      const next = [...prev, { id, initialCommand: command, resumeSessionId: sessionId }];
+      setSizes(next.map(() => 1 / next.length));
+      return next;
+    });
+  }, []);
+
   const openClaudeUiSession = useCallback(() => {
     terminalCounter++;
     const id = `claude-ui-${Date.now()}-${terminalCounter}`;
@@ -216,9 +230,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     },
     openSessionHistory,
     openClaudeSession,
+    resumeClaudeCodeSession,
     openClaudeUiSession,
     openTaskLog,
-  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, openClaudeUiSession]);
+  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, resumeClaudeCodeSession, openClaudeUiSession]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
