@@ -109,6 +109,16 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Keep the latest onTitleChange in a ref so the subscription effect below can
+  // call it without listing it as a dependency. The parent passes a fresh inline
+  // closure on every render, and calling it updates parent state; if the effect
+  // depended on it, each title update would tear down and re-create the
+  // subscription (clearing + replaying the transcript), causing a render loop.
+  const onTitleChangeRef = useRef(onTitleChange);
+  useEffect(() => {
+    onTitleChangeRef.current = onTitleChange;
+  }, [onTitleChange]);
+
   // Attach to the (server-owned) session and replay its buffered transcript.
   // The session outlives this component, so we never create or close it here —
   // it survives tab switches and page reloads, like a terminal.
@@ -132,13 +142,13 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
         }
         if (event.type === "title") {
           // Claude-generated title supersedes the provisional first-prompt title.
-          onTitleChange?.(event.title);
+          onTitleChangeRef.current?.(event.title);
           return;
         }
         if (event.type === "prompt") {
           setItems((prev) => {
             if (prev.filter((i) => i.kind === "prompt").length === 0) {
-              onTitleChange?.(event.text.length > 60 ? event.text.slice(0, 60) + "..." : event.text);
+              onTitleChangeRef.current?.(event.text.length > 60 ? event.text.slice(0, 60) + "..." : event.text);
             }
             return [...prev, { kind: "prompt", id: nextId(), text: event.text }];
           });
@@ -163,7 +173,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
       mounted = false;
       unsubscribe();
     };
-  }, [sessionId, onTitleChange]);
+  }, [sessionId]);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
