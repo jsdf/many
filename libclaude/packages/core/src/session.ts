@@ -4,6 +4,7 @@ import readline from "node:readline";
 import crypto from "node:crypto";
 import type {
   ClaudeEvent,
+  PermissionMode,
   SessionOptions,
   SessionStatus,
   TurnResult,
@@ -40,7 +41,7 @@ export class ClaudeSession extends EventEmitter {
 
   private readonly cwd: string;
   private readonly model: string;
-  private readonly permissionMode: string;
+  private permissionMode: string;
   private readonly claudeBin: string;
   private readonly loginShell: boolean;
   private readonly shell: string;
@@ -129,6 +130,25 @@ export class ClaudeSession extends EventEmitter {
       type: "control_request",
       request_id: crypto.randomUUID(),
       request: { subtype: "interrupt" },
+    };
+    try {
+      this.proc.stdin!.write(JSON.stringify(msg) + "\n");
+    } catch (err) {
+      this.emit("error", err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  /**
+   * Change the permission mode of the running session via a stream-json control
+   * request. The new mode also applies to any future respawn after a crash.
+   */
+  setPermissionMode(mode: PermissionMode): void {
+    this.permissionMode = mode;
+    if (!this.proc) return;
+    const msg = {
+      type: "control_request",
+      request_id: crypto.randomUUID(),
+      request: { subtype: "set_permission_mode", mode },
     };
     try {
       this.proc.stdin!.write(JSON.stringify(msg) + "\n");

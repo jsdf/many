@@ -265,6 +265,13 @@ export interface SessionResult {
 // Claude UI session types (CLI-backed sessions via libclaude)
 // ---------------------------------------------------------------------------
 
+export type ClaudeUiPermissionMode =
+  | "auto"
+  | "default"
+  | "acceptEdits"
+  | "plan"
+  | "bypassPermissions";
+
 export type ClaudeUiContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
@@ -273,6 +280,7 @@ export type ClaudeUiContentBlock =
 export type ClaudeUiEvent =
   | { type: "init"; sessionId: string }
   | { type: "status"; ready: boolean; busy: boolean; queued: number; sessionId: string | null }
+  | { type: "prompt"; text: string }
   | { type: "assistant"; content: ClaudeUiContentBlock[] }
   | { type: "user"; content: ClaudeUiContentBlock[] }
   | { type: "result"; isError: boolean; costUsd?: number; durationMs?: number }
@@ -756,6 +764,10 @@ export interface QueryProcedures {
   "claudeui.create": {
     input: { worktreePath: string };
     output: { sessionId: string };
+  };
+  "claudeui.setPermissionMode": {
+    input: { sessionId: string; mode: ClaudeUiPermissionMode };
+    output: { ok: boolean };
   };
   "claudeui.send": {
     input: { sessionId: string; prompt: string };

@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { getRpcClient } from "../rpc-client";
 import { Settings2, ChevronUp, ChevronDown, Check, X, AlertTriangle } from "lucide-react";
-import type { ClaudeUiEvent, ClaudeUiContentBlock } from "../../../shared/protocol";
+import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../../shared/protocol";
+
+const PERMISSION_MODES: { value: ClaudeUiPermissionMode; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "default", label: "Default" },
+  { value: "acceptEdits", label: "Accept edits" },
+  { value: "plan", label: "Plan" },
+  { value: "bypassPermissions", label: "Bypass" },
+];
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -98,6 +106,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [input, setInput] = useState("");
+  const [permissionMode, setPermissionMode] = useState<ClaudeUiPermissionMode>("auto");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -106,6 +115,8 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
     let resolvedSessionId: string | null = null;
+    // A fresh session always spawns at the "auto" default.
+    setPermissionMode("auto");
 
     getRpcClient().query("claudeui.create", { worktreePath }).then(({ sessionId }) => {
       if (!mounted) {
@@ -185,6 +196,12 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   const interrupt = useCallback(() => {
     if (!sessionId) return;
     getRpcClient().query("claudeui.interrupt", { sessionId }).catch(() => {});
+  }, [sessionId]);
+
+  const changePermissionMode = useCallback((mode: ClaudeUiPermissionMode) => {
+    setPermissionMode(mode);
+    if (!sessionId) return;
+    getRpcClient().query("claudeui.setPermissionMode", { sessionId, mode }).catch(() => {});
   }, [sessionId]);
 
   const reset = useCallback(() => {
@@ -271,6 +288,20 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
 
       {/* Composer */}
       <div className="shrink-0 border-t border-base-300 bg-base-100 px-2 py-1.5">
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-xs opacity-50">Permissions</span>
+          <select
+            className="select select-bordered select-xs font-mono"
+            value={permissionMode}
+            onChange={(e) => changePermissionMode(e.target.value as ClaudeUiPermissionMode)}
+            disabled={!sessionId}
+            title="Permission mode for this session"
+          >
+            {PERMISSION_MODES.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex gap-1.5 items-end">
           <textarea
             ref={textareaRef}

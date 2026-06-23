@@ -8,7 +8,7 @@ import { promises as fs, watch, type FSWatcher } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
-import type { QueryProcedure, SubscriptionProcedure, StreamEvent, FsEntry } from "../shared/protocol.js";
+import type { QueryProcedure, SubscriptionProcedure, StreamEvent, FsEntry, ClaudeUiPermissionMode } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import { getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
 import {
@@ -1057,6 +1057,11 @@ export function createQueryHandlers(opts: {
       const { defaultClaudeCommand } = getGlobalSettings(appData);
       const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
       return { sessionId };
+    },
+    "claudeui.setPermissionMode": async (input) => {
+      const { sessionId, mode } = input as { sessionId: string; mode: ClaudeUiPermissionMode };
+      claudeUiService.setPermissionMode(sessionId, mode);
+      return { ok: true };
     },
     "claudeui.send": async (input) => {
       const { sessionId, prompt } = input as { sessionId: string; prompt: string };

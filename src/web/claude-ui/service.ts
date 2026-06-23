@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { ClaudeSession } from "@libclaude/core";
 import type { ClaudeEvent, SessionStatus } from "@libclaude/core";
-import type { ClaudeUiEvent, ClaudeUiContentBlock } from "../../shared/protocol.js";
+import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../shared/protocol.js";
 
 interface ManagedSession {
   session: ClaudeSession;
@@ -17,8 +17,9 @@ export class ClaudeUiService {
     const sessionId = crypto.randomUUID();
     // Run through an interactive login shell so a configured claudeBin that is
     // a shell alias or a command with args (e.g. "claude --mcp-config ...")
-    // resolves the way it would in the user's terminal.
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "bypassPermissions", claudeBin, loginShell: true });
+    // resolves the way it would in the user's terminal. Default to "auto"
+    // permission mode; callers can change it at runtime via setPermissionMode.
+    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true });
 
     const managed: ManagedSession = {
       session,
@@ -60,6 +61,10 @@ export class ClaudeUiService {
 
   interrupt(sessionId: string): void {
     this.sessions.get(sessionId)?.session.interrupt();
+  }
+
+  setPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): void {
+    this.sessions.get(sessionId)?.session.setPermissionMode(mode);
   }
 
   reset(sessionId: string): void {
