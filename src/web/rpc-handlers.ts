@@ -1058,6 +1058,10 @@ export function createQueryHandlers(opts: {
       const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
       return { sessionId };
     },
+    "claudeui.list": async (input) => {
+      const { worktreePath } = input as { worktreePath: string };
+      return claudeUiService.list(worktreePath);
+    },
     "claudeui.setPermissionMode": async (input) => {
       const { sessionId, mode } = input as { sessionId: string; mode: ClaudeUiPermissionMode };
       claudeUiService.setPermissionMode(sessionId, mode);

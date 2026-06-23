@@ -89,6 +89,19 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         }
       } catch {}
 
+      try {
+        // Re-attach to live Claude UI sessions (server-owned, survive tab switches).
+        const sessions = await getRpcClient().query("claudeui.list", { worktreePath });
+        if (cancelled) return;
+        const titles: Record<string, string> = {};
+        for (const { sessionId, title } of sessions) {
+          const id = `claude-ui-${sessionId}`;
+          tabs.push({ id, isClaudeUi: true, sessionId });
+          if (title) titles[id] = title;
+        }
+        if (Object.keys(titles).length > 0) setTerminalTitles((prev) => ({ ...prev, ...titles }));
+      } catch {}
+
       if (!cancelled && tabs.length > 0) {
         setTerminals(tabs);
         setSizes(tabs.map(() => 1 / tabs.length));
@@ -214,15 +227,17 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
-  const openClaudeUiSession = useCallback(() => {
-    terminalCounter++;
-    const id = `claude-ui-${Date.now()}-${terminalCounter}`;
+  const openClaudeUiSession = useCallback(async () => {
+    // The session is server-owned (it outlives the tab), so create it first and
+    // key the tab on its id. Restoring on return uses the same id, so a returning
+    // tab re-attaches to the live session instead of spawning a duplicate.
+    const { sessionId } = await getRpcClient().query("claudeui.create", { worktreePath });
     setTerminals((prev) => {
-      const next = [...prev, { id, isClaudeUi: true }];
+      const next = [...prev, { id: `claude-ui-${sessionId}`, isClaudeUi: true, sessionId }];
       setSizes(next.map(() => 1 / next.length));
       return next;
     });
-  }, []);
+  }, [worktreePath]);
 
   useImperativeHandle(ref, () => ({
     createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
@@ -241,6 +256,12 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       if (term?.isClaudeSession && term.sessionId) {
         try {
           await getRpcClient().query("session.close", { sessionId: term.sessionId });
+        } catch {
+          // Session may already be dead
+        }
+      } else if (term?.isClaudeUi && term.sessionId) {
+        try {
+          await getRpcClient().query("claudeui.close", { sessionId: term.sessionId });
         } catch {
           // Session may already be dead
         }
@@ -476,10 +497,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                 </div>
               </div>
               <div className={`flex-1 overflow-hidden min-h-0 ${isCollapsed ? 'hidden' : ''}`}>
-                {term.isClaudeUi ? (
+                {term.isClaudeUi && term.sessionId ? (
                   <ClaudeUiTab
                     ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}
-                    worktreePath={worktreePath}
+                    sessionId={term.sessionId}
                     onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
                   />
                 ) : term.isClaudeSession ? (

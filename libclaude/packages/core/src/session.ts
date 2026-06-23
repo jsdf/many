@@ -39,6 +39,12 @@ export class ClaudeSession extends EventEmitter {
   private readonly queue: Job[] = [];
   private current: Job | null = null;
 
+  /** In-flight control requests awaiting their control_response, keyed by id. */
+  private readonly pendingControls = new Map<
+    string,
+    { resolve: (response: Record<string, unknown> | undefined) => void }
+  >();
+
   private readonly cwd: string;
   private readonly model: string;
   private permissionMode: string;
@@ -157,6 +163,42 @@ export class ClaudeSession extends EventEmitter {
     }
   }
 
+  /**
+   * Ask the CLI to generate a concise title for the session (the same control
+   * request the Agent SDK uses for session summaries). Resolves to the title,
+   * or null if the session isn't running, the request fails, or it times out.
+   */
+  generateSessionTitle(description: string, timeoutMs = 15000): Promise<string | null> {
+    if (!this.proc) return Promise.resolve(null);
+    const requestId = crypto.randomUUID();
+    const msg = {
+      type: "control_request",
+      request_id: requestId,
+      request: { subtype: "generate_session_title", description },
+    };
+    return new Promise<string | null>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingControls.delete(requestId);
+        resolve(null);
+      }, timeoutMs);
+      this.pendingControls.set(requestId, {
+        resolve: (response) => {
+          clearTimeout(timer);
+          const title = response?.title;
+          resolve(typeof title === "string" ? title : null);
+        },
+      });
+      try {
+        this.proc!.stdin!.write(JSON.stringify(msg) + "\n");
+      } catch (err) {
+        clearTimeout(timer);
+        this.pendingControls.delete(requestId);
+        this.emit("error", err instanceof Error ? err : new Error(String(err)));
+        resolve(null);
+      }
+    });
+  }
+
   /** Shut down the session and its child process. */
   dispose(): void {
     this.shuttingDown = true;
@@ -220,6 +262,10 @@ export class ClaudeSession extends EventEmitter {
         evt = JSON.parse(trimmed);
       } catch {
         return; // ignore non-JSON noise
+      }
+      if (evt.type === "control_response") {
+        this.handleControlResponse(evt);
+        return;
       }
       this.handleEvent(evt);
     });

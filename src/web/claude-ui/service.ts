@@ -6,7 +6,14 @@ import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from
 interface ManagedSession {
   session: ClaudeSession;
   worktreePath: string;
+  // Transcript events (prompt/assistant/user/result/error), replayed on
+  // reconnect so a returning client rebuilds the full conversation.
   buffer: ClaudeUiEvent[];
+  // Latest status, replayed on reconnect instead of being buffered, so the
+  // high-frequency status stream can't evict transcript events from `buffer`.
+  lastStatus?: ClaudeUiEvent;
+  // First prompt, truncated — used as the session's display title in lists.
+  title?: string;
   listeners: Set<(e: ClaudeUiEvent) => void>;
 }
 
@@ -54,9 +61,23 @@ export class ClaudeUiService {
   send(sessionId: string, prompt: string): void {
     const managed = this.sessions.get(sessionId);
     if (!managed) throw new Error(`Claude UI session ${sessionId} not found`);
+    if (!managed.title) managed.title = prompt.length > 60 ? prompt.slice(0, 60) + "..." : prompt;
+    // Buffer the user's prompt as a transcript event so it replays on reconnect.
+    this.push(managed, { type: "prompt", text: prompt });
     managed.session.prompt(prompt).catch((err: Error) => {
       this.push(managed, { type: "error", message: err.message });
     });
+  }
+
+  /** Live sessions for a worktree, so a returning client can re-attach to them. */
+  list(worktreePath: string): { sessionId: string; title?: string }[] {
+    const result: { sessionId: string; title?: string }[] = [];
+    for (const [sessionId, managed] of this.sessions) {
+      if (managed.worktreePath === worktreePath) {
+        result.push({ sessionId, title: managed.title });
+      }
+    }
+    return result;
   }
 
   interrupt(sessionId: string): void {
@@ -68,7 +89,12 @@ export class ClaudeUiService {
   }
 
   reset(sessionId: string): void {
-    this.sessions.get(sessionId)?.session.reset();
+    const managed = this.sessions.get(sessionId);
+    if (!managed) return;
+    // Drop the old transcript so a reconnecting client doesn't replay it.
+    managed.buffer = [];
+    managed.title = undefined;
+    managed.session.reset();
   }
 
   close(sessionId: string): void {
@@ -83,6 +109,7 @@ export class ClaudeUiService {
     const managed = this.sessions.get(sessionId);
     if (!managed) return () => {};
     for (const e of managed.buffer) listener(e);
+    if (managed.lastStatus) listener(managed.lastStatus);
     managed.listeners.add(listener);
     return () => managed.listeners.delete(listener);
   }
@@ -95,8 +122,14 @@ export class ClaudeUiService {
   }
 
   private push(managed: ManagedSession, event: ClaudeUiEvent): void {
-    managed.buffer.push(event);
-    if (managed.buffer.length > 2000) managed.buffer.shift();
+    // Status is replayed from lastStatus, not buffered; init is transient
+    // readiness signalling. Everything else is transcript content.
+    if (event.type === "status") {
+      managed.lastStatus = event;
+    } else if (event.type !== "init") {
+      managed.buffer.push(event);
+      if (managed.buffer.length > 2000) managed.buffer.shift();
+    }
     for (const listener of managed.listeners) listener(event);
   }
 }

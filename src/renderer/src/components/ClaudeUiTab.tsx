@@ -96,12 +96,11 @@ export interface ClaudeUiTabHandle {
 }
 
 interface ClaudeUiTabProps {
-  worktreePath: string;
+  sessionId: string;
   onTitleChange?: (title: string) => void;
 }
 
-const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ worktreePath, onTitleChange }, ref) {
-  const [sessionId, setSessionId] = useState<string | null>(null);
+const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ sessionId, onTitleChange }, ref) {
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -110,66 +109,56 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Create session on mount, subscribe to events
+  // Attach to the (server-owned) session and replay its buffered transcript.
+  // The session outlives this component, so we never create or close it here —
+  // it survives tab switches and page reloads, like a terminal.
   useEffect(() => {
     let mounted = true;
-    let unsubscribe: (() => void) | null = null;
-    let resolvedSessionId: string | null = null;
-    // A fresh session always spawns at the "auto" default.
-    setPermissionMode("auto");
+    setItems([]);
 
-    getRpcClient().query("claudeui.create", { worktreePath }).then(({ sessionId }) => {
-      if (!mounted) {
-        // Component unmounted before session was created - clean it up
-        getRpcClient().query("claudeui.close", { sessionId }).catch(() => {});
-        return;
-      }
-      resolvedSessionId = sessionId;
-      setSessionId(sessionId);
+    const unsubscribe = getRpcClient().subscribe(
+      "claudeui.events",
+      (event: ClaudeUiEvent) => {
+        if (!mounted) return;
 
-      unsubscribe = getRpcClient().subscribe(
-        "claudeui.events",
-        (event: ClaudeUiEvent) => {
-          if (!mounted) return;
-
-          if (event.type === "status") {
-            setReady(event.ready);
-            setBusy(event.busy);
-            return;
-          }
-          if (event.type === "init") {
-            setReady(true);
-            return;
-          }
-          if (event.type === "assistant" && event.content.length > 0) {
-            setItems((prev) => [...prev, { kind: "assistant", id: nextId(), content: event.content }]);
-          }
-          if (event.type === "user" && event.content.length > 0) {
-            setItems((prev) => [...prev, { kind: "tool_feedback", id: nextId(), content: event.content }]);
-          }
-          if (event.type === "result") {
-            setItems((prev) => [...prev, { kind: "result", id: nextId(), isError: event.isError, costUsd: event.costUsd, durationMs: event.durationMs }]);
-          }
-          if (event.type === "error") {
-            setItems((prev) => [...prev, { kind: "error", id: nextId(), message: event.message }]);
-          }
-        },
-        { sessionId }
-      );
-    }).catch((err) => {
-      if (mounted) {
-        setItems([{ kind: "error", id: nextId(), message: String(err) }]);
-      }
-    });
+        if (event.type === "status") {
+          setReady(event.ready);
+          setBusy(event.busy);
+          return;
+        }
+        if (event.type === "init") {
+          setReady(true);
+          return;
+        }
+        if (event.type === "prompt") {
+          setItems((prev) => {
+            if (prev.filter((i) => i.kind === "prompt").length === 0) {
+              onTitleChange?.(event.text.length > 60 ? event.text.slice(0, 60) + "..." : event.text);
+            }
+            return [...prev, { kind: "prompt", id: nextId(), text: event.text }];
+          });
+        }
+        if (event.type === "assistant" && event.content.length > 0) {
+          setItems((prev) => [...prev, { kind: "assistant", id: nextId(), content: event.content }]);
+        }
+        if (event.type === "user" && event.content.length > 0) {
+          setItems((prev) => [...prev, { kind: "tool_feedback", id: nextId(), content: event.content }]);
+        }
+        if (event.type === "result") {
+          setItems((prev) => [...prev, { kind: "result", id: nextId(), isError: event.isError, costUsd: event.costUsd, durationMs: event.durationMs }]);
+        }
+        if (event.type === "error") {
+          setItems((prev) => [...prev, { kind: "error", id: nextId(), message: event.message }]);
+        }
+      },
+      { sessionId }
+    );
 
     return () => {
       mounted = false;
-      unsubscribe?.();
-      if (resolvedSessionId) {
-        getRpcClient().query("claudeui.close", { sessionId: resolvedSessionId }).catch(() => {});
-      }
+      unsubscribe();
     };
-  }, [worktreePath]);
+  }, [sessionId, onTitleChange]);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {
@@ -180,32 +169,25 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
 
   const send = useCallback(() => {
     const text = input.trim();
-    if (!text || !sessionId) return;
+    if (!text) return;
     setInput("");
-    setItems((prev) => {
-      if (prev.filter((i) => i.kind === "prompt").length === 0) {
-        onTitleChange?.(text.length > 60 ? text.slice(0, 60) + "..." : text);
-      }
-      return [...prev, { kind: "prompt", id: nextId(), text }];
-    });
+    // The prompt is rendered from the server's echoed "prompt" event so it
+    // also replays on reconnect, rather than being added optimistically here.
     getRpcClient().query("claudeui.send", { sessionId, prompt: text }).catch((err) => {
       setItems((prev) => [...prev, { kind: "error", id: nextId(), message: String(err) }]);
     });
-  }, [input, sessionId, onTitleChange]);
+  }, [input, sessionId]);
 
   const interrupt = useCallback(() => {
-    if (!sessionId) return;
     getRpcClient().query("claudeui.interrupt", { sessionId }).catch(() => {});
   }, [sessionId]);
 
   const changePermissionMode = useCallback((mode: ClaudeUiPermissionMode) => {
     setPermissionMode(mode);
-    if (!sessionId) return;
     getRpcClient().query("claudeui.setPermissionMode", { sessionId, mode }).catch(() => {});
   }, [sessionId]);
 
   const reset = useCallback(() => {
-    if (!sessionId) return;
     setItems([]);
     onTitleChange?.("");
     getRpcClient().query("claudeui.reset", { sessionId }).catch(() => {});

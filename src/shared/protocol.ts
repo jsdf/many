@@ -765,6 +765,10 @@ export interface QueryProcedures {
     input: { worktreePath: string };
     output: { sessionId: string };
   };
+  "claudeui.list": {
+    input: { worktreePath: string };
+    output: { sessionId: string; title?: string }[];
+  };
   "claudeui.setPermissionMode": {
     input: { sessionId: string; mode: ClaudeUiPermissionMode };
     output: { ok: boolean };
