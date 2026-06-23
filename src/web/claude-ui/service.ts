@@ -12,8 +12,13 @@ interface ManagedSession {
   // Latest status, replayed on reconnect instead of being buffered, so the
   // high-frequency status stream can't evict transcript events from `buffer`.
   lastStatus?: ClaudeUiEvent;
-  // First prompt, truncated — used as the session's display title in lists.
+  // Session display title: the first prompt initially, upgraded to a
+  // Claude-generated title after the first turn completes.
   title?: string;
+  // Full first prompt, used as the description when generating the title.
+  firstPrompt?: string;
+  // Whether a generated title has already been requested for this session.
+  titleRequested?: boolean;
   listeners: Set<(e: ClaudeUiEvent) => void>;
 }
 
@@ -38,6 +43,16 @@ export class ClaudeUiService {
     session.on("event", (evt: ClaudeEvent) => {
       const uiEvent = mapClaudeEvent(evt);
       if (uiEvent) this.push(managed, uiEvent);
+      // After the first turn completes the session has context, so ask the CLI
+      // for a concise title and broadcast it as a transcript event.
+      if (evt.type === "result" && !managed.titleRequested && managed.firstPrompt) {
+        managed.titleRequested = true;
+        session.generateSessionTitle(managed.firstPrompt).then((title) => {
+          if (!title) return;
+          managed.title = title;
+          this.push(managed, { type: "title", title });
+        });
+      }
     });
 
     session.on("status", (status: SessionStatus) => {
@@ -61,6 +76,7 @@ export class ClaudeUiService {
   send(sessionId: string, prompt: string): void {
     const managed = this.sessions.get(sessionId);
     if (!managed) throw new Error(`Claude UI session ${sessionId} not found`);
+    if (!managed.firstPrompt) managed.firstPrompt = prompt;
     if (!managed.title) managed.title = prompt.length > 60 ? prompt.slice(0, 60) + "..." : prompt;
     // Buffer the user's prompt as a transcript event so it replays on reconnect.
     this.push(managed, { type: "prompt", text: prompt });
@@ -94,6 +110,8 @@ export class ClaudeUiService {
     // Drop the old transcript so a reconnecting client doesn't replay it.
     managed.buffer = [];
     managed.title = undefined;
+    managed.firstPrompt = undefined;
+    managed.titleRequested = false;
     managed.session.reset();
   }
 

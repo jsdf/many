@@ -212,6 +212,21 @@ export class ClaudeSession extends EventEmitter {
 
   // ---- internals ----
 
+  private handleControlResponse(evt: ClaudeEvent): void {
+    const response = (evt as { response?: Record<string, unknown> }).response;
+    const requestId = response?.request_id as string | undefined;
+    if (!requestId) return;
+    const pending = this.pendingControls.get(requestId);
+    if (!pending) return;
+    this.pendingControls.delete(requestId);
+    // Success carries a nested `response` payload; errors resolve to undefined.
+    pending.resolve(
+      response?.subtype === "success"
+        ? (response.response as Record<string, unknown> | undefined)
+        : undefined
+    );
+  }
+
   private buildArgs(): string[] {
     const args = [
       "-p",

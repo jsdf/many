@@ -130,6 +130,11 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
           setReady(true);
           return;
         }
+        if (event.type === "title") {
+          // Claude-generated title supersedes the provisional first-prompt title.
+          onTitleChange?.(event.title);
+          return;
+        }
         if (event.type === "prompt") {
           setItems((prev) => {
             if (prev.filter((i) => i.kind === "prompt").length === 0) {

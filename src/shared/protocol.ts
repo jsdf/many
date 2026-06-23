@@ -280,6 +280,7 @@ export type ClaudeUiContentBlock =
 export type ClaudeUiEvent =
   | { type: "init"; sessionId: string }
   | { type: "status"; ready: boolean; busy: boolean; queued: number; sessionId: string | null }
+  | { type: "title"; title: string }
   | { type: "prompt"; text: string }
   | { type: "assistant"; content: ClaudeUiContentBlock[] }
   | { type: "user"; content: ClaudeUiContentBlock[] }
