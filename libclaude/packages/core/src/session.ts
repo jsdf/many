@@ -23,6 +23,11 @@ import type {
  *  - "status" (status: SessionStatus)     whenever ready/busy/queue/session change
  *  - "error"  (err: Error)                non-fatal background errors
  */
+/** Single-quote a string for safe interpolation into a shell command line. */
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
 export class ClaudeSession extends EventEmitter {
   private proc: ChildProcess | null = null;
   private ready = false;
@@ -37,6 +42,8 @@ export class ClaudeSession extends EventEmitter {
   private readonly model: string;
   private readonly permissionMode: string;
   private readonly claudeBin: string;
+  private readonly loginShell: boolean;
+  private readonly shell: string;
   private readonly extraArgs: string[];
   private readonly env: Record<string, string | undefined>;
   private readonly maxCrashes: number;
@@ -47,6 +54,8 @@ export class ClaudeSession extends EventEmitter {
     this.model = options.model ?? "";
     this.permissionMode = options.permissionMode ?? "auto";
     this.claudeBin = options.claudeBin ?? "claude";
+    this.loginShell = options.loginShell ?? false;
+    this.shell = options.shell ?? process.env.SHELL ?? "/bin/bash";
     this.extraArgs = options.extraArgs ?? [];
     this.env = options.env ?? process.env;
     this.maxCrashes = options.maxCrashes ?? 5;
@@ -158,7 +167,17 @@ export class ClaudeSession extends EventEmitter {
   }
 
   private spawnClaude(): void {
-    const proc = spawn(this.claudeBin, this.buildArgs(), {
+    const [command, args] = this.loginShell
+      ? [
+          this.shell,
+          [
+            "-li",
+            "-c",
+            [this.claudeBin, ...this.buildArgs().map(shellQuote)].join(" "),
+          ],
+        ]
+      : [this.claudeBin, this.buildArgs()];
+    const proc = spawn(command, args, {
       cwd: this.cwd,
       stdio: ["pipe", "pipe", "inherit"],
       env: this.env,

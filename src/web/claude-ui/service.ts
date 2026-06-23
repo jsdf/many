@@ -15,7 +15,10 @@ export class ClaudeUiService {
 
   create(worktreePath: string, claudeBin?: string): string {
     const sessionId = crypto.randomUUID();
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "bypassPermissions", claudeBin });
+    // Run through an interactive login shell so a configured claudeBin that is
+    // a shell alias or a command with args (e.g. "claude --mcp-config ...")
+    // resolves the way it would in the user's terminal.
+    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "bypassPermissions", claudeBin, loginShell: true });
 
     const managed: ManagedSession = {
       session,

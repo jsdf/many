@@ -97,8 +97,15 @@ export interface SessionOptions {
   model?: string;
   /** `--permission-mode`. Defaults to "auto". */
   permissionMode?: PermissionMode;
-  /** Path to the claude binary. Defaults to "claude". */
+  /** Path to the claude binary, or a shell command/alias when `loginShell` is
+   *  set. Defaults to "claude". */
   claudeBin?: string;
+  /** Run `claudeBin` through an interactive login shell so aliases, shell
+   *  functions, and rc-defined PATH/env resolve. Defaults to false (direct
+   *  spawn). Use when `claudeBin` may be an alias or a command with args. */
+  loginShell?: boolean;
+  /** Shell used when `loginShell` is set. Defaults to $SHELL or /bin/bash. */
+  shell?: string;
   /** Extra CLI flags appended verbatim, e.g. ["--add-dir", "/data"]. */
   extraArgs?: string[];
   /** Environment for the child process. Defaults to process.env. */
