@@ -8,9 +8,11 @@ import TopBar from "./TopBar";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import FileEditorTab from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
+import ProjectOverviewTab from "./ProjectOverviewTab";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import { relativeToRoot } from "../paths";
 
+const OVERVIEW_TAB = "__overview__";
 const SESSIONS_TAB = "__sessions__";
 
 function copyToClipboard(text: string) {
@@ -60,7 +62,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     updateContent,
     saveFile,
     isDirty,
-  } = useFileEditors(project?.path ?? null, SESSIONS_TAB);
+  } = useFileEditors(project?.path ?? null, OVERVIEW_TAB);
 
   const openFileInContext = useOpenFile();
 
@@ -181,6 +183,12 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
         >
           <div className="flex items-stretch overflow-x-auto bg-base-200 border-b border-base-300 shrink-0">
             <div
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${activeFile === OVERVIEW_TAB ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
+              onClick={() => setActiveFile(OVERVIEW_TAB)}
+            >
+              <span>Overview</span>
+            </div>
+            <div
               className={`flex items-center gap-1 px-3 py-1.5 text-xs border-r border-base-300 cursor-pointer whitespace-nowrap ${activeFile === SESSIONS_TAB ? "bg-base-100 text-base-content" : "text-base-content/60 hover:text-base-content"}`}
               onClick={() => setActiveFile(SESSIONS_TAB)}
             >
@@ -216,7 +224,9 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
             })}
           </div>
           <div className="flex-1 overflow-hidden min-h-0">
-            {activeFile === SESSIONS_TAB ? (
+            {activeFile === OVERVIEW_TAB ? (
+              <ProjectOverviewTab key={`overview-${project.path}`} projectPath={project.path} />
+            ) : activeFile === SESSIONS_TAB ? (
               <ProjectSessionsTab
                 key={`sessions-${project.path}`}
                 worktreePath={project.path}

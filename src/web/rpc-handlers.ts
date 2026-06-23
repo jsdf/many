@@ -55,6 +55,7 @@ import {
   commitChanges,
   isTmpBranch,
 } from "../services/worktree-service.js";
+import { readProjectMetadata } from "../services/project-metadata.js";
 import type { RunCommand } from "../services/types.js";
 
 // Import ClaudeService and SessionStore types — instantiated externally
@@ -525,6 +526,10 @@ export function createQueryHandlers(opts: {
         if (idx >= 0) appData.projects.splice(idx, 1);
       });
       return { ok: true };
+    },
+    "project.metadata": async (input) => {
+      const { projectPath } = input as { projectPath: string };
+      return readProjectMetadata(projectPath);
     },
 
     // --- Filesystem (read-only browsing for projects) ---

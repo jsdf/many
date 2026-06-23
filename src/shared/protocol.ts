@@ -23,6 +23,44 @@ export interface ProjectEntry {
   addedAt: string;
 }
 
+// A single PROJECT.md frontmatter entry surfaced as a button (e.g. notion,
+// linear). `isUrl` is true when the value is an http(s) URL and can be opened.
+export interface ProjectLink {
+  key: string;
+  value: string;
+  isUrl: boolean;
+}
+
+// One entry from a project's prs.yml.
+export interface ProjectPr {
+  url: string;
+  title?: string;
+  branch?: string;
+  status?: string;
+  notes?: string;
+}
+
+// One entry from a project's tasks.yml.
+export interface ProjectTask {
+  url: string;
+  title?: string;
+  status?: string;
+  focused?: boolean;
+  notes?: string;
+}
+
+// Parsed env-jsdf-style project sidecar files for a project directory.
+// Each `has*` flag distinguishes "file absent" from "file present but empty".
+export interface ProjectMetadata {
+  title: string | null;
+  links: ProjectLink[];
+  prs: ProjectPr[];
+  tasks: ProjectTask[];
+  hasProjectMd: boolean;
+  hasPrs: boolean;
+  hasTasks: boolean;
+}
+
 export interface FsEntry {
   name: string;
   path: string;
@@ -448,6 +486,12 @@ export interface QueryProcedures {
   "projects.remove": {
     input: { projectPath: string };
     output: { ok: boolean };
+  };
+  // Reads env-jsdf-style sidecar files (PROJECT.md frontmatter, prs.yml,
+  // tasks.yml) from a project directory and returns the parsed metadata.
+  "project.metadata": {
+    input: { projectPath: string };
+    output: ProjectMetadata;
   };
   "fs.listDir": {
     input: { dirPath: string };
