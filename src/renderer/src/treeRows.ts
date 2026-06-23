@@ -72,8 +72,11 @@ export function activeRoots(
   pinnedFolders: string[],
 ): FileTreeRow[] {
   const roots = new Set<string>(pinnedFolders);
+  // Activity is reported for every path with a live session, including
+  // worktrees that belong to no project. The Active tree on the Projects tab
+  // must only surface project-owned paths, so skip activity outside a project.
   for (const [p, a] of Object.entries(activity)) {
-    if (isActive(a)) roots.add(p);
+    if (isActive(a) && projectFor(projects, p)) roots.add(p);
   }
   return [...roots].sort().map((path) => {
     const project = projectFor(projects, path);

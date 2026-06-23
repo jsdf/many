@@ -23,6 +23,18 @@ describe("activeRoots", () => {
     expect(roots.map((r) => r.entry.path)).toEqual(["/repo/src"]);
   });
 
+  it("excludes active folders that belong to no project (e.g. worktrees)", () => {
+    const roots = activeRoots(
+      projects,
+      {
+        "/repo/src": { terminals: 1, claudeSessions: 0, openFiles: 0 },
+        "/worktrees/feature": { terminals: 1, claudeSessions: 1, openFiles: 0 },
+      },
+      [],
+    );
+    expect(roots.map((r) => r.entry.path)).toEqual(["/repo/src"]);
+  });
+
   it("includes pinned folders even with no sessions", () => {
     const roots = activeRoots(projects, {}, ["/repo/docs"]);
     expect(roots.map((r) => r.entry.path)).toEqual(["/repo/docs"]);
