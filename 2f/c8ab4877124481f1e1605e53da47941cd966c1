@@ -1,0 +1,28 @@
+libclaude/packages/core/src/session.ts
+  s_7379bf0110d29a::t_14ff9fd5e8b4e8 215-229
+src/web/claude-ui/service.ts
+  s_7379bf0110d29a::t_038709ed0e949c 15-16,18-21
+  s_7379bf0110d29a::t_4d061d489a741d 113-114
+  s_7379bf0110d29a::t_4f624f724885dc 79
+  s_7379bf0110d29a::t_8b298b9f9a2ad8 46-55
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_7379bf0110d29a::t_c7f390afda461c 133-137
+src/shared/protocol.ts
+  s_7379bf0110d29a::t_4a07e1c438abd9 283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "2fc8ab4877124481f1e1605e53da47941cd966c1",
+  "prompts": {},
+  "sessions": {
+    "s_7379bf0110d29a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50dbf2ad-e387-464d-a272-64c2d69bfc02",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
