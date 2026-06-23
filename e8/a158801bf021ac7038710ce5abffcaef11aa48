@@ -1,0 +1,49 @@
+src/web/rpc-handlers.ts
+  s_7379bf0110d29a::t_f943d043ec37de 1061-1064
+  s_7379bf0110d29a::t_c823f287c8ede7 11
+src/shared/protocol.ts
+  s_7379bf0110d29a::t_01110398675106 268-274
+  s_7379bf0110d29a::t_5db10bd43d0a5f 767-769
+libclaude/packages/core/src/session.ts
+  s_7379bf0110d29a::t_9ffc76a4ce96f3 44
+  s_7379bf0110d29a::t_f67487e35be1d7 141-159
+  s_7379bf0110d29a::t_86c94a0de2b03a 7
+src/renderer/src/treeRows.ts
+  s_9d60ce08bdbdcc::t_334ec942a61912 75-77,79
+src/renderer/src/treeRows.test.ts
+  s_9d60ce08bdbdcc::t_7baf1b6e2aae0d 26-37
+src/web/claude-ui/service.ts
+  s_7379bf0110d29a::t_ab2ea9171c3073 66-69
+  s_7379bf0110d29a::t_fd12e31ad575a5 4
+  s_7379bf0110d29a::t_1da924e599b255 20-22
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_7379bf0110d29a::t_528064a72ba160 201-206
+  s_7379bf0110d29a::t_4c2bd1101c4f1b 118-119
+  s_7379bf0110d29a::t_b5f1b6821a8d89 4-12
+  s_7379bf0110d29a::t_5682799df7101f 109
+  s_7379bf0110d29a::t_2766c6600aa6a1 291-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e8a158801bf021ac7038710ce5abffcaef11aa48",
+  "prompts": {},
+  "sessions": {
+    "s_7379bf0110d29a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50dbf2ad-e387-464d-a272-64c2d69bfc02",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_9d60ce08bdbdcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c0bae65f-35ee-43ab-b46e-b38fbc6326db",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
