@@ -1,0 +1,47 @@
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_80e816d609fc8a::t_96b57e3280c97f 172,174-175,179
+  s_80e816d609fc8a::t_db3c7d2fbe1dd0 99,103,112-114,117-155,159,161
+libclaude/packages/core/src/session.ts
+  s_7379bf0110d29a::t_5d76aabecb98bf 42-47
+  s_7379bf0110d29a::t_91a7e11f826446 166-201
+  s_7379bf0110d29a::t_8e71207966cfe4 266-269
+src/web/rpc-handlers.ts
+  s_80e816d609fc8a::t_f183eb70dff339 1061-1064
+src/web/claude-ui/service.ts
+  s_80e816d609fc8a::t_494b80df28e419 92-97
+  s_80e816d609fc8a::t_c138aaefe5d3c3 9-10,12-16
+  s_80e816d609fc8a::t_0c1e4489ec3aea 125-132
+  s_80e816d609fc8a::t_404f4d0ddb0444 112
+  s_80e816d609fc8a::t_44333eedcf4571 64-66,72-80
+src/shared/protocol.ts
+  s_80e816d609fc8a::t_2a845fd1632274 768-771
+src/renderer/src/components/TerminalStack.tsx
+  s_80e816d609fc8a::t_daa69f50a133a6 92-104
+  s_80e816d609fc8a::t_e62fed577b4524 230-234,236,240
+  s_80e816d609fc8a::t_3215fad6914151 500,503
+  s_80e816d609fc8a::t_d9329892c77a34 262-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e998189e4cb4762979e9477c8bd3fcfd1638c4f2",
+  "prompts": {},
+  "sessions": {
+    "s_7379bf0110d29a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50dbf2ad-e387-464d-a272-64c2d69bfc02",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_80e816d609fc8a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "91c99695-16f2-47b7-a368-3f6a0915cecf",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
