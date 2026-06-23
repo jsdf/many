@@ -96,10 +96,10 @@ describe("buildTreeRows", () => {
     expect(rows.map((r) => r.entry.path)).toEqual(["/repo", "/repo/src"]);
   });
 
-  it("renders a nested root as its own top-level row, not under its expanded ancestor", () => {
+  it("renders a nested root inline under its expanded ancestor, once", () => {
     // data-fetching is active and data-fetching/.claude is pinned, so both are
-    // roots. Expanding data-fetching must render .claude as a standalone
-    // top-level row, not nested inside data-fetching's subtree.
+    // roots. Expanding data-fetching renders .claude inline among its files
+    // (browseable), not removed from the parent, and never duplicated.
     const roots = activeRoots(projects, {}, ["/repo/a", "/repo/a/b"]);
     const childrenByDir = new Map<string, FsEntry[]>([
       [
@@ -113,15 +113,47 @@ describe("buildTreeRows", () => {
     const rows = buildTreeRows(roots, new Set(["/repo/a"]), childrenByDir);
     const paths = rows.map((r) => r.entry.path);
     expect(paths.filter((p) => p === "/repo/a/b")).toHaveLength(1);
-    // /repo/a/b is a top-level root (depth 0), not a depth-1 child of /repo/a.
-    expect(paths).toEqual(["/repo/a", "/repo/a/f.ts", "/repo/a/b"]);
-    expect(rows.find((r) => r.entry.path === "/repo/a/b")!.depth).toBe(0);
+    // /repo/a/b nests under /repo/a (depth 1), in its natural file-tree position.
+    expect(paths).toEqual(["/repo/a", "/repo/a/b", "/repo/a/f.ts"]);
+    expect(rows.find((r) => r.entry.path === "/repo/a/b")!.depth).toBe(1);
   });
 
   it("shows a nested root at top level when its ancestor root is collapsed", () => {
     const roots = activeRoots(projects, {}, ["/repo/a", "/repo/a/b"]);
     const rows = buildTreeRows(roots, new Set(), new Map());
     expect(rows.map((r) => r.entry.path)).toEqual(["/repo/a", "/repo/a/b"]);
+  });
+
+  it("keeps a nested project browseable under its expanded parent", () => {
+    // /repo and /repo/sub are both registered projects (and /repo/sub may also be
+    // active or pinned). Expanding /repo must still list /repo/sub among its
+    // files, nested, rather than removing it and only showing it standalone.
+    const nested: ProjectEntry[] = [
+      { name: "many", path: "/repo", addedAt: "" },
+      { name: "sub", path: "/repo/sub", addedAt: "" },
+    ];
+    const roots: FileTreeRow[] = nested.map((project) => ({
+      entry: { name: project.name, path: project.path, isDirectory: true },
+      depth: 0,
+      project,
+      isProject: true,
+    }));
+    const childrenByDir = new Map<string, FsEntry[]>([
+      [
+        "/repo",
+        [
+          { name: "sub", path: "/repo/sub", isDirectory: true },
+          { name: "readme.md", path: "/repo/readme.md", isDirectory: false },
+        ],
+      ],
+    ]);
+    const rows = buildTreeRows(roots, new Set(["/repo"]), childrenByDir);
+    expect(rows.map((r) => r.entry.path)).toEqual(["/repo", "/repo/sub", "/repo/readme.md"]);
+    const sub = rows.find((r) => r.entry.path === "/repo/sub")!;
+    expect(sub.depth).toBe(1);
+    // It is still a project node, not a plain subfolder.
+    expect(sub.isProject).toBe(true);
+    expect(sub.project).toBe(nested[1]);
   });
 
   it("expands a subfolder root the same way as a project root", () => {
