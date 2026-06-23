@@ -6,6 +6,7 @@ import TaskLogTab from "./TaskLogTab";
 import SessionHistoryTab from "./SessionHistoryTab";
 import ClaudeSessionTab from "./ClaudeSessionTab";
 import ClaudeUiTab, { type ClaudeUiTabHandle } from "./ClaudeUiTab";
+import { setFocusedTerminal, useFocusedTerminal } from "../focused-terminal";
 
 interface TerminalStackProps {
   worktreePath: string;
@@ -46,6 +47,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
+  const focusedId = useFocusedTerminal();
 
   const toggleMaximize = useCallback((terminalId: string) => {
     setMaximizedId((prev) => (prev === terminalId ? null : terminalId));
@@ -346,6 +348,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         {terminals.map((term, i) => {
           const isMaximized = maximizedId !== null && maximizedId === term.id;
           const isCollapsed = maximizedId !== null && !isMaximized;
+          const isFocused = focusedId === term.id;
           return (
           <React.Fragment key={term.id}>
             {i > 0 && !fixedTerminalHeight && !maximizedId && (
@@ -364,8 +367,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     ? { flex: '0 0 auto' }
                     : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
               }
+              onMouseDown={() => setFocusedTerminal(term.id)}
+              onFocus={() => setFocusedTerminal(term.id)}
             >
-              <div className="group flex items-center justify-between px-2.5 py-[3px] bg-base-100 border-b border-base-300 shrink-0">
+              <div className={`group flex items-center justify-between px-2.5 py-[3px] border-b shrink-0 ${isFocused ? 'bg-base-content border-base-content' : 'bg-base-100 border-base-300'}`}>
                 {(() => {
                   const isRenameable = !term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession;
                   const dynamicTitle = terminalTitles[term.id];
@@ -410,8 +415,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     );
                   }
                   return (
-                    <span className="flex items-center gap-1 min-w-0">
-                      <span className="text-xs text-base-content/60 truncate">{displayTitle}</span>
+                    <span className={`flex items-center gap-1 min-w-0 ${isFocused ? 'text-base-100' : ''}`}>
+                      <span className={`text-xs truncate ${isFocused ? 'text-base-100' : 'text-base-content/60'}`}>{displayTitle}</span>
                       {isRenameable && (
                         <button
                           className="btn btn-ghost btn-xs opacity-0 group-hover:opacity-60 hover:!opacity-100 p-0 h-auto min-h-0"
@@ -424,7 +429,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     </span>
                   );
                 })()}
-                <div className="flex items-center">
+                <div className={`flex items-center ${isFocused ? 'text-base-100' : ''}`}>
                   {term.isClaudeUi && (
                     <div className="dropdown dropdown-end">
                       <button tabIndex={0} className="btn btn-ghost btn-xs opacity-60 hover:opacity-100">&#8943;</button>

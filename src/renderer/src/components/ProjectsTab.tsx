@@ -11,6 +11,7 @@ import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
 import { WorktreeActivity, isActive } from "../treeActivity";
 import { PinToggle, pinMenuItem } from "./pinControls";
 import { relativeToRoot } from "../paths";
+import { useFocusedTerminal } from "../focused-terminal";
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch((err) => console.error("Failed to copy:", err));
@@ -60,6 +61,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [activeMode, setActiveMode] = useState<"byFolder" | "recent">("byFolder");
   // Tracks the specific recent item that was last clicked (key = "t:<terminalId>" or "c:<sessionId>").
   const [selectedRecentKey, setSelectedRecentKey] = useState<string | null>(null);
+  const focusedTerminalId = useFocusedTerminal();
   const [recentTerminals, setRecentTerminals] = useState<
     { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
   >([]);
@@ -516,6 +518,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                   recentItems.map((item) => {
                     const itemKey = item.kind === "terminal" ? `t:${item.terminalId}` : `c:${item.sessionId}`;
                     const selected = selectedRecentKey === itemKey;
+                    const focused = item.kind === "terminal" && item.terminalId === focusedTerminalId;
                     const onClick =
                       item.kind === "terminal"
                         ? () => { setSelectedRecentKey(itemKey); onSelectNode({ name: baseName(item.worktreePath), path: item.worktreePath }); }
@@ -523,14 +526,14 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     return (
                       <div
                         key={itemKey}
-                        className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
+                        className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${focused ? "bg-base-content text-base-100" : selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
                         title={item.worktreePath}
                         onClick={onClick}
                       >
-                        <span className="shrink-0 text-base-content/40 text-[10px] mr-1.5">
+                        <span className={`shrink-0 text-[10px] mr-1.5 ${focused ? "text-base-100/70" : "text-base-content/40"}`}>
                           {item.kind === "terminal" ? ">_" : "◆"}
                         </span>
-                        <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
+                        <span className={`shrink-0 max-w-[45%] truncate mr-1.5 ${focused ? "text-base-100/70" : "text-base-content/50"}`}>
                           {baseName(item.worktreePath)}
                         </span>
                         <span className="flex-1 truncate">
