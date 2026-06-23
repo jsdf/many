@@ -173,6 +173,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     setTerminals((prev) => {
       const next = [...prev, { id, env, initialCommand, taskId }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, [worktreePath]);
@@ -187,6 +188,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const id = `task-log-${taskId}`;
       const next = [...prev, { id, taskId, isTaskLog: true, isSavedLog: !!isSavedLog }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, []);
@@ -199,6 +201,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const id = `session-history-${sessionId}`;
       const next = [...prev, { id, isSessionHistory: true, sessionId }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, []);
@@ -211,6 +214,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const id = sessionId ? `claude-session-${sessionId}` : `claude-session-new-${Date.now()}`;
       const next = [...prev, { id, isClaudeSession: true, sessionId }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, []);
@@ -223,6 +227,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       const id = `claude-resume-${sessionId}`;
       const next = [...prev, { id, initialCommand: command, resumeSessionId: sessionId }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, []);
@@ -233,8 +238,10 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     // tab re-attaches to the live session instead of spawning a duplicate.
     const { sessionId } = await getRpcClient().query("claudeui.create", { worktreePath });
     setTerminals((prev) => {
-      const next = [...prev, { id: `claude-ui-${sessionId}`, isClaudeUi: true, sessionId }];
+      const id = `claude-ui-${sessionId}`;
+      const next = [...prev, { id, isClaudeUi: true, sessionId }];
       setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
       return next;
     });
   }, [worktreePath]);
@@ -278,6 +285,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           // Session may already be dead
         }
       }
+      setMaximizedId((prev) => (prev === terminalId ? null : prev));
       setTerminals((prev) => {
         const next = prev.filter((t) => t.id !== terminalId);
         if (next.length > 0) {
