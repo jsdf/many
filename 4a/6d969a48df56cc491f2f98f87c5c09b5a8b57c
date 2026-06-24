@@ -1,0 +1,26 @@
+src/renderer/src/components/ProjectLinkButtons.tsx
+  s_11ad68252ffa59::t_f6b8e3607ad564 1-51
+src/renderer/src/components/ProjectOverviewTab.tsx
+  s_11ad68252ffa59::t_4cd17811edfb40 1-3,6-8,85,92
+src/renderer/src/components/ProjectsPanel.tsx
+  s_11ad68252ffa59::t_8110e05e6261d7 204
+  s_11ad68252ffa59::t_e3c3339a2f1c03 71-99
+  s_11ad68252ffa59::t_3cd743f7e01da3 12,15
+  s_11ad68252ffa59::t_850e30cb19db95 260-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "4a6d969a48df56cc491f2f98f87c5c09b5a8b57c",
+  "prompts": {},
+  "sessions": {
+    "s_11ad68252ffa59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "113164d2-6fbb-447c-97be-d28619b43b97",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
