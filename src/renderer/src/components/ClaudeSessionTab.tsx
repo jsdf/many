@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { getRpcClient } from "../rpc-client";
+import { handleReadlineEdit } from "../readline-edit";
 import { Settings2, Check, X, ChevronUp, ChevronDown, Brain, AlertTriangle } from "lucide-react";
 import type {
   SessionMessage,
@@ -351,6 +352,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => {
+                if (handleReadlineEdit(e, setInputText)) return;
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleStart();
@@ -441,6 +443,15 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
               el.style.height = Math.min(el.scrollHeight, 200) + "px";
             }}
             onKeyDown={(e) => {
+              if (
+                handleReadlineEdit(e, (v) => {
+                  setInputText(v);
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = Math.min(el.scrollHeight, 200) + "px";
+                })
+              )
+                return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();

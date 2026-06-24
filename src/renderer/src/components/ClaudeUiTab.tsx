@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { getRpcClient } from "../rpc-client";
+import { handleReadlineEdit } from "../readline-edit";
 import { Settings2, ChevronUp, ChevronDown, Check, X, AlertTriangle } from "lucide-react";
 import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../../shared/protocol";
 
@@ -211,6 +212,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   useImperativeHandle(ref, () => ({ reset }), [reset]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (handleReadlineEdit(e, setInput)) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();

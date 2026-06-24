@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import { handleReadlineEdit } from "../../../renderer/src/readline-edit";
 
 export function SessionInput({
   onSend,
@@ -21,7 +22,16 @@ export function SessionInput({
     }
   }, [text, disabled, onSend]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      handleReadlineEdit(e, (v) => {
+        setText(v);
+        const el = e.currentTarget;
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 200) + "px";
+      })
+    )
+      return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
