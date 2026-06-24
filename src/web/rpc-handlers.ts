@@ -55,6 +55,7 @@ import {
   commitChanges,
   isTmpBranch,
 } from "../services/worktree-service.js";
+import { listGitFiles } from "../shared/git-core.js";
 import { readProjectMetadata } from "../services/project-metadata.js";
 import type { RunCommand } from "../services/types.js";
 
@@ -591,8 +592,15 @@ export function createQueryHandlers(opts: {
     },
     "fs.allFiles": async (input) => {
       const { dirPath } = input as { dirPath: string };
-      const SKIP = new Set([".git", "node_modules"]);
       const MAX_FILES = 20000;
+
+      // Prefer git: tracked + untracked-not-ignored, so the picker shows source
+      // files and not build output (dist/, out/, dist-cli/, ...) or other
+      // ignored cruft. Falls back to a directory walk for non-git dirs.
+      const gitFiles = await listGitFiles(dirPath, MAX_FILES);
+      if (gitFiles) return gitFiles;
+
+      const SKIP = new Set([".git", "node_modules"]);
       const MAX_DEPTH = 24;
       const files: string[] = [];
 

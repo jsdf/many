@@ -945,7 +945,9 @@ const App: React.FC = () => {
       <WorktreePalette
         active={mainPaneView.type !== 'projects'}
         worktrees={worktrees}
+        selectedWorktree={selectedWorktree}
         onWorktreeSelect={(wt) => handleWorktreeSelect(wt)}
+        onFileOpened={() => setMainPaneView({ type: 'worktree' })}
       />
 
       {/* Always mounted so Cmd+P is claimed on every pane (never the browser

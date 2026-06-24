@@ -1,47 +1,29 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Fzf } from "fzf";
 import { ProjectEntry, ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
+import { useFileEditors } from "../useFileEditors";
 import CommandPalette, { PaletteItem } from "./CommandPalette";
+import {
+  Boost,
+  dirName,
+  highlight,
+  PaletteFile,
+  PaletteRoot,
+  rankFiles,
+  usePaletteFiles,
+} from "./palette-files";
 
 type Mode = "quickOpen" | "commands";
 
-type FileEntry = { rel: string; name: string; abs: string; project: ProjectEntry };
-
-// Render text with the fzf-matched character positions emphasized.
-function highlight(text: string, positions: Set<number>): React.ReactNode {
-  if (positions.size === 0) return text;
-  const parts: React.ReactNode[] = [];
-  let run = "";
-  let runHi = false;
-  const flush = (key: number) => {
-    if (!run) return;
-    parts.push(
-      runHi ? (
-        <span key={key} className="text-primary font-semibold">{run}</span>
-      ) : (
-        <span key={key}>{run}</span>
-      ),
-    );
-    run = "";
-  };
-  for (let i = 0; i < text.length; i++) {
-    const hi = positions.has(i);
-    if (hi !== runHi) {
-      flush(i);
-      runHi = hi;
-    }
-    run += text[i];
-  }
-  flush(text.length);
-  return <>{parts}</>;
-}
+const FILE_LIMIT = 200;
 
 // Wires the projects screen to the generic CommandPalette. Cmd+P opens quick
-// open (fzf fuzzy file search across all projects, matching letter subsequences
-// of the relative path so e.g. "resk" matches "replay/skill.md"); Cmd+Shift+P
-// opens the command palette (contextual actions on the selected project node).
-// Always mounted so the shortcuts are claimed app-wide even when closed.
+// open (fzf fuzzy file search across all projects); Cmd+Shift+P opens the
+// command palette (contextual actions on the selected project node). File
+// results are ranked by context: the focused file's directory first, then the
+// selected node's subtree, then everything else. Always mounted so the
+// shortcuts are claimed app-wide even when closed.
 const ProjectsPalette: React.FC<{
   active: boolean;
   projects: ProjectEntry[];
@@ -51,11 +33,6 @@ const ProjectsPalette: React.FC<{
 }> = ({ active, projects, selectedNode, onOpenFile, onNewTerminal }) => {
   const [mode, setMode] = useState<Mode | null>(null);
   const [query, setQuery] = useState("");
-  const [loadingFiles, setLoadingFiles] = useState(false);
-  const [allFiles, setAllFiles] = useState<FileEntry[] | null>(null);
-  // Which project set the loaded file list corresponds to, so we refetch when
-  // projects change but reuse the cache across palette opens otherwise.
-  const loadedKeyRef = useRef<string | null>(null);
 
   const close = () => setMode(null);
 
@@ -81,58 +58,33 @@ const ProjectsPalette: React.FC<{
     if (!active) setMode(null);
   }, [active]);
 
-  // Load the flat file list for every project when quick open is first shown
-  // (and whenever the project set changes). fzf then matches in-memory, so no
-  // per-keystroke RPC and matches can span path segments.
-  useEffect(() => {
-    if (mode !== "quickOpen") return;
-    const key = projects.map((p) => p.path).join("|");
-    if (loadedKeyRef.current === key && allFiles) return;
-    let cancelled = false;
-    setLoadingFiles(true);
-    (async () => {
-      try {
-        const perProject = await Promise.all(
-          projects.map((p) =>
-            getRpcClient().query("fs.allFiles", { dirPath: p.path }).then((rels) => ({ p, rels })),
-          ),
-        );
-        if (cancelled) return;
-        const files: FileEntry[] = [];
-        for (const { p, rels } of perProject) {
-          const sep = p.path.includes("\\") ? "\\" : "/";
-          for (const rel of rels) {
-            const name = rel.slice(Math.max(rel.lastIndexOf("/"), rel.lastIndexOf("\\")) + 1);
-            files.push({ rel, name, abs: p.path + sep + rel, project: p });
-          }
-        }
-        setAllFiles(files);
-        loadedKeyRef.current = key;
-      } catch (err) {
-        if (!cancelled) {
-          console.error("[palette] failed to load file list:", err);
-          setAllFiles([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingFiles(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, projects, allFiles]);
-
+  const roots = useMemo<PaletteRoot[]>(
+    () => projects.map((p) => ({ path: p.path, label: p.name })),
+    [projects],
+  );
+  const { files, loading } = usePaletteFiles(roots, mode === "quickOpen");
   const fileFzf = useMemo(
-    () => (allFiles ? new Fzf(allFiles, { selector: (f) => f.rel, limit: 100 }) : null),
-    [allFiles],
+    () => (files ? new Fzf(files, { selector: (f) => f.rel }) : null),
+    [files],
   );
 
-  const fileItem = (f: FileEntry, positions: Set<number>): PaletteItem => ({
+  // Contextual ranking: the directory of the file focused in the selected
+  // project's editor, then the selected node's subtree.
+  const { openFiles, activeFile } = useFileEditors(selectedNode?.path ?? null, "");
+  const boosts = useMemo<Boost[]>(() => {
+    const out: Boost[] = [];
+    const focused = openFiles.find((f) => f.path === activeFile);
+    if (focused) out.push({ dir: dirName(focused.path), mode: "exactDir" });
+    if (selectedNode) out.push({ dir: selectedNode.path, mode: "subtree" });
+    return out;
+  }, [openFiles, activeFile, selectedNode]);
+
+  const fileItem = (f: PaletteFile, positions: Set<number>): PaletteItem => ({
     id: f.abs,
     label: highlight(f.rel, positions),
-    detail: projects.length > 1 ? f.project.name : undefined,
+    detail: projects.length > 1 ? f.rootLabel : undefined,
     onSelect: () => {
-      onOpenFile({ path: f.abs, name: f.name }, f.project.path, f.project.name);
+      onOpenFile({ path: f.abs, name: f.name }, f.rootPath, f.rootLabel);
       close();
     },
   });
@@ -158,9 +110,8 @@ const ProjectsPalette: React.FC<{
   const items = useMemo<PaletteItem[]>(() => {
     const q = query.trim();
     if (mode === "quickOpen") {
-      if (!q) return (allFiles ?? []).slice(0, 100).map((f) => fileItem(f, new Set()));
-      if (!fileFzf) return [];
-      return fileFzf.find(q).map((r) => fileItem(r.item, r.positions));
+      if (!files || !fileFzf) return [];
+      return rankFiles(q, files, fileFzf, boosts, FILE_LIMIT).map(({ file, positions }) => fileItem(file, positions));
     }
     const ranked = q
       ? commandFzf.find(q)
@@ -170,7 +121,8 @@ const ProjectsPalette: React.FC<{
       label: highlight(item.text, positions),
       onSelect: item.run,
     }));
-  }, [mode, query, allFiles, fileFzf, commandFzf, commandDefs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, query, files, fileFzf, boosts, commandFzf, commandDefs, projects.length]);
 
   if (mode === null) return null;
 
@@ -180,7 +132,7 @@ const ProjectsPalette: React.FC<{
       query={query}
       onQueryChange={setQuery}
       items={items}
-      loading={mode === "quickOpen" && loadingFiles && !allFiles}
+      loading={mode === "quickOpen" && loading && !files}
       emptyText={
         mode === "quickOpen"
           ? "No matching files"

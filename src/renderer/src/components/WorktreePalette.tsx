@@ -1,49 +1,39 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Fzf } from "fzf";
 import { Worktree, formatBranchName } from "../types";
+import { useFileEditors, useOpenFile } from "../useFileEditors";
 import CommandPalette, { PaletteItem } from "./CommandPalette";
+import {
+  Boost,
+  dirName,
+  highlight,
+  PaletteFile,
+  PaletteRoot,
+  rankFiles,
+  usePaletteFiles,
+} from "./palette-files";
 
-function highlight(text: string, positions: Set<number>): React.ReactNode {
-  if (positions.size === 0) return text;
-  const parts: React.ReactNode[] = [];
-  let run = "";
-  let runHi = false;
-  const flush = (key: number) => {
-    if (!run) return;
-    parts.push(
-      runHi ? (
-        <span key={key} className="text-primary font-semibold">{run}</span>
-      ) : (
-        <span key={key}>{run}</span>
-      ),
-    );
-    run = "";
-  };
-  for (let i = 0; i < text.length; i++) {
-    const hi = positions.has(i);
-    if (hi !== runHi) {
-      flush(i);
-      runHi = hi;
-    }
-    run += text[i];
-  }
-  flush(text.length);
-  return <>{parts}</>;
-}
+type WtEntry = { wt: Worktree; branch: string };
 
-type Entry = { wt: Worktree; branch: string };
+const FILE_LIMIT = 200;
 
-// Cmd+P quick-open for worktrees. Registered only while `active` (App gates it
-// to every screen except the projects screen, which uses Cmd+P for files). App
-// also mounts a global fallback that suppresses the browser print dialog, so
-// this handler only needs to implement behavior.
+// Cmd+P quick-open for every screen except the projects screen (which uses
+// Cmd+P for its own file palette). One palette holds both: worktrees to jump
+// to (matched on branch name) and the current worktree's files to open
+// (prefixed with the worktree name). Files are ranked by context - the focused
+// file's directory first, then the rest of the current worktree. App also
+// mounts a global fallback that suppresses the browser print dialog, so this
+// handler only implements behavior.
 const WorktreePalette: React.FC<{
   active: boolean;
   worktrees: Worktree[];
+  selectedWorktree: Worktree | null;
   onWorktreeSelect: (worktree: Worktree) => void;
-}> = ({ active, worktrees, onWorktreeSelect }) => {
+  onFileOpened: () => void;
+}> = ({ active, worktrees, selectedWorktree, onWorktreeSelect, onFileOpened }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const openFileInRoot = useOpenFile();
 
   useEffect(() => {
     if (!active) return;
@@ -63,22 +53,60 @@ const WorktreePalette: React.FC<{
     if (!active) setOpen(false);
   }, [active]);
 
-  const entries = useMemo<Entry[]>(
+  // Worktree-jump entries, matched on the formatted branch so highlight
+  // positions line up with the displayed label.
+  const wtEntries = useMemo<WtEntry[]>(
     () => worktrees.map((wt) => ({ wt, branch: formatBranchName(wt.branch) })),
     [worktrees],
   );
+  const wtFzf = useMemo(() => new Fzf(wtEntries, { selector: (e) => e.branch }), [wtEntries]);
 
-  // Match against the formatted branch so highlight positions line up with the
-  // displayed label; worktree name is shown as detail.
-  const fzf = useMemo(() => new Fzf(entries, { selector: (e) => e.branch, limit: 50 }), [entries]);
+  // Files of the current worktree only (scope is intentionally one worktree).
+  const roots = useMemo<PaletteRoot[]>(
+    () => (selectedWorktree ? [{ path: selectedWorktree.path, label: selectedWorktree.worktreeName }] : []),
+    [selectedWorktree],
+  );
+  const { files } = usePaletteFiles(roots, open && !!selectedWorktree);
+  const fileFzf = useMemo(
+    () => (files ? new Fzf(files, { selector: (f) => f.rel }) : null),
+    [files],
+  );
+
+  // Contextual ranking: the directory of the focused file in this worktree,
+  // then the rest of the worktree.
+  const { openFiles, activeFile } = useFileEditors(selectedWorktree?.path ?? null, "");
+  const boosts = useMemo<Boost[]>(() => {
+    const out: Boost[] = [];
+    const focused = openFiles.find((f) => f.path === activeFile);
+    if (focused) out.push({ dir: dirName(focused.path), mode: "exactDir" });
+    if (selectedWorktree) out.push({ dir: selectedWorktree.path, mode: "subtree" });
+    return out;
+  }, [openFiles, activeFile, selectedWorktree]);
+
+  const fileItem = (f: PaletteFile, positions: Set<number>): PaletteItem => ({
+    id: "file:" + f.abs,
+    label: (
+      <>
+        <span className="text-base-content/40">{f.rootLabel}/</span>
+        {highlight(f.rel, positions)}
+      </>
+    ),
+    onSelect: () => {
+      openFileInRoot(f.rootPath, { path: f.abs, name: f.name });
+      onFileOpened();
+      setOpen(false);
+    },
+  });
 
   const items = useMemo<PaletteItem[]>(() => {
     const q = query.trim();
-    const results = q
-      ? fzf.find(q)
-      : entries.map((e) => ({ item: e, positions: new Set<number>() }));
-    return results.map(({ item: e, positions }) => ({
-      id: e.wt.path,
+
+    // Worktrees first (the familiar quick-switch), then files below.
+    const wtResults = q
+      ? wtFzf.find(q)
+      : wtEntries.map((e) => ({ item: e, positions: new Set<number>() }));
+    const wtItems: PaletteItem[] = wtResults.map(({ item: e, positions }) => ({
+      id: "wt:" + e.wt.path,
       label: highlight(e.branch, positions),
       detail: e.wt.worktreeName,
       onSelect: () => {
@@ -86,17 +114,25 @@ const WorktreePalette: React.FC<{
         setOpen(false);
       },
     }));
-  }, [query, fzf, entries, onWorktreeSelect]);
+
+    const fileItems: PaletteItem[] =
+      files && fileFzf
+        ? rankFiles(q, files, fileFzf, boosts, FILE_LIMIT).map((r) => fileItem(r.file, r.positions))
+        : [];
+
+    return [...wtItems, ...fileItems];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, wtFzf, wtEntries, files, fileFzf, boosts]);
 
   if (!open) return null;
 
   return (
     <CommandPalette
-      placeholder="Jump to worktree..."
+      placeholder="Search files, or jump to a worktree..."
       query={query}
       onQueryChange={setQuery}
       items={items}
-      emptyText="No matching worktrees"
+      emptyText="No matching files or worktrees"
       onClose={() => setOpen(false)}
     />
   );

@@ -18,6 +18,7 @@ import {
   stashChanges,
   cleanChanges,
   commitChanges,
+  listGitFiles,
 } from "./git-core.js";
 
 async function makeTmpDir(): Promise<string> {
@@ -257,6 +258,70 @@ describe("getWorktreeStatus", () => {
     const status = await getWorktreeStatus(repoPath);
     expect(status.hasStaged).toBe(true);
     expect(status.staged).toContain("file.txt");
+  });
+});
+
+describe("listGitFiles", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await makeTmpDir();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  it("lists tracked and untracked-not-ignored files, relative to the dir", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    await fs.mkdir(path.join(repoPath, "src"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "src", "index.ts"), "tracked");
+    const repoGit = simpleGit(repoPath);
+    await repoGit.add("src/index.ts");
+    await repoGit.commit("add src");
+    // Untracked but not ignored.
+    await fs.writeFile(path.join(repoPath, "untracked.txt"), "hi");
+
+    const files = await listGitFiles(repoPath, 20000);
+    expect(files).not.toBeNull();
+    expect(files).toContain("file.txt"); // tracked (from the initial commit)
+    expect(files).toContain("src/index.ts"); // tracked, nested, forward-slash relative
+    expect(files).toContain("untracked.txt"); // untracked, not ignored
+  });
+
+  it("excludes files matched by .gitignore", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    await fs.writeFile(path.join(repoPath, ".gitignore"), "dist/\nignored.log\n");
+    await fs.mkdir(path.join(repoPath, "dist"), { recursive: true });
+    await fs.writeFile(path.join(repoPath, "dist", "bundle.js"), "build output");
+    await fs.writeFile(path.join(repoPath, "ignored.log"), "noise");
+    await fs.writeFile(path.join(repoPath, "kept.ts"), "source");
+
+    const files = await listGitFiles(repoPath, 20000);
+    expect(files).toContain("kept.ts");
+    expect(files).toContain(".gitignore"); // .gitignore itself is not ignored
+    expect(files).not.toContain("dist/bundle.js");
+    expect(files).not.toContain("ignored.log");
+  });
+
+  it("caps the result at maxFiles", async () => {
+    const { repoPath } = await initBareOriginAndClone(tmpDir);
+    for (let i = 0; i < 10; i++) {
+      await fs.writeFile(path.join(repoPath, `f${i}.txt`), "x");
+    }
+
+    const files = await listGitFiles(repoPath, 3);
+    expect(files).not.toBeNull();
+    expect(files!.length).toBe(3);
+  });
+
+  it("returns null for a non-git directory", async () => {
+    const plain = path.join(tmpDir, "plain");
+    await fs.mkdir(plain, { recursive: true });
+    await fs.writeFile(path.join(plain, "a.txt"), "x");
+
+    const files = await listGitFiles(plain, 20000);
+    expect(files).toBeNull();
   });
 });
 

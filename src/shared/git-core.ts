@@ -64,6 +64,40 @@ export function getLocalBranchName(branch: string | null): string {
 
 // --- Core git operations ---
 
+/**
+ * List the files git considers tracked or untracked-but-not-ignored under
+ * `dir`, as paths relative to `dir`, respecting .gitignore. This is what a file
+ * picker wants: real source files, not build output or other ignored cruft.
+ * Returns null if `dir` is not inside a git work tree, so the caller can fall
+ * back to a plain directory walk. Capped at `maxFiles` as a safety net.
+ */
+export async function listGitFiles(
+  dir: string,
+  maxFiles: number
+): Promise<string[] | null> {
+  try {
+    // --cached: tracked, --others: untracked, --exclude-standard: apply
+    // .gitignore/.git/info/exclude/global excludes. -z: NUL-separated so paths
+    // with spaces or newlines parse correctly.
+    const out = await simpleGit(dir).raw([
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "-z",
+    ]);
+    // Dedupe: a file in a merge-conflicted state appears once per stage.
+    const seen = new Set<string>();
+    for (const f of out.split("\0")) {
+      if (f.length > 0) seen.add(f);
+      if (seen.size >= maxFiles) break;
+    }
+    return [...seen];
+  } catch {
+    return null;
+  }
+}
+
 /** Check that a worktree directory exists on disk, throwing a clear error if not */
 async function ensureWorktreeExists(worktreePath: string): Promise<void> {
   try {
