@@ -9,8 +9,10 @@ import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
 import FileEditorTab from "./FileEditorTab";
 import ProjectSessionsTab from "./ProjectSessionsTab";
 import ProjectOverviewTab from "./ProjectOverviewTab";
+import ProjectLinkButtons from "./ProjectLinkButtons";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import { relativeToRoot } from "../paths";
+import type { ProjectMetadata } from "../../../shared/protocol";
 
 const OVERVIEW_TAB = "__overview__";
 const SESSIONS_TAB = "__sessions__";
@@ -65,6 +67,35 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   } = useFileEditors(project?.path ?? null, OVERVIEW_TAB);
 
   const openFileInContext = useOpenFile();
+
+  // Project sidecar metadata (PROJECT.md frontmatter, prs.yml, tasks.yml),
+  // owned here so both the header link buttons and the Overview tab share it.
+  const [meta, setMeta] = useState<ProjectMetadata | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
+
+  const loadMeta = useCallback(() => {
+    if (!project) {
+      setMeta(null);
+      return;
+    }
+    const projectPath = project.path;
+    setMetaLoading(true);
+    getRpcClient()
+      .query("project.metadata", { projectPath })
+      .then((result) => setMeta(result))
+      .catch((err) => {
+        console.error("Failed to load project metadata:", err);
+        setMeta(null);
+      })
+      .finally(() => setMetaLoading(false));
+  }, [project?.path]);
+
+  // Reload when the selected project changes; clear stale data first so the
+  // previous project's links don't linger in the header.
+  useEffect(() => {
+    setMeta(null);
+    loadMeta();
+  }, [loadMeta]);
 
   // Load the app-level default Claude Code command for launching Claude here.
   useEffect(() => {
@@ -170,6 +201,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
         >
           <Terminal size={14} /> Terminal
         </button>
+        {meta && <ProjectLinkButtons links={meta.links} className="ml-auto" />}
       </TopBar>
 
       <div
@@ -225,7 +257,12 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           </div>
           <div className="flex-1 overflow-hidden min-h-0">
             {activeFile === OVERVIEW_TAB ? (
-              <ProjectOverviewTab key={`overview-${project.path}`} projectPath={project.path} />
+              <ProjectOverviewTab
+                key={`overview-${project.path}`}
+                meta={meta}
+                loading={metaLoading}
+                onRefresh={loadMeta}
+              />
             ) : activeFile === SESSIONS_TAB ? (
               <ProjectSessionsTab
                 key={`sessions-${project.path}`}

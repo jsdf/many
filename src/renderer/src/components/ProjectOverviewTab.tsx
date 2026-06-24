@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { ExternalLink, RotateCw, Star, GitPullRequest, CheckSquare } from "lucide-react";
-import { getRpcClient } from "../rpc-client";
-import type { ProjectMetadata, ProjectLink, ProjectPr, ProjectTask } from "../../../shared/protocol";
+import React from "react";
+import { RotateCw, Star, GitPullRequest, CheckSquare } from "lucide-react";
+import type { ProjectMetadata, ProjectPr, ProjectTask } from "../../../shared/protocol";
 
 interface ProjectOverviewTabProps {
-  projectPath: string;
+  meta: ProjectMetadata | null;
+  loading: boolean;
+  onRefresh: () => void;
 }
 
 function openUrl(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function humanize(key: string): string {
-  return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 // daisyUI badge class for a PR status.
@@ -44,34 +41,6 @@ function taskStatusBadge(status?: string): string {
       return "badge-neutral";
   }
 }
-
-const LinkButtons: React.FC<{ links: ProjectLink[] }> = ({ links }) => {
-  if (links.length === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {links.map((link) =>
-        link.isUrl ? (
-          <button
-            key={link.key}
-            className="btn btn-sm btn-accent btn-soft"
-            title={link.value}
-            onClick={() => openUrl(link.value)}
-          >
-            <ExternalLink size={14} /> {humanize(link.key)}
-          </button>
-        ) : (
-          <span
-            key={link.key}
-            className="badge badge-neutral badge-sm gap-1 font-mono"
-            title={link.value}
-          >
-            {humanize(link.key)}: <span className="opacity-70 truncate max-w-[220px]">{link.value}</span>
-          </span>
-        )
-      )}
-    </div>
-  );
-};
 
 const PrRow: React.FC<{ pr: ProjectPr }> = ({ pr }) => (
   <div
@@ -113,34 +82,14 @@ const TaskRow: React.FC<{ task: ProjectTask }> = ({ task }) => (
   </div>
 );
 
-const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ projectPath }) => {
-  const [meta, setMeta] = useState<ProjectMetadata | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getRpcClient().query("project.metadata", { projectPath });
-      setMeta(result);
-    } catch (err) {
-      console.error("Failed to load project metadata:", err);
-      setMeta(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [projectPath]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
+const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, onRefresh }) => {
   const hasAnyFiles = meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks);
 
   return (
     <div className="h-full flex flex-col bg-base-100">
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-base-300 shrink-0">
         <span className="text-xs font-semibold text-base-content/60">Overview</span>
-        <button className="btn btn-ghost btn-xs" onClick={load} title="Refresh">
+        <button className="btn btn-ghost btn-xs" onClick={onRefresh} title="Refresh">
           <RotateCw size={12} />
         </button>
       </div>
@@ -157,8 +106,6 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ projectPath }) 
         ) : (
           <div className="flex flex-col gap-4">
             {meta!.title && <h3 className="text-base font-semibold m-0">{meta!.title}</h3>}
-
-            <LinkButtons links={meta!.links} />
 
             {meta!.hasPrs && (
               <section>
