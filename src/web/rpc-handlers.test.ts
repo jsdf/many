@@ -41,6 +41,8 @@ const rename = (oldPath: string, newPath: string) =>
   handlers["fs.rename"]!({ oldPath, newPath }) as Promise<{ ok: boolean }>;
 const remove = (targetPath: string) =>
   handlers["fs.delete"]!({ path: targetPath }) as Promise<{ ok: boolean }>;
+const search = (dirPath: string, query: string) =>
+  handlers["fs.search"]!({ dirPath, query }) as Promise<Record<string, FsEntry[]>>;
 
 // Poll until a condition holds, so fs.watch-driven pushes can be awaited
 // without depending on a fixed latency.
@@ -119,6 +121,46 @@ describe("fs.listDir", () => {
     await expect(listDir(path.join(tmpDir, "does-not-exist"))).rejects.toThrow(
       /Cannot read directory/
     );
+  });
+});
+
+describe("fs.search", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "many-fs-test-"));
+  });
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("fuzzy-matches paths by subsequence, not just substring", async () => {
+    await fs.writeFile(path.join(tmpDir, "README.md"), "");
+    await fs.writeFile(path.join(tmpDir, "other.txt"), "");
+
+    // "rdme" is a subsequence of README.md but not a substring of any file.
+    const res = await search(tmpDir, "rdme");
+    const names = (res[tmpDir] ?? []).map((e) => e.name);
+    expect(names).toContain("README.md");
+    expect(names).not.toContain("other.txt");
+  });
+
+  it("includes the ancestor directory chain for matched nested files", async () => {
+    await fs.mkdir(path.join(tmpDir, "src", "components"), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, "src", "components", "Widget.tsx"), "");
+
+    const res = await search(tmpDir, "Widget");
+    expect((res[tmpDir] ?? []).map((e) => e.name)).toContain("src");
+    expect((res[path.join(tmpDir, "src")] ?? []).map((e) => e.name)).toContain("components");
+    const leaf = res[path.join(tmpDir, "src", "components")] ?? [];
+    const widget = leaf.find((e) => e.name === "Widget.tsx");
+    expect(widget).toBeDefined();
+    expect(widget!.isDirectory).toBe(false);
+  });
+
+  it("returns nothing for an empty query", async () => {
+    await fs.writeFile(path.join(tmpDir, "a.txt"), "");
+    expect(await search(tmpDir, "  ")).toEqual({});
   });
 });
 

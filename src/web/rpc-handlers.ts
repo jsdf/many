@@ -56,6 +56,7 @@ import {
   isTmpBranch,
 } from "../services/worktree-service.js";
 import { listGitFiles } from "../shared/git-core.js";
+import { Fzf } from "fzf";
 import { readProjectMetadata } from "../services/project-metadata.js";
 import type { RunCommand } from "../services/types.js";
 
@@ -65,6 +66,40 @@ import { SessionStore } from "../claude-session/server/session-store.js";
 import { ClaudeUiService } from "./claude-ui/service.js";
 
 const userShell = process.env.SHELL || "/bin/bash";
+
+// List files under dirPath as paths relative to it: git tracked +
+// untracked-not-ignored (respects .gitignore) in a work tree, else a directory
+// walk skipping .git/node_modules. Capped at maxFiles. Shared by fs.allFiles
+// (quick-open) and fs.search (the projects tree filter).
+async function collectFilesRelative(dirPath: string, maxFiles: number): Promise<string[]> {
+  const gitFiles = await listGitFiles(dirPath, maxFiles);
+  if (gitFiles) return gitFiles;
+
+  const SKIP = new Set([".git", "node_modules"]);
+  const MAX_DEPTH = 24;
+  const files: string[] = [];
+  const walk = async (dir: string, depth: number): Promise<void> => {
+    if (depth > MAX_DEPTH || files.length >= maxFiles) return;
+    let dirents: import("fs").Dirent[];
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const d of dirents) {
+      if (files.length >= maxFiles) break;
+      if (SKIP.has(d.name)) continue;
+      const full = path.join(dir, d.name);
+      if (d.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (d.isFile()) {
+        files.push(path.relative(dirPath, full));
+      }
+    }
+  };
+  await walk(dirPath, 0);
+  return files;
+}
 
 // ---------------------------------------------------------------------------
 // Mux server URL discovery
@@ -544,44 +579,38 @@ export function createQueryHandlers(opts: {
     },
     "fs.search": async (input) => {
       const { dirPath, query } = input as { dirPath: string; query: string };
-      const q = query.trim().toLowerCase();
+      const q = query.trim();
       if (!q) return {};
-      const SKIP = new Set([".git", "node_modules"]);
       const MAX_RESULTS = 1000;
-      const MAX_DEPTH = 24;
+
+      // Fuzzy-match relative paths with the same lib as quick-open. We use only
+      // the match set (membership); the tree below is built in natural
+      // (dir-first, alphabetical) order, not by fzf score.
+      const files = await collectFilesRelative(dirPath, 20000);
+      const matched = new Fzf(files, { selector: (f: string) => f }).find(q);
+
+      const sep = dirPath.includes("\\") ? "\\" : "/";
       const result: Record<string, FsEntry[]> = {};
+      const seen = new Set<string>();
       let count = 0;
-
-      const walk = async (dir: string, depth: number): Promise<boolean> => {
-        if (depth > MAX_DEPTH || count >= MAX_RESULTS) return false;
-        let dirents: import("fs").Dirent[];
-        try {
-          dirents = await fs.readdir(dir, { withFileTypes: true });
-        } catch {
-          return false;
-        }
-        let matched = false;
-        for (const d of dirents) {
-          if (count >= MAX_RESULTS) break;
-          if (SKIP.has(d.name)) continue;
-          const full = path.join(dir, d.name);
-          const entry = { name: d.name, path: full, isDirectory: d.isDirectory() };
-          if (d.isDirectory()) {
-            const childMatched = await walk(full, depth + 1);
-            if (childMatched || d.name.toLowerCase().includes(q)) {
-              (result[dir] ??= []).push(entry);
-              matched = true;
-            }
-          } else if (d.name.toLowerCase().includes(q)) {
-            (result[dir] ??= []).push(entry);
-            matched = true;
-            count++;
+      for (const { item: rel } of matched) {
+        if (count >= MAX_RESULTS) break;
+        count++;
+        // Expand the matched file into its ancestor chain so the client can
+        // render it as a tree: each path segment becomes an entry under its
+        // parent directory.
+        const parts = rel.split(/[\\/]/);
+        let parent = dirPath;
+        for (let i = 0; i < parts.length; i++) {
+          const full = parent + sep + parts[i];
+          const key = parent + "\0" + full;
+          if (!seen.has(key)) {
+            seen.add(key);
+            (result[parent] ??= []).push({ name: parts[i], path: full, isDirectory: i < parts.length - 1 });
           }
+          parent = full;
         }
-        return matched;
-      };
-
-      await walk(dirPath, 0);
+      }
       for (const key of Object.keys(result)) {
         result[key].sort((a, b) => {
           if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
@@ -592,40 +621,7 @@ export function createQueryHandlers(opts: {
     },
     "fs.allFiles": async (input) => {
       const { dirPath } = input as { dirPath: string };
-      const MAX_FILES = 20000;
-
-      // Prefer git: tracked + untracked-not-ignored, so the picker shows source
-      // files and not build output (dist/, out/, dist-cli/, ...) or other
-      // ignored cruft. Falls back to a directory walk for non-git dirs.
-      const gitFiles = await listGitFiles(dirPath, MAX_FILES);
-      if (gitFiles) return gitFiles;
-
-      const SKIP = new Set([".git", "node_modules"]);
-      const MAX_DEPTH = 24;
-      const files: string[] = [];
-
-      const walk = async (dir: string, depth: number): Promise<void> => {
-        if (depth > MAX_DEPTH || files.length >= MAX_FILES) return;
-        let dirents: import("fs").Dirent[];
-        try {
-          dirents = await fs.readdir(dir, { withFileTypes: true });
-        } catch {
-          return;
-        }
-        for (const d of dirents) {
-          if (files.length >= MAX_FILES) break;
-          if (SKIP.has(d.name)) continue;
-          const full = path.join(dir, d.name);
-          if (d.isDirectory()) {
-            await walk(full, depth + 1);
-          } else if (d.isFile()) {
-            files.push(path.relative(dirPath, full));
-          }
-        }
-      };
-
-      await walk(dirPath, 0);
-      return files;
+      return collectFilesRelative(dirPath, 20000);
     },
     "fs.readFile": async (input) => {
       const { filePath } = input as { filePath: string };
