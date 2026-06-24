@@ -1,0 +1,31 @@
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_5dc77d40702bda::t_dc1836fa53a691 3
+  s_5dc77d40702bda::t_3bbba8c2dd0eaa 215
+src/renderer/src/readline-edit.ts
+  s_5dc77d40702bda::t_f2ac4710da4ef4 1-52
+src/renderer/src/readline-edit.test.ts
+  s_5dc77d40702bda::t_ed27663aeb0c5d 1-46
+src/claude-session/renderer/components/SessionInput.tsx
+  s_5dc77d40702bda::t_f58099b5898e33 25-34
+  s_5dc77d40702bda::t_6cb7da8d0526cc 2
+src/renderer/src/components/ClaudeSessionTab.tsx
+  s_5dc77d40702bda::t_eccc4de3c0f0d2 446-454
+  s_5dc77d40702bda::t_11cd5a5aee2b93 3
+  s_5dc77d40702bda::t_926600936f641a 355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "3a517db4519aee48e58b1213b4625c64ce87697a",
+  "prompts": {},
+  "sessions": {
+    "s_5dc77d40702bda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7724b662-3175-4c60-b145-696bf2b0dc54",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
