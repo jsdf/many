@@ -1,0 +1,36 @@
+src/shared/git-core.ts
+  s_20b968fc39c7f4::t_467f1d26734fbd 67-100
+src/renderer/src/components/ProjectsPalette.tsx
+  s_20b968fc39c7f4::t_a7658e45850db8 1,5,7-15,19,22-26,61-65,67-68,71-82,85,87,113-114,124-125,135
+src/renderer/src/components/WorktreePalette.tsx
+  s_20b968fc39c7f4::t_5288e6cfa21451 86-99
+  s_20b968fc39c7f4::t_3be243afa31b8d 4,6-14,16-26,30,32-33,36,56-58,62-73,75-84,103-109,117-125,131,135
+src/shared/git-core.test.ts
+  s_20b968fc39c7f4::t_dacbab39fc54ac 264-325
+  s_20b968fc39c7f4::t_7a7368c749d6e5 21
+src/web/rpc-handlers.ts
+  s_20b968fc39c7f4::t_0b1a2afd9b0ab0 58
+  s_20b968fc39c7f4::t_14dea725286709 596-603
+src/shared/protocol.ts
+  s_20b968fc39c7f4::t_6841714ace1837 507-510
+src/renderer/src/components/palette-files.tsx
+  s_20b968fc39c7f4::t_fc2281a4d39c8b 1-154
+src/renderer/src/App.tsx
+  s_20b968fc39c7f4::t_af268bf516f3b2 948,950
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "12006353bdc156b5c0a71b913c3ea2b60f863ba7",
+  "prompts": {},
+  "sessions": {
+    "s_20b968fc39c7f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "519a6424-6888-4178-8ee2-377f35799196",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
