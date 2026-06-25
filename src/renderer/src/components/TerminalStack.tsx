@@ -412,11 +412,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           const isFocused = focusedId === term.id;
           return (
           <React.Fragment key={term.id}>
-            {i > 0 && !fixedTerminalHeight && !maximizedId && !minimizedIds.has(term.id) && !minimizedIds.has(terminals[i - 1].id) && (
-              <div
-                className={`h-1 shrink-0 cursor-ns-resize transition-colors ${dragging === i - 1 ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
-                onMouseDown={(e) => handleMouseDown(i - 1, e)}
-              />
+            {i > 0 && !fixedTerminalHeight && !maximizedId && (
+              minimizedIds.has(term.id) || minimizedIds.has(terminals[i - 1].id) ? (
+                <div className="h-1 shrink-0" />
+              ) : (
+                <div
+                  className={`h-1 shrink-0 cursor-ns-resize transition-colors ${dragging === i - 1 ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
+                  onMouseDown={(e) => handleMouseDown(i - 1, e)}
+                />
+              )
             )}
             <div
               className={`flex flex-col overflow-hidden ${fixedTerminalHeight ? '' : showHeaderOnly ? '' : 'min-h-[60px]'}`}
