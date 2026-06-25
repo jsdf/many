@@ -1,0 +1,25 @@
+src/renderer/src/components/TerminalStack.tsx
+  s_a785075ba062e3::t_aada815b2f46ac 2
+  s_a785075ba062e3::t_447d3e958e8a36 533
+  s_a785075ba062e3::t_157e82684006f4 298-303
+  s_a785075ba062e3::t_7bcb789b4fe604 506-514
+  s_a785075ba062e3::t_896c9e8abe4ed5 409-411,415,422,427
+  s_a785075ba062e3::t_2570675bf78a2e 52,58-64
+  s_a785075ba062e3::t_7724c285ba3e08 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "db2f50cf629aa71f27ccfe0b257e0f26d1c37901",
+  "prompts": {},
+  "sessions": {
+    "s_a785075ba062e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe947445-6b4d-4943-a865-34482c0aef97",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
