@@ -453,7 +453,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     return (
                       <input
                         autoFocus
-                        className="text-xs bg-transparent border border-primary rounded px-1 outline-none text-base-content min-w-0 flex-1 mr-2"
+                        className={`text-xs bg-transparent border border-primary rounded px-1 outline-none min-w-0 flex-1 mr-2 ${isFocused ? 'text-base-100' : 'text-base-content'}`}
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onKeyDown={(e) => {
