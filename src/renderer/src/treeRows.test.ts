@@ -55,6 +55,15 @@ describe("activeRoots", () => {
     expect(roots[0]).toMatchObject({ isProject: false, project: projects[0] });
     expect(roots[0].entry.name).toBe("src");
   });
+
+  it("treats a pinned folder outside any project as its own root, so it stays toggleable", () => {
+    const roots = activeRoots(projects, {}, ["/elsewhere/many"]);
+    expect(roots[0]).toMatchObject({ isProject: false });
+    expect(roots[0].entry.name).toBe("many");
+    // A defined project (rooted at the folder itself) is what lets the tree
+    // handlers toggle and open it.
+    expect(roots[0].project).toMatchObject({ path: "/elsewhere/many", name: "many" });
+  });
 });
 
 describe("buildTreeRows", () => {

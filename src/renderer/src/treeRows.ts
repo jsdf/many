@@ -101,14 +101,16 @@ export function activeRoots(
     if (isActive(a) && projectFor(projects, p)) roots.add(p);
   }
   return [...roots].sort().map((path) => {
-    const project = projectFor(projects, path);
-    const isProject = !!project && project.path === path;
+    const owner = projectFor(projects, path);
+    const isProject = !!owner && owner.path === path;
+    const name = isProject ? owner!.name : path.slice(path.lastIndexOf(sepOf(path)) + 1);
+    // A pinned folder outside any registered project is still a browsable root;
+    // treat it as its own project root so path operations (expand/collapse, open)
+    // resolve. Without this its rows carry no project and the tree handlers,
+    // which bail on a missing project, can't toggle or open it.
+    const project = owner ?? { name, path, addedAt: "" };
     return {
-      entry: {
-        name: isProject ? project!.name : path.slice(path.lastIndexOf(sepOf(path)) + 1),
-        path,
-        isDirectory: true,
-      },
+      entry: { name, path, isDirectory: true },
       depth: 0,
       isProject,
       project,
