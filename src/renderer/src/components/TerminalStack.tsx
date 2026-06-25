@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Maximize2, Minimize2, Pencil, X } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -49,10 +49,19 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
+  const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
   const focusedId = useFocusedTerminal();
 
   const toggleMaximize = useCallback((terminalId: string) => {
     setMaximizedId((prev) => (prev === terminalId ? null : terminalId));
+  }, []);
+  const toggleMinimize = useCallback((terminalId: string) => {
+    setMinimizedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(terminalId)) next.delete(terminalId);
+      else next.add(terminalId);
+      return next;
+    });
   }, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ divider: HTMLElement; dividerIndex: number } | null>(null);
@@ -286,6 +295,12 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         }
       }
       setMaximizedId((prev) => (prev === terminalId ? null : prev));
+      setMinimizedIds((prev) => {
+        if (!prev.has(terminalId)) return prev;
+        const next = new Set(prev);
+        next.delete(terminalId);
+        return next;
+      });
       setTerminals((prev) => {
         const next = prev.filter((t) => t.id !== terminalId);
         if (next.length > 0) {
@@ -391,23 +406,25 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         )}
         {terminals.map((term, i) => {
           const isMaximized = maximizedId !== null && maximizedId === term.id;
-          const isCollapsed = maximizedId !== null && !isMaximized;
+          const isCollapsedByMax = maximizedId !== null && !isMaximized;
+          const isMinimized = !isMaximized && minimizedIds.has(term.id);
+          const showHeaderOnly = isCollapsedByMax || isMinimized;
           const isFocused = focusedId === term.id;
           return (
           <React.Fragment key={term.id}>
-            {i > 0 && !fixedTerminalHeight && !maximizedId && (
+            {i > 0 && !fixedTerminalHeight && !maximizedId && !minimizedIds.has(term.id) && !minimizedIds.has(terminals[i - 1].id) && (
               <div
                 className={`h-1 shrink-0 cursor-ns-resize transition-colors ${dragging === i - 1 ? 'bg-primary' : 'bg-base-300 hover:bg-primary'}`}
                 onMouseDown={(e) => handleMouseDown(i - 1, e)}
               />
             )}
             <div
-              className={`flex flex-col overflow-hidden ${fixedTerminalHeight ? '' : isCollapsed ? '' : 'min-h-[60px]'}`}
+              className={`flex flex-col overflow-hidden ${fixedTerminalHeight ? '' : showHeaderOnly ? '' : 'min-h-[60px]'}`}
               style={fixedTerminalHeight
                 ? { height: fixedTerminalHeight }
                 : isMaximized
                   ? { flex: '1 0 0', minHeight: 0 }
-                  : isCollapsed
+                  : showHeaderOnly
                     ? { flex: '0 0 auto' }
                     : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
               }
@@ -486,6 +503,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                       </ul>
                     </div>
                   )}
+                  {!fixedTerminalHeight && !isMaximized && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => toggleMinimize(term.id)}
+                      title={isMinimized ? "Expand" : "Minimize"}
+                    >
+                      {isMinimized ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
                   {!fixedTerminalHeight && (
                     <button
                       className="btn btn-ghost btn-xs"
@@ -504,7 +530,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   </button>
                 </div>
               </div>
-              <div className={`flex-1 overflow-hidden min-h-0 ${isCollapsed ? 'hidden' : ''}`}>
+              <div className={`flex-1 overflow-hidden min-h-0 ${showHeaderOnly ? 'hidden' : ''}`}>
                 {term.isClaudeUi && term.sessionId ? (
                   <ClaudeUiTab
                     ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}
