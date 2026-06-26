@@ -1,0 +1,19 @@
+src/claude-session/server/claude-service.ts
+  s_701d450ecb6e17::t_e73d5b89c9e5b3 105-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "0a9fc396ace02b0398d6e5825b242e4f4d24e84a",
+  "prompts": {},
+  "sessions": {
+    "s_701d450ecb6e17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65943270-64cd-425f-9882-a4377133696c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
