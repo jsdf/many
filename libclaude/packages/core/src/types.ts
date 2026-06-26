@@ -90,6 +90,18 @@ export interface TurnResult {
 
 export type PermissionMode = "auto" | "default" | "acceptEdits" | "plan" | "bypassPermissions";
 
+/**
+ * Optional sink for the session's diagnostic logging (process lifecycle,
+ * stderr from the `claude` child, dropped output). Each level is optional so a
+ * caller can wire only the levels it cares about. Defaults to no-op.
+ */
+export interface SessionLogger {
+  debug?(message: string): void;
+  info?(message: string): void;
+  warn?(message: string): void;
+  error?(message: string): void;
+}
+
 export interface SessionOptions {
   /** Working directory the agent operates in. Defaults to process.cwd(). */
   cwd?: string;
@@ -112,6 +124,8 @@ export interface SessionOptions {
   env?: Record<string, string | undefined>;
   /** Max consecutive crashes before the session stops respawning. Default 5. */
   maxCrashes?: number;
+  /** Diagnostic logger for process lifecycle and the child's stderr. */
+  logger?: SessionLogger;
 }
 
 export interface SessionStatus {

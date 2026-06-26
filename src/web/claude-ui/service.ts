@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { ClaudeSession } from "@libclaude/core";
-import type { ClaudeEvent, SessionStatus } from "@libclaude/core";
+import type { ClaudeEvent, SessionStatus, SessionLogger } from "@libclaude/core";
 import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../shared/protocol.js";
+import logger from "../../shared/logger.js";
 
 interface ManagedSession {
   session: ClaudeSession;
@@ -27,11 +28,19 @@ export class ClaudeUiService {
 
   create(worktreePath: string, claudeBin?: string): string {
     const sessionId = crypto.randomUUID();
+    const tag = `[claudeui ${sessionId.slice(0, 8)}]`;
+    const sessionLogger: SessionLogger = {
+      debug: (m) => logger.debug(`${tag} ${m}`),
+      info: (m) => logger.info(`${tag} ${m}`),
+      warn: (m) => logger.warn(`${tag} ${m}`),
+      error: (m) => logger.error(`${tag} ${m}`),
+    };
+    logger.info(`${tag} create: worktree=${worktreePath} claudeBin=${claudeBin ?? "claude"}`);
     // Run through an interactive login shell so a configured claudeBin that is
     // a shell alias or a command with args (e.g. "claude --mcp-config ...")
     // resolves the way it would in the user's terminal. Default to "auto"
     // permission mode; callers can change it at runtime via setPermissionMode.
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true });
+    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true, logger: sessionLogger });
 
     const managed: ManagedSession = {
       session,
@@ -66,6 +75,7 @@ export class ClaudeUiService {
     });
 
     session.on("error", (err: Error) => {
+      sessionLogger.error?.(`session error: ${err.message}`);
       this.push(managed, { type: "error", message: err.message });
     });
 

@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import type {
   ClaudeEvent,
   PermissionMode,
+  SessionLogger,
   SessionOptions,
   SessionStatus,
   TurnResult,
@@ -54,6 +55,7 @@ export class ClaudeSession extends EventEmitter {
   private readonly extraArgs: string[];
   private readonly env: Record<string, string | undefined>;
   private readonly maxCrashes: number;
+  private readonly logger: SessionLogger;
 
   constructor(options: SessionOptions = {}) {
     super();
@@ -66,6 +68,7 @@ export class ClaudeSession extends EventEmitter {
     this.extraArgs = options.extraArgs ?? [];
     this.env = options.env ?? process.env;
     this.maxCrashes = options.maxCrashes ?? 5;
+    this.logger = options.logger ?? {};
     this.spawnClaude();
   }
 
@@ -254,12 +257,25 @@ export class ClaudeSession extends EventEmitter {
           ],
         ]
       : [this.claudeBin, this.buildArgs()];
+    this.logger.info?.(
+      `spawning claude: cwd=${this.cwd} bin=${this.claudeBin} loginShell=${this.loginShell} args=${JSON.stringify(this.buildArgs())}`
+    );
     const proc = spawn(command, args, {
       cwd: this.cwd,
-      stdio: ["pipe", "pipe", "inherit"],
+      // stderr is piped (not inherited) so the child's diagnostics are captured
+      // through the logger instead of being lost to the server's console.
+      stdio: ["pipe", "pipe", "pipe"],
       env: this.env,
     });
     this.proc = proc;
+
+    if (proc.stderr) {
+      const errRl = readline.createInterface({ input: proc.stderr });
+      errRl.on("line", (line) => {
+        const trimmed = line.trim();
+        if (trimmed) this.logger.warn?.(`[stderr] ${trimmed}`);
+      });
+    }
     // claude emits its init event only after the first input, so readiness is
     // gated on the process being spawned with a writable stdin, not on init.
     this.ready = true;
@@ -276,6 +292,7 @@ export class ClaudeSession extends EventEmitter {
       try {
         evt = JSON.parse(trimmed);
       } catch {
+        this.logger.debug?.(`[stdout non-json] ${trimmed}`);
         return; // ignore non-JSON noise
       }
       if (evt.type === "control_response") {
@@ -289,16 +306,22 @@ export class ClaudeSession extends EventEmitter {
       this.ready = false;
       this.emitStatus();
       this.failInFlight(new Error(`claude exited (code=${code} signal=${signal})`));
-      if (this.shuttingDown) return;
+      if (this.shuttingDown) {
+        this.logger.info?.(`claude exited during shutdown (code=${code} signal=${signal})`);
+        return;
+      }
       this.crashes += 1;
       if (this.crashes > this.maxCrashes) {
+        this.logger.error?.(`claude crashed ${this.crashes} times (code=${code} signal=${signal}); not respawning`);
         this.emit("error", new Error("claude crashed too many times; not respawning"));
         return;
       }
+      this.logger.warn?.(`claude exited (code=${code} signal=${signal}); respawning (crash ${this.crashes}/${this.maxCrashes})`);
       setTimeout(() => this.spawnClaude(), 500);
     });
 
     proc.on("error", (err) => {
+      this.logger.error?.(`failed to spawn claude: ${err.message}`);
       this.emit("error", err);
       this.failInFlight(new Error(`failed to spawn claude: ${err.message}`));
     });
@@ -307,6 +330,7 @@ export class ClaudeSession extends EventEmitter {
   private handleEvent(evt: ClaudeEvent): void {
     if (evt.type === "system" && (evt as { subtype?: string }).subtype === "init") {
       this.sessionId = (evt.session_id as string) || this.sessionId;
+      this.logger.info?.(`session init: sessionId=${this.sessionId}`);
       this.emitStatus();
       return;
     }
@@ -369,6 +393,11 @@ export class ClaudeSession extends EventEmitter {
       costUsd: r.total_cost_usd,
       events: job.events,
     };
+    if (isError) {
+      this.logger.warn?.(`turn ended with error: subtype=${r.subtype} result=${JSON.stringify(result).slice(0, 500)}`);
+    } else {
+      this.logger.debug?.(`turn complete: turns=${r.num_turns} durationMs=${r.duration_ms} costUsd=${r.total_cost_usd}`);
+    }
     job.onDone?.(turn);
     this.emitStatus();
     this.pump();

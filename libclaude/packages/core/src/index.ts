@@ -4,6 +4,7 @@ import type { SessionOptions } from "./types.js";
 export { ClaudeSession } from "./session.js";
 export type {
   SessionOptions,
+  SessionLogger,
   SessionStatus,
   PermissionMode,
   TurnResult,
