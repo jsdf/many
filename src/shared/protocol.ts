@@ -49,6 +49,17 @@ export interface ProjectTask {
   notes?: string;
 }
 
+// One entry from a project's envs.yml. `kind` is worktree|ona|devin|cursor;
+// worktrees carry `repo`/`path`, cloud sessions carry `url`.
+export interface ProjectEnv {
+  kind: string;
+  repo?: string;
+  path?: string;
+  branch?: string;
+  url?: string;
+  notes?: string;
+}
+
 // Parsed env-jsdf-style project sidecar files for a project directory.
 // Each `has*` flag distinguishes "file absent" from "file present but empty".
 export interface ProjectMetadata {
@@ -56,9 +67,11 @@ export interface ProjectMetadata {
   links: ProjectLink[];
   prs: ProjectPr[];
   tasks: ProjectTask[];
+  envs: ProjectEnv[];
   hasProjectMd: boolean;
   hasPrs: boolean;
   hasTasks: boolean;
+  hasEnvs: boolean;
 }
 
 export interface FsEntry {

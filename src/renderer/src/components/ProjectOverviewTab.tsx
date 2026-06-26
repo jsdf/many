@@ -1,11 +1,14 @@
-import React from "react";
-import { RotateCw, Star, GitPullRequest, CheckSquare } from "lucide-react";
-import type { ProjectMetadata, ProjectPr, ProjectTask } from "../../../shared/protocol";
+import React, { useState } from "react";
+import { RotateCw, Star, GitPullRequest, CheckSquare, ChevronRight, Server, ExternalLink, FolderOpen, Cloud } from "lucide-react";
+import type { ProjectMetadata, ProjectPr, ProjectTask, ProjectEnv } from "../../../shared/protocol";
 
 interface ProjectOverviewTabProps {
   meta: ProjectMetadata | null;
   loading: boolean;
   onRefresh: () => void;
+  // Select the worktree at this path in the worktree pane. Undefined disables
+  // the "go to worktree" action on worktree-kind env rows.
+  onGoToWorktree?: (worktreePath: string) => void;
 }
 
 function openUrl(url: string) {
@@ -41,6 +44,29 @@ function taskStatusBadge(status?: string): string {
       return "badge-neutral";
   }
 }
+
+// A collapsible overview section with a header (icon + title + count) that
+// toggles its body. Expanded by default.
+const Section: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}> = ({ icon, title, count, children }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <section>
+      <button
+        className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-base-content/70 w-full hover:text-base-content"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+        {icon} {title}{count > 0 ? ` (${count})` : ""}
+      </button>
+      {open && (count === 0 ? <p className="text-xs text-base-content/40">None.</p> : children)}
+    </section>
+  );
+};
 
 const PrRow: React.FC<{ pr: ProjectPr }> = ({ pr }) => (
   <div
@@ -82,8 +108,45 @@ const TaskRow: React.FC<{ task: ProjectTask }> = ({ task }) => (
   </div>
 );
 
-const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, onRefresh }) => {
-  const hasAnyFiles = meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks);
+const EnvRow: React.FC<{ env: ProjectEnv; onGoToWorktree?: (path: string) => void }> = ({ env, onGoToWorktree }) => {
+  const isWorktree = env.kind === "worktree";
+  // Worktrees open in the worktree pane; cloud sessions open their session URL.
+  const canGoToWorktree = isWorktree && !!env.path && !!onGoToWorktree;
+  const canOpenUrl = !isWorktree && !!env.url;
+  const activate = () => {
+    if (canGoToWorktree) onGoToWorktree!(env.path!);
+    else if (canOpenUrl) openUrl(env.url!);
+  };
+  const clickable = canGoToWorktree || canOpenUrl;
+  return (
+    <div
+      className={`bg-base-200 border border-base-300 rounded-lg p-3 ${clickable ? "hover:border-primary/50 cursor-pointer" : ""}`}
+      onClick={clickable ? activate : undefined}
+    >
+      <div className="flex items-center gap-2 mb-1 min-w-0">
+        <span className="badge badge-xs badge-neutral shrink-0 gap-1">
+          {isWorktree ? <FolderOpen size={10} /> : <Cloud size={10} />}
+          {env.kind || "env"}
+        </span>
+        {env.branch && (
+          <span className="text-xs text-base-content/50 font-mono truncate min-w-0">{env.branch}</span>
+        )}
+        {clickable && (
+          <span className="shrink-0 ml-auto text-base-content/40" title={canGoToWorktree ? "Go to worktree" : "Open session"}>
+            <ExternalLink size={12} />
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-base-content/80 m-0 font-mono truncate">
+        {env.path || env.url || <span className="italic font-sans text-base-content/40">No location</span>}
+      </p>
+      {env.notes && <p className="text-xs text-base-content/50 mt-1 line-clamp-2">{env.notes}</p>}
+    </div>
+  );
+};
+
+const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, onRefresh, onGoToWorktree }) => {
+  const hasAnyFiles = meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs);
 
   return (
     <div className="h-full flex flex-col bg-base-100">
@@ -100,45 +163,41 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, 
           </div>
         ) : !hasAnyFiles ? (
           <p className="text-base-content/50 text-xs text-center mt-4">
-            No project files found. Add a PROJECT.md (with notion/linear frontmatter), prs.yml, or tasks.yml to this
-            directory.
+            No project files found. Add a PROJECT.md (with notion/linear frontmatter), prs.yml, tasks.yml, or envs.yml to
+            this directory.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
             {meta!.title && <h3 className="text-base font-semibold m-0">{meta!.title}</h3>}
 
             {meta!.hasPrs && (
-              <section>
-                <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-base-content/70">
-                  <GitPullRequest size={14} /> PRs{meta!.prs.length > 0 ? ` (${meta!.prs.length})` : ""}
+              <Section icon={<GitPullRequest size={14} />} title="PRs" count={meta!.prs.length}>
+                <div className="flex flex-col gap-2">
+                  {meta!.prs.map((pr, i) => (
+                    <PrRow key={pr.url || i} pr={pr} />
+                  ))}
                 </div>
-                {meta!.prs.length === 0 ? (
-                  <p className="text-xs text-base-content/40">None.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {meta!.prs.map((pr, i) => (
-                      <PrRow key={pr.url || i} pr={pr} />
-                    ))}
-                  </div>
-                )}
-              </section>
+              </Section>
             )}
 
             {meta!.hasTasks && (
-              <section>
-                <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-base-content/70">
-                  <CheckSquare size={14} /> Tasks{meta!.tasks.length > 0 ? ` (${meta!.tasks.length})` : ""}
+              <Section icon={<CheckSquare size={14} />} title="Tasks" count={meta!.tasks.length}>
+                <div className="flex flex-col gap-2">
+                  {meta!.tasks.map((task, i) => (
+                    <TaskRow key={task.url || i} task={task} />
+                  ))}
                 </div>
-                {meta!.tasks.length === 0 ? (
-                  <p className="text-xs text-base-content/40">None.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {meta!.tasks.map((task, i) => (
-                      <TaskRow key={task.url || i} task={task} />
-                    ))}
-                  </div>
-                )}
-              </section>
+              </Section>
+            )}
+
+            {meta!.hasEnvs && (
+              <Section icon={<Server size={14} />} title="Environments" count={meta!.envs.length}>
+                <div className="flex flex-col gap-2">
+                  {meta!.envs.map((env, i) => (
+                    <EnvRow key={env.path || env.url || i} env={env} onGoToWorktree={onGoToWorktree} />
+                  ))}
+                </div>
+              </Section>
             )}
           </div>
         )}

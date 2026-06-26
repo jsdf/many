@@ -3,6 +3,7 @@ import { Folder, Terminal, X, Circle } from "lucide-react";
 import { ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useProjectMetadata } from "../hooks/useProjectMetadata";
 import { useFileEditors, useOpenFile } from "../useFileEditors";
 import TopBar from "./TopBar";
 import TerminalStack, { TerminalStackHandle } from "./TerminalStack";
@@ -12,7 +13,6 @@ import ProjectOverviewTab from "./ProjectOverviewTab";
 import ProjectLinkButtons from "./ProjectLinkButtons";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import { relativeToRoot } from "../paths";
-import type { ProjectMetadata } from "../../../shared/protocol";
 
 const OVERVIEW_TAB = "__overview__";
 const SESSIONS_TAB = "__sessions__";
@@ -22,7 +22,6 @@ function copyToClipboard(text: string) {
 }
 
 export interface ProjectsPanelHandle {
-  openFile: (file: OpenFile) => void;
   newTerminal: () => void;
 }
 
@@ -30,8 +29,11 @@ interface ProjectsPanelProps {
   project: ProjectNode | null;
   pendingResume: { projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null;
   onPendingResumeConsumed: () => void;
+  pendingOpenFile: { projectPath: string; file: OpenFile } | null;
+  onPendingOpenFileConsumed: () => void;
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
+  onGoToWorktree?: (worktreePath: string) => void;
 }
 
 const MIN_PANE_WIDTH = 200;
@@ -41,8 +43,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   project,
   pendingResume,
   onPendingResumeConsumed,
+  pendingOpenFile,
+  onPendingOpenFileConsumed,
   sidebarCollapsed,
   onExpandSidebar,
+  onGoToWorktree,
 }, ref) => {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
@@ -69,33 +74,25 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const openFileInContext = useOpenFile();
 
   // Project sidecar metadata (PROJECT.md frontmatter, prs.yml, tasks.yml),
-  // owned here so both the header link buttons and the Overview tab share it.
-  const [meta, setMeta] = useState<ProjectMetadata | null>(null);
-  const [metaLoading, setMetaLoading] = useState(false);
+  // owned by the hook so both the header link buttons and the Overview tab
+  // share it, and so it stays consistent with the selected project.
+  const { meta, loading: metaLoading, reload: loadMeta } = useProjectMetadata(project);
 
-  const loadMeta = useCallback(() => {
-    if (!project) {
-      setMeta(null);
-      return;
-    }
-    const projectPath = project.path;
-    setMetaLoading(true);
-    getRpcClient()
-      .query("project.metadata", { projectPath })
-      .then((result) => setMeta(result))
-      .catch((err) => {
-        console.error("Failed to load project metadata:", err);
-        setMeta(null);
-      })
-      .finally(() => setMetaLoading(false));
-  }, [project?.path]);
-
-  // Reload when the selected project changes; clear stale data first so the
-  // previous project's links don't linger in the header.
+  // Auto-open PROJECT.md once per project when it exists, so selecting a project
+  // surfaces its overview document. Deduped per project path so the user can
+  // close the tab without it re-opening while the project stays selected. `meta`
+  // is always consistent with the current project, so this can't read a
+  // PROJECT.md the newly selected project doesn't have.
+  const autoOpenedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    setMeta(null);
-    loadMeta();
-  }, [loadMeta]);
+    if (!project || !meta?.hasProjectMd) return;
+    if (autoOpenedRef.current.has(project.path)) return;
+    autoOpenedRef.current.add(project.path);
+    const sep = project.path.includes("\\") ? "\\" : "/";
+    const filePath = `${project.path}${sep}PROJECT.md`;
+    openFileInContext(project.path, { path: filePath, name: "PROJECT.md" });
+    setActiveFile(filePath);
+  }, [project?.path, meta?.hasProjectMd, openFileInContext, setActiveFile]);
 
   // Load the app-level default Claude Code command for launching Claude here.
   useEffect(() => {
@@ -121,15 +118,20 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     onPendingResumeConsumed();
   }, [pendingResume, project?.path, claudeCommand, claudeCommandLoaded, onPendingResumeConsumed]);
 
+  // Open a file queued from elsewhere (e.g. the palette) once this panel is
+  // mounted for its project, so it lands in the right project's editor (which is
+  // keyed per root path). Mirrors the pendingResume flow above.
+  useEffect(() => {
+    if (!pendingOpenFile || !project) return;
+    if (pendingOpenFile.projectPath !== project.path) return;
+    openFileInContext(project.path, pendingOpenFile.file);
+    setActiveFile(pendingOpenFile.file.path);
+    onPendingOpenFileConsumed();
+  }, [pendingOpenFile, project?.path, openFileInContext, setActiveFile, onPendingOpenFileConsumed]);
+
   useImperativeHandle(ref, () => ({
-    openFile: (file: OpenFile) => {
-      if (project) {
-        openFileInContext(project.path, file);
-        setActiveFile(file.path);
-      }
-    },
     newTerminal: () => terminalStackRef.current?.createTerminalWithCommand({}, ""),
-  }), [openFileInContext, project, setActiveFile]);
+  }), []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -262,13 +264,14 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 meta={meta}
                 loading={metaLoading}
                 onRefresh={loadMeta}
+                onGoToWorktree={onGoToWorktree}
               />
             ) : activeFile === SESSIONS_TAB ? (
               <ProjectSessionsTab
                 key={`sessions-${project.path}`}
                 worktreePath={project.path}
-                onResumeSession={(sessionId, sessionType) => {
-                  if (sessionType === "chat") {
+                onResumeSession={(sessionId, target) => {
+                  if (target === "ui") {
                     terminalStackRef.current?.openClaudeSession(sessionId);
                   } else {
                     terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
-import { parseProjectMd, parsePrsYml, parseTasksYml, readProjectMetadata } from "./project-metadata.js";
+import { parseProjectMd, parsePrsYml, parseTasksYml, parseEnvsYml, readProjectMetadata } from "./project-metadata.js";
 
 describe("parseProjectMd", () => {
   it("turns URL frontmatter values into openable links and skips empty ones", () => {
@@ -104,6 +104,44 @@ describe("parseTasksYml", () => {
   });
 });
 
+describe("parseEnvsYml", () => {
+  it("parses worktree and cloud-session entries", () => {
+    const yml = [
+      "envs:",
+      "  - kind: worktree",
+      "    repo: clay-base",
+      "    path: /Users/jsdf/code/many/wt-03",
+      "    branch: jsdf/feature",
+      "  - kind: ona",
+      "    url: https://app.gitpod.io/details/abc",
+      '    notes: "cloud run"',
+    ].join("\n");
+
+    expect(parseEnvsYml(yml)).toEqual([
+      {
+        kind: "worktree",
+        repo: "clay-base",
+        path: "/Users/jsdf/code/many/wt-03",
+        branch: "jsdf/feature",
+        url: undefined,
+        notes: undefined,
+      },
+      {
+        kind: "ona",
+        repo: undefined,
+        path: undefined,
+        branch: undefined,
+        url: "https://app.gitpod.io/details/abc",
+        notes: "cloud run",
+      },
+    ]);
+  });
+
+  it("returns an empty array for `envs: []`", () => {
+    expect(parseEnvsYml("envs: []")).toEqual([]);
+  });
+});
+
 describe("readProjectMetadata", () => {
   let dir: string;
   beforeEach(async () => {
@@ -117,13 +155,15 @@ describe("readProjectMetadata", () => {
     await fs.writeFile(path.join(dir, "PROJECT.md"), "---\nlinear: https://linear.app/p\n---\n# My Project");
     await fs.writeFile(path.join(dir, "prs.yml"), "prs:\n  - url: https://x/pull/1\n    status: open");
     await fs.writeFile(path.join(dir, "tasks.yml"), "tasks:\n  - url: https://linear.app/i\n    focused: true");
+    await fs.writeFile(path.join(dir, "envs.yml"), "envs:\n  - kind: worktree\n    path: /tmp/wt-1");
 
     const meta = await readProjectMetadata(dir);
     expect(meta.title).toBe("My Project");
     expect(meta.links).toEqual([{ key: "linear", value: "https://linear.app/p", isUrl: true }]);
     expect(meta.prs).toHaveLength(1);
     expect(meta.tasks).toHaveLength(1);
-    expect(meta).toMatchObject({ hasProjectMd: true, hasPrs: true, hasTasks: true });
+    expect(meta.envs).toHaveLength(1);
+    expect(meta).toMatchObject({ hasProjectMd: true, hasPrs: true, hasTasks: true, hasEnvs: true });
   });
 
   it("distinguishes absent files from empty ones via has* flags", async () => {
@@ -132,6 +172,7 @@ describe("readProjectMetadata", () => {
     expect(meta.hasProjectMd).toBe(false);
     expect(meta.hasPrs).toBe(true);
     expect(meta.hasTasks).toBe(false);
+    expect(meta.hasEnvs).toBe(false);
     expect(meta.prs).toEqual([]);
     expect(meta.links).toEqual([]);
     expect(meta.title).toBeNull();

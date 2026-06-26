@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { parse as parseYaml } from "yaml";
-import type { ProjectLink, ProjectMetadata, ProjectPr, ProjectTask } from "../shared/protocol.js";
+import type { ProjectEnv, ProjectLink, ProjectMetadata, ProjectPr, ProjectTask } from "../shared/protocol.js";
 
 // Leading YAML frontmatter block: `---` line, content, closing `---` line.
 const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*\r?\n?/;
@@ -90,6 +90,25 @@ export function parseTasksYml(content: string): ProjectTask[] {
   }));
 }
 
+export function parseEnvsYml(content: string): ProjectEnv[] {
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(content);
+  } catch {
+    return [];
+  }
+  const list = isObject(parsed) ? parsed.envs : undefined;
+  if (!Array.isArray(list)) return [];
+  return list.filter(isObject).map((item) => ({
+    kind: coerceStr(item.kind) ?? "",
+    repo: coerceStr(item.repo),
+    path: coerceStr(item.path),
+    branch: coerceStr(item.branch),
+    url: coerceStr(item.url),
+    notes: coerceStr(item.notes),
+  }));
+}
+
 // Returns the file's text, or null if it doesn't exist. Other read errors
 // (permissions, etc.) propagate so they aren't silently hidden.
 async function readIfExists(filePath: string): Promise<string | null> {
@@ -104,10 +123,11 @@ async function readIfExists(filePath: string): Promise<string | null> {
 // Reads env-jsdf-style sidecar files from a project directory. Missing files
 // are reported via the `has*` flags rather than treated as errors.
 export async function readProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
-  const [projectMd, prsYml, tasksYml] = await Promise.all([
+  const [projectMd, prsYml, tasksYml, envsYml] = await Promise.all([
     readIfExists(path.join(projectPath, "PROJECT.md")),
     readIfExists(path.join(projectPath, "prs.yml")),
     readIfExists(path.join(projectPath, "tasks.yml")),
+    readIfExists(path.join(projectPath, "envs.yml")),
   ]);
 
   const md = projectMd !== null ? parseProjectMd(projectMd) : { title: null, links: [] };
@@ -117,8 +137,10 @@ export async function readProjectMetadata(projectPath: string): Promise<ProjectM
     links: md.links,
     prs: prsYml !== null ? parsePrsYml(prsYml) : [],
     tasks: tasksYml !== null ? parseTasksYml(tasksYml) : [],
+    envs: envsYml !== null ? parseEnvsYml(envsYml) : [],
     hasProjectMd: projectMd !== null,
     hasPrs: prsYml !== null,
     hasTasks: tasksYml !== null,
+    hasEnvs: envsYml !== null,
   };
 }

@@ -81,6 +81,9 @@ const App: React.FC = () => {
   // A recent Claude session the user clicked: switch to its project, then resume
   // it once ProjectsPanel has remounted for that project (see ProjectsPanel).
   const [pendingResume, setPendingResume] = useState<{ projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null>(null);
+  // A file the user picked from the palette: switch to its project, then open it
+  // once ProjectsPanel has remounted for that project (see ProjectsPanel).
+  const [pendingOpenFile, setPendingOpenFile] = useState<{ projectPath: string; file: OpenFile } | null>(null);
   const [worktreePendingResume, setWorktreePendingResume] = useState<{ worktreePath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null>(null);
   // A project pending a confirmed close (terminals would be killed).
   const [closeProjectTarget, setCloseProjectTarget] = useState<{ path: string; name: string; terminalCount: number } | null>(null);
@@ -236,7 +239,9 @@ const App: React.FC = () => {
         : { name: parentPath.slice(parentPath.lastIndexOf(sep) + 1), path: parentPath };
     setSelectedNode(node);
     setMainPaneView({ type: "projects" });
-    projectsPanelRef.current?.openFile(file);
+    // Defer the open until ProjectsPanel has rendered for the new project, so the
+    // file lands in the right project's editor (it's keyed per root path).
+    setPendingOpenFile({ projectPath: node.path, file });
   }, [setMainPaneView]);
 
   useEffect(() => {
@@ -918,8 +923,17 @@ const App: React.FC = () => {
             project={selectedNode}
             pendingResume={pendingResume}
             onPendingResumeConsumed={() => setPendingResume(null)}
+            pendingOpenFile={pendingOpenFile}
+            onPendingOpenFileConsumed={() => setPendingOpenFile(null)}
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
+            onGoToWorktree={(worktreePath) => {
+              const wt = worktrees.find((w) => w.path === worktreePath);
+              if (wt) {
+                handleWorktreeSelect(wt);
+                setMainPaneView({ type: 'worktree' });
+              }
+            }}
           />
         </div>
       ) : (
