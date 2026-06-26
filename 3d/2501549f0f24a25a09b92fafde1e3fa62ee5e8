@@ -1,0 +1,72 @@
+src/renderer/src/App.tsx
+  s_95b67c0bd55885::t_7fa6be0b949f91 84-86
+  s_95b67c0bd55885::t_4b80c867ce1758 242-244
+  s_e5649e2aa45808::t_a23019294226e9 930-936
+  s_95b67c0bd55885::t_137c523b42eea3 926-927
+src/services/project-metadata.ts
+  s_e5649e2aa45808::t_c82597c27475d8 4
+  s_e5649e2aa45808::t_8d607999a61d8e 126,130,140,144
+  s_e5649e2aa45808::t_e84c59264a4634 93-111
+src/services/project-metadata.test.ts
+  s_e5649e2aa45808::t_a2fa068ab20b9a 175
+  s_e5649e2aa45808::t_ad457d7fefa947 5
+  s_e5649e2aa45808::t_a0d5a70056c56e 107-144
+  s_e5649e2aa45808::t_c698d3526f0aea 158,165-166
+src/renderer/src/components/ProjectOverviewTab.tsx
+  s_e5649e2aa45808::t_5c403bbdf7b661 135-136
+  s_e5649e2aa45808::t_8b16c343d37afc 1-3,9-11,48-70,111-134,137-149,166-167,174-178,180,184-198,200
+src/shared/protocol.ts
+  s_e5649e2aa45808::t_01c5f843f71609 52-62,70,74
+src/renderer/src/components/ProjectsPanel.tsx
+  s_95b67c0bd55885::t_17d7e097894fc8 32-33
+  s_95b67c0bd55885::t_d406a90bee9476 46-47
+  s_c1a6a224384b31::t_603c4c122d118b 6
+  s_e5649e2aa45808::t_292d23edaa9a81 36
+  s_c1a6a224384b31::t_ef6747c17ad4b3 77-79
+  s_95b67c0bd55885::t_dba73db9e988a2 121-131,134
+  s_e5649e2aa45808::t_2d723a793e1c64 50
+  s_fea5c182097c54::t_fbbc68b37bd218 273-274
+  s_c1a6a224384b31::t_c0380fe54ad968 81-82,86,89-94
+  s_e5649e2aa45808::t_c8ee6aff86c5af 267
+  s_c1a6a224384b31::t_88e639c0ba6482 83-85,88,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3d2501549f0f24a25a09b92fafde1e3fa62ee5e8",
+  "prompts": {},
+  "sessions": {
+    "s_95b67c0bd55885": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "328d8755-81f4-4f48-9efc-0bffe7fec89d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_c1a6a224384b31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "978d2a76-83ed-4cef-b7b1-23a619afd8d2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_e5649e2aa45808": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4be7243b-8127-4b4f-a82c-bf73bdcded48",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_fea5c182097c54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "213fa34d-fdc2-4887-bed3-2ba7dab446b8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
