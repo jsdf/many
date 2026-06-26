@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as readline from "readline";
+import type { ClaudeUiEvent, ClaudeUiContentBlock } from "../shared/protocol.js";
 
 export interface ClaudeSession {
   sessionId: string;
@@ -412,4 +413,81 @@ export async function getSessionMessages(
   const total = messages.length;
   const sliced = messages.slice(offset, offset + limit);
   return { messages: sliced, total };
+}
+
+/** Map one on-disk content block to the Claude UI block shape (or null to drop). */
+function toUiBlock(block: { type?: string; [k: string]: unknown }): ClaudeUiContentBlock | null {
+  if (block.type === "text" && typeof block.text === "string") {
+    return { type: "text", text: block.text };
+  }
+  if (block.type === "tool_use") {
+    return { type: "tool_use", id: String(block.id ?? ""), name: String(block.name ?? ""), input: block.input };
+  }
+  if (block.type === "tool_result") {
+    const content = block.content;
+    const text = Array.isArray(content)
+      ? content.map((c: { type?: string; text?: string }) => (c.type === "text" ? c.text ?? "" : JSON.stringify(c))).join("")
+      : typeof content === "string"
+        ? content
+        : JSON.stringify(content ?? "");
+    return { type: "tool_result", toolUseId: String(block.tool_use_id ?? ""), content: text, isError: block.is_error === true };
+  }
+  return null;
+}
+
+/**
+ * Read a Claude session JSONL transcript as a replayable list of Claude UI
+ * events, so a resumed Claude UI session can render its prior conversation.
+ * Typed user messages become `prompt` events; tool-result user messages become
+ * `user` events; assistant messages become `assistant` events.
+ */
+export async function getSessionUiEvents(
+  sessionId: string,
+  worktreePath: string,
+): Promise<ClaudeUiEvent[]> {
+  const projectDir = path.join(getClaudeProjectsDir(), encodeProjectPath(worktreePath));
+  const filePath = path.join(projectDir, `${sessionId}.jsonl`);
+
+  try {
+    await fs.promises.access(filePath);
+  } catch {
+    return [];
+  }
+
+  const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  const events: ClaudeUiEvent[] = [];
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    let record: { type?: string; message?: { content?: unknown } };
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const content = record.message?.content;
+
+    if (record.type === "user") {
+      const blocks = Array.isArray(content) ? content : [];
+      const hasToolResult = blocks.some((b) => b?.type === "tool_result");
+      if (hasToolResult) {
+        const mapped = blocks.map(toUiBlock).filter((b): b is ClaudeUiContentBlock => b !== null);
+        if (mapped.length) events.push({ type: "user", content: mapped });
+      } else {
+        const text = typeof content === "string"
+          ? content
+          : blocks.filter((b) => b?.type === "text").map((b) => b.text ?? "").join("");
+        const cleaned = stripSystemTags(text);
+        if (cleaned) events.push({ type: "prompt", text: cleaned });
+      }
+    } else if (record.type === "assistant") {
+      const blocks = Array.isArray(content) ? content : [];
+      const mapped = blocks.map(toUiBlock).filter((b): b is ClaudeUiContentBlock => b !== null);
+      if (mapped.length) events.push({ type: "assistant", content: mapped });
+    }
+  }
+
+  stream.destroy();
+  return events;
 }

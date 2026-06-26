@@ -3,6 +3,11 @@ import { ClaudeSession } from "@libclaude/core";
 import type { ClaudeEvent, SessionStatus, SessionLogger } from "@libclaude/core";
 import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../shared/protocol.js";
 import logger from "../../shared/logger.js";
+import { getSessionUiEvents } from "../claude-sessions.js";
+
+function truncateTitle(text: string): string {
+  return text.length > 60 ? text.slice(0, 60) + "..." : text;
+}
 
 interface ManagedSession {
   session: ClaudeSession;
@@ -28,6 +33,35 @@ export class ClaudeUiService {
 
   create(worktreePath: string, claudeBin?: string): string {
     const sessionId = crypto.randomUUID();
+    this.spawn(sessionId, worktreePath, claudeBin, {});
+    return sessionId;
+  }
+
+  /**
+   * Resume an existing on-disk Claude session in the Claude UI: seed the buffer
+   * with its transcript so the panel renders prior turns, then spawn a CLI
+   * resuming that conversation. Keyed by the on-disk session id so a returning
+   * client re-attaches to it. If the session is already live, this is a no-op.
+   */
+  async resume(worktreePath: string, sessionId: string, claudeBin?: string): Promise<string> {
+    if (this.sessions.has(sessionId)) return sessionId;
+    const seed = await getSessionUiEvents(sessionId, worktreePath);
+    const firstPrompt = seed.find((e) => e.type === "prompt") as { type: "prompt"; text: string } | undefined;
+    this.spawn(sessionId, worktreePath, claudeBin, {
+      resume: sessionId,
+      seed,
+      title: firstPrompt ? truncateTitle(firstPrompt.text) : undefined,
+      firstPrompt: firstPrompt?.text,
+    });
+    return sessionId;
+  }
+
+  private spawn(
+    sessionId: string,
+    worktreePath: string,
+    claudeBin: string | undefined,
+    opts: { resume?: string; seed?: ClaudeUiEvent[]; title?: string; firstPrompt?: string },
+  ): void {
     const tag = `[claudeui ${sessionId.slice(0, 8)}]`;
     const sessionLogger: SessionLogger = {
       debug: (m) => logger.debug(`${tag} ${m}`),
@@ -35,17 +69,20 @@ export class ClaudeUiService {
       warn: (m) => logger.warn(`${tag} ${m}`),
       error: (m) => logger.error(`${tag} ${m}`),
     };
-    logger.info(`${tag} create: worktree=${worktreePath} claudeBin=${claudeBin ?? "claude"}`);
+    logger.info(`${tag} ${opts.resume ? "resume" : "create"}: worktree=${worktreePath} claudeBin=${claudeBin ?? "claude"}`);
     // Run through an interactive login shell so a configured claudeBin that is
     // a shell alias or a command with args (e.g. "claude --mcp-config ...")
     // resolves the way it would in the user's terminal. Default to "auto"
     // permission mode; callers can change it at runtime via setPermissionMode.
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true, logger: sessionLogger });
+    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true, logger: sessionLogger, resume: opts.resume });
 
     const managed: ManagedSession = {
       session,
       worktreePath,
-      buffer: [],
+      // Seed with the resumed transcript so a subscribing client replays it.
+      buffer: opts.seed ? [...opts.seed] : [],
+      title: opts.title,
+      firstPrompt: opts.firstPrompt,
       listeners: new Set(),
     };
 
@@ -80,7 +117,6 @@ export class ClaudeUiService {
     });
 
     this.sessions.set(sessionId, managed);
-    return sessionId;
   }
 
   send(sessionId: string, prompt: string): void {

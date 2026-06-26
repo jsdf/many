@@ -1067,6 +1067,13 @@ export function createQueryHandlers(opts: {
       const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
       return { sessionId };
     },
+    "claudeui.resume": async (input) => {
+      const { worktreePath, sessionId } = input as { worktreePath: string; sessionId: string };
+      const appData = await loadAppData();
+      const { defaultClaudeCommand } = getGlobalSettings(appData);
+      await claudeUiService.resume(worktreePath, sessionId, defaultClaudeCommand ?? undefined);
+      return { sessionId };
+    },
     "claudeui.list": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
       return claudeUiService.list(worktreePath);

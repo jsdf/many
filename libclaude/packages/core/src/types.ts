@@ -109,6 +109,9 @@ export interface SessionOptions {
   model?: string;
   /** `--permission-mode`. Defaults to "auto". */
   permissionMode?: PermissionMode;
+  /** `--resume <id>`: continue an existing on-disk conversation instead of
+   *  starting a new one. The conversation must belong to `cwd`'s project. */
+  resume?: string;
   /** Path to the claude binary, or a shell command/alias when `loginShell` is
    *  set. Defaults to "claude". */
   claudeBin?: string;

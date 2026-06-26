@@ -22,6 +22,7 @@ export interface TerminalStackHandle {
   openClaudeSession: (sessionId?: string) => void;
   resumeClaudeCodeSession: (sessionId: string, command: string) => void;
   openClaudeUiSession: () => void;
+  resumeClaudeUiSession: (sessionId: string) => void;
 }
 
 interface TerminalInfo {
@@ -255,6 +256,27 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, [worktreePath]);
 
+  const resumeClaudeUiSession = useCallback(async (sessionId: string) => {
+    const id = `claude-ui-${sessionId}`;
+    // If a tab for this session is already open, just focus it.
+    let exists = false;
+    setTerminals((prev) => {
+      exists = prev.some((t) => t.id === id);
+      return prev;
+    });
+    if (exists) return;
+    // Resume the on-disk conversation server-side (keyed by its session id), then
+    // open a Claude UI tab that re-attaches and replays the prior transcript.
+    await getRpcClient().query("claudeui.resume", { worktreePath, sessionId });
+    setTerminals((prev) => {
+      if (prev.some((t) => t.id === id)) return prev;
+      const next = [...prev, { id, isClaudeUi: true, sessionId }];
+      setSizes(next.map(() => 1 / next.length));
+      setMaximizedId((m) => (m !== null ? id : m));
+      return next;
+    });
+  }, [worktreePath]);
+
   useImperativeHandle(ref, () => ({
     createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => {
       addTerminal(env, initialCommand, taskId);
@@ -263,8 +285,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     openClaudeSession,
     resumeClaudeCodeSession,
     openClaudeUiSession,
+    resumeClaudeUiSession,
     openTaskLog,
-  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, resumeClaudeCodeSession, openClaudeUiSession]);
+  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, resumeClaudeCodeSession, openClaudeUiSession, resumeClaudeUiSession]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {

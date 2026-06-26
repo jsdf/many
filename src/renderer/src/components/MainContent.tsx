@@ -231,9 +231,9 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
       onViewSessionHistory={(sessionId) => {
         terminalStackRef.current?.openSessionHistory(sessionId);
       }}
-      onResumeSession={(sessionId, sessionType) => {
-        if (sessionType === "chat") {
-          terminalStackRef.current?.openClaudeSession(sessionId);
+      onResumeSession={(sessionId, target) => {
+        if (target === "ui") {
+          terminalStackRef.current?.resumeClaudeUiSession(sessionId);
         } else {
           const cmd = claudeCommand || "claude";
           terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${cmd} --resume ${sessionId}`);

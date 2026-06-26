@@ -48,6 +48,8 @@ export class ClaudeSession extends EventEmitter {
 
   private readonly cwd: string;
   private readonly model: string;
+  /** Session id to resume on the next spawn; cleared by reset(). */
+  private resumeId: string | null;
   private permissionMode: string;
   private readonly claudeBin: string;
   private readonly loginShell: boolean;
@@ -61,6 +63,7 @@ export class ClaudeSession extends EventEmitter {
     super();
     this.cwd = options.cwd ?? process.cwd();
     this.model = options.model ?? "";
+    this.resumeId = options.resume ?? null;
     this.permissionMode = options.permissionMode ?? "auto";
     this.claudeBin = options.claudeBin ?? "claude";
     this.loginShell = options.loginShell ?? false;
@@ -128,6 +131,7 @@ export class ClaudeSession extends EventEmitter {
       this.proc = null;
     }
     this.sessionId = null;
+    this.resumeId = null;
     this.crashes = 0;
     this.spawnClaude();
   }
@@ -242,6 +246,10 @@ export class ClaudeSession extends EventEmitter {
       this.permissionMode,
     ];
     if (this.model) args.push("--model", this.model);
+    // Resume the active conversation if we have one (so a crash-respawn keeps
+    // its turns), otherwise the conversation we were asked to resume into.
+    const resumeId = this.sessionId ?? this.resumeId;
+    if (resumeId) args.push("--resume", resumeId);
     if (this.extraArgs.length) args.push(...this.extraArgs);
     return args;
   }

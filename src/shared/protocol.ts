@@ -812,6 +812,10 @@ export interface QueryProcedures {
     input: { worktreePath: string };
     output: { sessionId: string };
   };
+  "claudeui.resume": {
+    input: { worktreePath: string; sessionId: string };
+    output: { sessionId: string };
+  };
   "claudeui.list": {
     input: { worktreePath: string };
     output: { sessionId: string; title?: string }[];
