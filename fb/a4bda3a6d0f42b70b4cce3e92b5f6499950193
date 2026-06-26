@@ -1,0 +1,34 @@
+libclaude/packages/core/src/types.ts
+  s_701d450ecb6e17::t_d94a28eeec91e2 127-128
+  s_701d450ecb6e17::t_df85a6894df784 93-104
+src/web/claude-ui/service.ts
+  s_701d450ecb6e17::t_457bd536520b01 3,5
+  s_701d450ecb6e17::t_50b6e4948b64a0 78
+  s_701d450ecb6e17::t_dd5b8d650cafcd 31-38,43
+libclaude/packages/core/src/session.ts
+  s_701d450ecb6e17::t_4bb6bb42ed113d 396-400
+  s_701d450ecb6e17::t_0212cfe2115dd9 260-262,265-267,271-278
+  s_701d450ecb6e17::t_27c18d2eff4a37 58,71
+  s_701d450ecb6e17::t_49843674a77930 8
+  s_701d450ecb6e17::t_188abdfb0c13b5 333
+  s_701d450ecb6e17::t_8dd23cc494d370 295
+  s_701d450ecb6e17::t_699df300ceba72 309-312,315,319,324
+libclaude/packages/core/src/index.ts
+  s_701d450ecb6e17::t_63373037267704 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "fba4bda3a6d0f42b70b4cce3e92b5f6499950193",
+  "prompts": {},
+  "sessions": {
+    "s_701d450ecb6e17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65943270-64cd-425f-9882-a4377133696c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
