@@ -102,6 +102,10 @@ export class ClaudeService {
       model: "claude-sonnet-4-6",
       pathToClaudeCodeExecutable: getClaudeCodeExecutablePath(),
       permissionMode: opts.permissionMode ?? "default",
+      // The SDK locates conversations under ~/.claude/projects/<sanitized-cwd>/,
+      // keyed by `cwd` (defaults to process.cwd()). Without this, resume looks in
+      // the server's project dir, not the worktree's, and fails to find the session.
+      ...(opts.cwd ? { cwd: opts.cwd } : {}),
       env: {
         ...process.env,
         ...(opts.cwd ? { CLAUDE_CODE_CWD: opts.cwd } : {}),
