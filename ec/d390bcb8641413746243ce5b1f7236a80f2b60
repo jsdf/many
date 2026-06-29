@@ -1,0 +1,34 @@
+src/renderer/src/components/AddRepoModal.tsx
+  s_bdcd1978eda041::t_06f45b8919cade 34-35
+  s_bdcd1978eda041::t_1ea1011116af73 67-68
+  s_bdcd1978eda041::t_96541c7bca0660 319-344
+  s_bdcd1978eda041::t_a811b77b7fee2a 119-120
+  s_bdcd1978eda041::t_e3820c37776870 318
+src/renderer/src/App.tsx
+  s_bdcd1978eda041::t_2affc2cc86018a 828-829
+src/renderer/src/types.ts
+  s_bdcd1978eda041::t_04fbe8b97d51e5 121-122
+src/renderer/src/components/Sidebar.tsx
+  s_bdcd1978eda041::t_968b0413df8439 67-68
+  s_bdcd1978eda041::t_c4f701dbf81adb 916-917
+  s_bdcd1978eda041::t_5b4c18c2547d54 1039,1045
+  s_bdcd1978eda041::t_aafd8cc0316a84 980-988
+src/shared/protocol.ts
+  s_bdcd1978eda041::t_71e28186d7ab7f 109-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ecd390bcb8641413746243ce5b1f7236a80f2b60",
+  "prompts": {},
+  "sessions": {
+    "s_bdcd1978eda041": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b1d2888-957c-4f2b-aa40-f21f0c7494de",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
