@@ -45,6 +45,7 @@ export interface FileData {
 
 interface FileEditorTabProps {
   fileName: string;
+  filePath: string;
   data: FileData;
   onChange: (content: string) => void;
   onSave: () => void;
@@ -52,6 +53,38 @@ interface FileEditorTabProps {
 
 function isMarkdownFile(fileName: string): boolean {
   return /\.(md|markdown)$/i.test(fileName);
+}
+
+type MediaKind = "image" | "video" | "audio";
+
+function mediaKind(fileName: string): MediaKind | null {
+  if (/\.(png|jpe?g|gif|webp|avif|bmp|svg|ico)$/i.test(fileName)) return "image";
+  if (/\.(mp4|m4v|webm|mov|ogv)$/i.test(fileName)) return "video";
+  if (/\.(mp3|wav|m4a|aac|flac|oga|ogg)$/i.test(fileName)) return "audio";
+  return null;
+}
+
+// Build a token-guarded URL to the server's /api/file endpoint. Mirrors how
+// rpc-client.ts resolves the token from the page URL (falling back to "dev").
+function fileApiUrl(filePath: string): string {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token") ?? (import.meta.env.DEV ? "dev" : "");
+  return `/api/file?path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+}
+
+function MediaViewer({ kind, filePath, fileName }: { kind: MediaKind; filePath: string; fileName: string }) {
+  const src = fileApiUrl(filePath);
+  return (
+    <div className="flex items-center justify-center h-full overflow-auto bg-base-200 p-4">
+      {kind === "image" ? (
+        <img src={src} alt={fileName} className="max-w-full max-h-full object-contain" />
+      ) : kind === "video" ? (
+        <video src={src} controls className="max-w-full max-h-full" />
+      ) : (
+        <audio src={src} controls />
+      )}
+    </div>
+  );
 }
 
 function isYamlFile(fileName: string): boolean {
@@ -214,9 +247,16 @@ const WysiwygIcon = (
   </svg>
 );
 
-const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, data, onChange, onSave }) => {
+const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data, onChange, onSave }) => {
   const markdown = isMarkdownFile(fileName);
+  const media = mediaKind(fileName);
   const [mode, setMode] = useState<"code" | "wysiwyg">(markdown ? "wysiwyg" : "code");
+
+  // Media is rendered from the file URL directly, so it bypasses the editor's
+  // content read (and its binary / too-large limits).
+  if (media) {
+    return <MediaViewer kind={media} filePath={filePath} fileName={fileName} />;
+  }
 
   if (data.error) {
     return <div className="p-4 text-sm text-error">Failed to read file: {data.error}</div>;

@@ -307,6 +307,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
       <FileEditorTab
         key={`${active.path}:${fileData[active.path].version}`}
         fileName={active.name}
+        filePath={active.path}
         data={fileData[active.path]}
         onChange={(content) => updateContent(active.path, content)}
         onSave={() => saveFile(active.path)}

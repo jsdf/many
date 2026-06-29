@@ -1,6 +1,6 @@
 // Web server for Many - serves the frontend and provides WebSocket RPC API
 import http from "http";
-import { promises as fs } from "fs";
+import { promises as fs, createReadStream } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { exec } from "child_process";
@@ -30,9 +30,25 @@ const MIME_TYPES: Record<string, string> = {
   ".json": "application/json",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
   ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+  ".ogv": "video/ogg",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".flac": "audio/flac",
+  ".oga": "audio/ogg",
+  ".ogg": "audio/ogg",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
@@ -55,6 +71,55 @@ async function serveStaticFile(filePath: string): Promise<{ status: number; body
     }
     throw error;
   }
+}
+
+// Stream a local file by absolute path with the correct MIME type, honoring
+// HTTP Range requests so media elements (video/audio) can seek. Used by the
+// /api/file endpoint to render images, video and audio from the file tree.
+async function serveLocalFile(filePath: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let stat;
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not found");
+    return;
+  }
+  if (!stat.isFile()) {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not found");
+    return;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
+  const range = req.headers.range;
+
+  if (range) {
+    const match = /bytes=(\d*)-(\d*)/.exec(range);
+    const start = match && match[1] ? parseInt(match[1], 10) : 0;
+    const end = match && match[2] ? parseInt(match[2], 10) : stat.size - 1;
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || end >= stat.size) {
+      res.writeHead(416, { "Content-Range": `bytes */${stat.size}` });
+      res.end();
+      return;
+    }
+    res.writeHead(206, {
+      "Content-Type": contentType,
+      "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": end - start + 1,
+    });
+    createReadStream(filePath, { start, end }).pipe(res);
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": contentType,
+    "Content-Length": stat.size,
+    "Accept-Ranges": "bytes",
+  });
+  createReadStream(filePath).pipe(res);
 }
 
 export interface WebServerOptions {
@@ -119,6 +184,24 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     }
 
     try {
+      // Serve an arbitrary local file (media in the file tree). Token-guarded,
+      // same as the WebSocket RPC which can already read any file.
+      if (pathname === "/api/file") {
+        if (url.searchParams.get("token") !== token) {
+          res.writeHead(403, { "Content-Type": "text/plain" });
+          res.end("Forbidden");
+          return;
+        }
+        const reqPath = url.searchParams.get("path");
+        if (!reqPath) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Missing path");
+          return;
+        }
+        await serveLocalFile(reqPath, req, res);
+        return;
+      }
+
       // Serve static files (frontend)
       if (hasStaticFiles) {
         let filePath = path.join(distDir, pathname === "/" ? "index.html" : pathname);
