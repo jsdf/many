@@ -825,6 +825,8 @@ const App: React.FC = () => {
                 : mainPaneView.type === 'projects' ? 'projects'
                 : 'worktrees'
               }
+              showTrackedTab={repoConfig?.showTrackedTab ?? false}
+              showAutomationsTab={repoConfig?.showAutomationsTab ?? false}
               projects={projects}
               selectedNode={selectedNode}
               pinnedFolders={pinnedFolders}

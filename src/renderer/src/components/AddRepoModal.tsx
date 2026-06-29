@@ -31,6 +31,8 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
   const [terminalLogDir, setTerminalLogDir] = useState("");
   const [pools, setPools] = useState<PoolConfig[]>([]);
   const [defaultTaskPool, setDefaultTaskPool] = useState<string>("");
+  const [showTrackedTab, setShowTrackedTab] = useState(false);
+  const [showAutomationsTab, setShowAutomationsTab] = useState(false);
   const [branches, setBranches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -62,6 +64,8 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           setTerminalLogDir(config.terminalLogDir || "");
           setPools(config.pools || []);
           setDefaultTaskPool(config.defaultTaskPool || "");
+          setShowTrackedTab(config.showTrackedTab ?? false);
+          setShowAutomationsTab(config.showAutomationsTab ?? false);
 
           const repoBranches = await getRpcClient().query("branch.list", {
             repoPath: currentRepo
@@ -112,6 +116,8 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
           terminalLogDir: terminalLogDir.trim() || null,
           pools: validPools.length > 0 ? validPools : undefined,
           defaultTaskPool: defaultTaskPool || null,
+          showTrackedTab,
+          showAutomationsTab,
         });
       } catch (error) {
         setError(
@@ -306,6 +312,33 @@ const AddRepoModal: React.FC<AddRepoModalProps> = ({
                   </div>
                   <p className="text-xs text-base-content/50 mt-1.5">
                     Terminal output will be written to timestamped log files in this directory.
+                  </p>
+                </div>
+
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium">Tabs:</label>
+                  <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={showTrackedTab}
+                      onChange={(e) => setShowTrackedTab(e.target.checked)}
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm">Show Tracked tab</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={showAutomationsTab}
+                      onChange={(e) => setShowAutomationsTab(e.target.checked)}
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm">Show Automations tab</span>
+                  </label>
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    The Automations tab also requires at least one pool with a task command.
                   </p>
                 </div>
 

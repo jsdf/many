@@ -106,6 +106,8 @@ export interface RepositoryConfig {
   terminalLogDir?: string | null;
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
+  showTrackedTab?: boolean;
+  showAutomationsTab?: boolean;
 }
 
 export interface MergeOptions {

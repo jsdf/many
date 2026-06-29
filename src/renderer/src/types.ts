@@ -118,6 +118,8 @@ export interface RepositoryConfig {
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
   automations?: AutomationDefinition[];
+  showTrackedTab?: boolean;
+  showAutomationsTab?: boolean;
 }
 
 export interface MergeOptions {

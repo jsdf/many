@@ -64,6 +64,8 @@ interface SidebarProps {
   worktreeOrder: string[];
   automationsSubView?: AutomationsSubView | null;
   activeTab: "worktrees" | "tracked" | "automations" | "projects";
+  showTrackedTab?: boolean;
+  showAutomationsTab?: boolean;
   projects: ProjectEntry[];
   selectedNode: ProjectNode | null;
   pinnedFolders: string[];
@@ -911,6 +913,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClaimPool,
   onNewTask,
   activeTab,
+  showTrackedTab,
+  showAutomationsTab,
   projects,
   selectedNode,
   pinnedFolders,
@@ -973,13 +977,15 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           Worktrees
         </button>
-        <button
-          className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "tracked" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
-          onClick={() => onNavigateTracked?.()}
-        >
-          Tracked
-        </button>
-        {hasTaskPools && (
+        {showTrackedTab && (
+          <button
+            className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "tracked" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
+            onClick={() => onNavigateTracked?.()}
+          >
+            Tracked
+          </button>
+        )}
+        {showAutomationsTab && hasTaskPools && (
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "automations" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
             onClick={() => onAutomationsSubViewChange?.("running")}
@@ -1030,13 +1036,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           pinnedFolders={pinnedFolders}
           onTogglePin={onTogglePin}
         />
-      ) : activeTab === "tracked" ? (
+      ) : activeTab === "tracked" && showTrackedTab ? (
         <div className="flex-1 overflow-y-auto mb-3">
           <p className="text-base-content/50 text-xs text-center mt-4 px-2">
             Tracked branches are shown in the main panel.
           </p>
         </div>
-      ) : activeTab === "automations" && hasTaskPools ? (
+      ) : activeTab === "automations" && showAutomationsTab && hasTaskPools ? (
         <AutomationsTab
           currentRepo={currentRepo}
           subView={automationsSubView ?? "running"}
