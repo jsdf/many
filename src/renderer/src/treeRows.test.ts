@@ -142,6 +142,27 @@ describe("buildTreeRows", () => {
     expect(rows.map((r) => r.entry.path)).toEqual(["/repo/a", "/repo/a/b"]);
   });
 
+  it("flattenRoots keeps a nested root as its own top-level item when its ancestor is expanded", () => {
+    // /repo/a/b is a separately-pinned subfolder of pinned /repo/a. With
+    // flattenRoots it stays a top-level (depth 0) row instead of nesting inline.
+    const roots = activeRoots(projects, {}, ["/repo/a", "/repo/a/b"]);
+    const childrenByDir = new Map<string, FsEntry[]>([
+      [
+        "/repo/a",
+        [
+          { name: "b", path: "/repo/a/b", isDirectory: true },
+          { name: "f.ts", path: "/repo/a/f.ts", isDirectory: false },
+        ],
+      ],
+    ]);
+    const rows = buildTreeRows(roots, new Set(["/repo/a"]), childrenByDir, true);
+    const b = rows.find((r) => r.entry.path === "/repo/a/b")!;
+    expect(rows.filter((r) => r.entry.path === "/repo/a/b")).toHaveLength(1);
+    expect(b.depth).toBe(0);
+    // /repo/a/b is not nested among /repo/a's children; it stays a flat root.
+    expect(rows.map((r) => r.entry.path)).toEqual(["/repo/a", "/repo/a/f.ts", "/repo/a/b"]);
+  });
+
   it("keeps a nested project browseable under its expanded parent", () => {
     // /repo and /repo/sub are both registered projects (and /repo/sub may also be
     // active or pinned). Expanding /repo must still list /repo/sub among its

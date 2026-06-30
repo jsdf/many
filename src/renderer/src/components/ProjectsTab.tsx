@@ -402,7 +402,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const activeRows = useMemo<FileTreeRow[]>(
     () =>
       worktreeActivity
-        ? buildTreeRows(activeRoots(projects, worktreeActivity, pinnedFolders), expanded, childrenByDir)
+        ? buildTreeRows(activeRoots(projects, worktreeActivity, pinnedFolders), expanded, childrenByDir, true)
         : [],
     [projects, worktreeActivity, pinnedFolders, expanded, childrenByDir],
   );

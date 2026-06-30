@@ -100,8 +100,8 @@ const FileTree: React.FC<FileTreeProps> = ({
     row: FileTreeRow,
     style: React.CSSProperties,
     drag?: {
-      setNodeRef: (el: HTMLElement | null) => void;
-      style: React.CSSProperties;
+      setNodeRef?: (el: HTMLElement | null) => void;
+      style?: React.CSSProperties;
       handle: React.ReactNode;
     },
   ) => {
@@ -145,11 +145,16 @@ const FileTree: React.FC<FileTreeProps> = ({
   };
 
   if (!virtualized) {
+    // In dnd mode every row reserves a fixed-width left gutter so the grip
+    // handle on sortable rows never overlaps the disclosure caret, and sortable
+    // and non-sortable rows stay aligned.
     const body = rows.map((row) =>
       dndEnabled && sortable.has(row.entry.path) ? (
         <SortableTreeRow key={row.entry.path} row={row}>
           {(drag) => renderRow(row, { height: ROW_HEIGHT }, drag)}
         </SortableTreeRow>
+      ) : dndEnabled ? (
+        renderRow(row, { height: ROW_HEIGHT }, { handle: <span className="w-4 shrink-0" /> })
       ) : (
         renderRow(row, { height: ROW_HEIGHT })
       ),
@@ -217,7 +222,7 @@ const SortableTreeRow: React.FC<{
   };
   const handle = (
     <span
-      className="absolute left-0 top-0 h-full flex items-center cursor-grab active:cursor-grabbing text-base-content/30 hover:text-base-content/70 opacity-0 group-hover/row:opacity-100 z-10"
+      className="w-4 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing text-base-content/30 hover:text-base-content/70 opacity-0 group-hover/row:opacity-100"
       title="Drag to reorder"
       onClick={(e) => e.stopPropagation()}
       {...attributes}

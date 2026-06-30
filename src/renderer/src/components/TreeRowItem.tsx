@@ -18,7 +18,8 @@ export interface TreeRowItemProps {
   // onClick (used by the curated active-sessions tree, which is always open).
   onToggleCaret?: (e: React.MouseEvent) => void;
   rightSlot?: React.ReactNode;
-  // Drag handle for reorderable rows; absolutely positioned over the left edge.
+  // Leading gutter element for reorderable trees: a grip handle on draggable
+  // rows, or a same-width spacer otherwise, so it never overlaps the caret.
   dragHandle?: React.ReactNode;
 }
 
@@ -41,7 +42,7 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
   rightSlot,
   dragHandle,
 }) => (
-  <div className={`relative flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+  <div className={`flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
     {dragHandle}
     <div
       role="button"
