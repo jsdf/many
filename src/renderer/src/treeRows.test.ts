@@ -45,6 +45,15 @@ describe("activeRoots", () => {
     expect(roots.filter((r) => r.entry.path === "/repo/src")).toHaveLength(1);
   });
 
+  it("keeps pinned folders first, in their stored order, ahead of active folders", () => {
+    const roots = activeRoots(
+      projects,
+      { "/repo/aaa": { terminals: 1, claudeSessions: 0, openFiles: 0 } },
+      ["/repo/zzz", "/repo/mmm"],
+    );
+    expect(roots.map((r) => r.entry.path)).toEqual(["/repo/zzz", "/repo/mmm", "/repo/aaa"]);
+  });
+
   it("uses the project name and isProject flag for a project root", () => {
     const roots = activeRoots(projects, {}, ["/repo"]);
     expect(roots[0]).toMatchObject({ isProject: true, entry: { name: "many", path: "/repo" } });

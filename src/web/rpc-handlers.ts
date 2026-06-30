@@ -57,7 +57,7 @@ import {
 } from "../services/worktree-service.js";
 import { listGitFiles } from "../shared/git-core.js";
 import { Fzf } from "fzf";
-import { readProjectMetadata } from "../services/project-metadata.js";
+import { readProjectMetadata, refreshPrsYml } from "../services/project-metadata.js";
 import type { RunCommand } from "../services/types.js";
 
 // Import ClaudeService and SessionStore types — instantiated externally
@@ -398,6 +398,19 @@ export function createQueryHandlers(opts: {
       });
       return { ok: true };
     },
+    "folder.reorderPinned": async (input) => {
+      const { order } = input as { order: string[] };
+      await withAppData((appData) => {
+        // Keep only paths that are currently pinned, preserving the requested
+        // order; append any pinned paths the client didn't mention so nothing
+        // is silently dropped on a stale reorder.
+        const current = new Set(appData.pinnedFolders ?? []);
+        const reordered = order.filter((p) => current.has(p));
+        for (const p of current) if (!reordered.includes(p)) reordered.push(p);
+        appData.pinnedFolders = reordered;
+      });
+      return { ok: true };
+    },
     "worktree.getOrder": async (input) => {
       const { repoPath } = input as { repoPath: string };
       const appData = await loadAppData();
@@ -566,6 +579,10 @@ export function createQueryHandlers(opts: {
     "project.metadata": async (input) => {
       const { projectPath } = input as { projectPath: string };
       return readProjectMetadata(projectPath);
+    },
+    "project.refreshPrs": async (input) => {
+      const { projectPath } = input as { projectPath: string };
+      return refreshPrsYml(projectPath);
     },
 
     // --- Filesystem (read-only browsing for projects) ---
@@ -807,7 +824,16 @@ export function createQueryHandlers(opts: {
     "task.list": async (input) => {
       const { repoPath } = input as { repoPath: string };
       await reconcileTasks();
-      return listTaskRecords({ repoPath });
+      const records = await listTaskRecords({ repoPath });
+      const { getProcessMemoryStats } = await import("../cli/process-stats.js");
+      const runningPids = records
+        .filter((r) => r.status === "running" && r.pid > 0)
+        .map((r) => r.pid);
+      const stats = await getProcessMemoryStats(runningPids);
+      return records.map((r) => {
+        const s = r.status === "running" ? stats.get(r.pid) : undefined;
+        return s ? { ...r, recursiveMemoryBytes: s.memoryBytes, processCount: s.processCount } : r;
+      });
     },
     "task.kill": async (input) => {
       const { taskId } = input as { taskId: string };

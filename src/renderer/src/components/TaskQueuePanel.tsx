@@ -9,6 +9,12 @@ interface TaskQueuePanelProps {
   onExpandSidebar?: () => void;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 const statusColors: Record<string, string> = {
   running: "badge-warning",
   completed: "badge-success",
@@ -120,6 +126,12 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCol
                   <span className="text-xs text-base-content/50 truncate">
                     {task.poolName}
                   </span>
+                  {task.recursiveMemoryBytes !== undefined && (
+                    <span className="text-xs text-base-content/50">
+                      {formatBytes(task.recursiveMemoryBytes)}
+                      {task.processCount ? ` · ${task.processCount} proc` : ""}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -210,6 +222,9 @@ const TaskDetail: React.FC<{ task: TaskRecord }> = ({ task }) => {
         {task.endedAt && <div>Ended: {new Date(task.endedAt).toLocaleString()}</div>}
         <div>Pool: {task.poolName}</div>
         {task.exitCode !== undefined && <div>Exit code: {task.exitCode}</div>}
+        {task.recursiveMemoryBytes !== undefined && (
+          <div>Memory (incl. children): {formatBytes(task.recursiveMemoryBytes)}{task.processCount ? ` across ${task.processCount} processes` : ""}</div>
+        )}
       </div>
 
       {task.prompt && (

@@ -38,7 +38,7 @@ interface WorktreeDetailsProps {
   worktree: Worktree;
   repoPath: string;
   onRetryTask?: (env: Record<string, string>, command: string) => void;
-  onResumeSession?: (sessionId: string, sessionType?: "chat" | "claude-code") => void;
+  onResumeSession?: (sessionId: string, target: "ui" | "terminal") => void;
   onViewSessionHistory?: (sessionId: string) => void;
   onViewTaskLog?: (taskId: string, isSavedLog: boolean) => void;
 }
@@ -375,12 +375,20 @@ const WorktreeDetails: React.FC<WorktreeDetailsProps> = ({
                       </button>
                     )}
                     {onResumeSession && (
-                      <button
-                        className="btn btn-soft btn-primary btn-xs"
-                        onClick={() => onResumeSession(session.sessionId, session.sessionType)}
-                      >
-                        Resume
-                      </button>
+                      <>
+                        <button
+                          className="btn btn-soft btn-xs"
+                          onClick={() => onResumeSession(session.sessionId, "ui")}
+                        >
+                          Resume (UI)
+                        </button>
+                        <button
+                          className="btn btn-soft btn-primary btn-xs"
+                          onClick={() => onResumeSession(session.sessionId, "terminal")}
+                        >
+                          Resume (term)
+                        </button>
+                      </>
                     )}
                     <span className="text-[10px] text-base-content/30 font-mono">{session.sessionId.slice(0, 8)}</span>
                   </div>

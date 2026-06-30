@@ -312,6 +312,15 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const reorderPin = useCallback(async (order: string[]) => {
+    setPinnedFolders(order);
+    try {
+      await getRpcClient().query("folder.reorderPinned", { order });
+    } catch (err) {
+      console.error("Failed to reorder pinned folders:", err);
+    }
+  }, []);
+
   const loadSavedRepos = async () => {
     try {
       const repos = await getRpcClient().query("repo.list", {});
@@ -831,6 +840,7 @@ const App: React.FC = () => {
               selectedNode={selectedNode}
               pinnedFolders={pinnedFolders}
               onTogglePin={togglePin}
+              onReorderPin={reorderPin}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);

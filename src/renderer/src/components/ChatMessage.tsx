@@ -1,9 +1,6 @@
-import { memo, useMemo } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { memo } from "react";
 import { ChevronRight } from "lucide-react";
-
-const REMARK_PLUGINS = [remarkGfm];
+import { MarkdownContent } from "./MarkdownContent";
 
 export interface SessionMessage {
   ordinal: number;
@@ -150,11 +147,7 @@ export const ChatMessage = memo(function ChatMessage({ message, toolUses: toolUs
 
         {hasTools && <ToolUseSummary toolUses={toolUses} toolOnly={!hasText} />}
 
-        {hasText && (
-          <div className="prose prose-sm max-w-none break-words">
-            <Markdown remarkPlugins={REMARK_PLUGINS}>{cleanText}</Markdown>
-          </div>
-        )}
+        {hasText && <MarkdownContent text={cleanText} />}
       </div>
     </div>
   );

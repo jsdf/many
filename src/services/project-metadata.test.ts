@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
-import { parseProjectMd, parsePrsYml, parseTasksYml, parseEnvsYml, readProjectMetadata } from "./project-metadata.js";
+import {
+  parseProjectMd,
+  parsePrsYml,
+  parseTasksYml,
+  parseEnvsYml,
+  readProjectMetadata,
+  ghStateToStatus,
+  refreshPrsYml,
+} from "./project-metadata.js";
 
 describe("parseProjectMd", () => {
   it("turns URL frontmatter values into openable links and skips empty ones", () => {
@@ -139,6 +147,100 @@ describe("parseEnvsYml", () => {
 
   it("returns an empty array for `envs: []`", () => {
     expect(parseEnvsYml("envs: []")).toEqual([]);
+  });
+});
+
+describe("ghStateToStatus", () => {
+  it("maps gh state + draft flag to the prs.yml vocabulary", () => {
+    expect(ghStateToStatus("MERGED", false)).toBe("merged");
+    expect(ghStateToStatus("CLOSED", false)).toBe("closed");
+    expect(ghStateToStatus("OPEN", true)).toBe("draft");
+    expect(ghStateToStatus("OPEN", false)).toBe("open");
+    // A merged PR was once a draft; merged/closed take precedence over draft.
+    expect(ghStateToStatus("MERGED", true)).toBe("merged");
+  });
+});
+
+describe("refreshPrsYml", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "many-refreshprs-"));
+  });
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it("updates statuses while preserving comments and notes", async () => {
+    const yml = [
+      "# stack note",
+      "prs:",
+      "  - url: https://github.com/clay-run/clay-base/pull/100",
+      '    title: "feat: thing"',
+      "    status: draft",
+      '    notes: "important context"',
+      "  - url: https://github.com/clay-run/clay-base/pull/200",
+      "    status: open",
+      "# trailing comment",
+    ].join("\n");
+    await fs.writeFile(path.join(dir, "prs.yml"), yml);
+
+    const result = await refreshPrsYml(dir, async (url) =>
+      url.endsWith("/100") ? { state: "MERGED", isDraft: false } : { state: "OPEN", isDraft: true }
+    );
+
+    expect(result.refreshed).toBe(2);
+    expect(result.errors).toEqual([]);
+    expect(result.metadata.prs.map((p) => p.status)).toEqual(["merged", "draft"]);
+
+    const written = await fs.readFile(path.join(dir, "prs.yml"), "utf-8");
+    expect(written).toContain("# stack note");
+    expect(written).toContain("# trailing comment");
+    expect(written).toContain('notes: "important context"');
+    expect(written).toContain("status: merged");
+  });
+
+  it("skips non-viewable URLs (create links, non-GitHub hosts)", async () => {
+    const yml = [
+      "prs:",
+      "  - url: https://github.com/clay-run/clay-base/pull/new/my-branch",
+      "    status: draft",
+      "  - url: https://app.graphite.com/github/clay-run/clay-base/pull/300",
+      "    status: open",
+    ].join("\n");
+    await fs.writeFile(path.join(dir, "prs.yml"), yml);
+
+    const result = await refreshPrsYml(dir, async () => {
+      throw new Error("should not be called for skipped URLs");
+    });
+
+    expect(result.refreshed).toBe(0);
+    expect(result.errors).toEqual([]);
+    expect(result.metadata.prs.map((p) => p.status)).toEqual(["draft", "open"]);
+  });
+
+  it("collects per-PR fetch errors without aborting the others", async () => {
+    const yml = [
+      "prs:",
+      "  - url: https://github.com/clay-run/clay-base/pull/1",
+      "    status: draft",
+      "  - url: https://github.com/clay-run/clay-base/pull/2",
+      "    status: draft",
+    ].join("\n");
+    await fs.writeFile(path.join(dir, "prs.yml"), yml);
+
+    const result = await refreshPrsYml(dir, async (url) => {
+      if (url.endsWith("/1")) throw new Error("gh boom");
+      return { state: "MERGED", isDraft: false };
+    });
+
+    expect(result.refreshed).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("gh boom");
+    expect(result.metadata.prs.map((p) => p.status)).toEqual(["draft", "merged"]);
+  });
+
+  it("throws when prs.yml is absent", async () => {
+    await expect(refreshPrsYml(dir)).rejects.toThrow(/No prs.yml/);
   });
 });
 

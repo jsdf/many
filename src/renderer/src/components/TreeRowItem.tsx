@@ -18,6 +18,8 @@ export interface TreeRowItemProps {
   // onClick (used by the curated active-sessions tree, which is always open).
   onToggleCaret?: (e: React.MouseEvent) => void;
   rightSlot?: React.ReactNode;
+  // Drag handle for reorderable rows; absolutely positioned over the left edge.
+  dragHandle?: React.ReactNode;
 }
 
 // One row of a folder tree: caret, icon, name, optional terminal-count badge.
@@ -37,8 +39,10 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
   onClick,
   onToggleCaret,
   rightSlot,
+  dragHandle,
 }) => (
-  <div className={`flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+  <div className={`relative flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+    {dragHandle}
     <div
       role="button"
       className={`flex items-center flex-1 min-w-0 h-full text-left whitespace-nowrap px-1 cursor-pointer ${isProject ? "text-xs font-semibold" : "text-xs"} ${selected ? "text-primary" : ""}`}

@@ -76,7 +76,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   // Project sidecar metadata (PROJECT.md frontmatter, prs.yml, tasks.yml),
   // owned by the hook so both the header link buttons and the Overview tab
   // share it, and so it stays consistent with the selected project.
-  const { meta, loading: metaLoading, reload: loadMeta } = useProjectMetadata(project);
+  const { meta, loading: metaLoading, reload: loadMeta, refreshPrs, refreshingPrs } = useProjectMetadata(project);
 
   // Auto-open PROJECT.md once per project when it exists, so selecting a project
   // surfaces its overview document. Deduped per project path so the user can
@@ -264,6 +264,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 meta={meta}
                 loading={metaLoading}
                 onRefresh={loadMeta}
+                onRefreshPrs={refreshPrs}
+                refreshingPrs={refreshingPrs}
                 onGoToWorktree={onGoToWorktree}
               />
             ) : activeFile === SESSIONS_TAB ? (

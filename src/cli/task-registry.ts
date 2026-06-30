@@ -19,6 +19,8 @@ export interface TaskRecord {
   endedAt?: string;
   status: TaskStatus;
   exitCode?: number;
+  recursiveMemoryBytes?: number;
+  processCount?: number;
   logFile?: string;
   launchedBy: "cli" | "web";
 }

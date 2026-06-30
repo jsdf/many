@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { getRpcClient } from "../rpc-client.js";
 import { useSessionMessages } from "../hooks.js";
 import { MessageList } from "./MessageList.js";
@@ -12,6 +12,12 @@ const PERMISSION_MODES: { value: string; label: string }[] = [
   { value: "default", label: "Default (ask)" },
   { value: "plan", label: "Plan only" },
 ];
+
+// Default height (px) of the bottom input pane. The user can drag the divider
+// above it to make the text box larger.
+const DEFAULT_INPUT_HEIGHT = 64;
+const MIN_INPUT_HEIGHT = 44;
+const RESERVE_MESSAGES = 120;
 
 /**
  * Standalone Claude session view.
@@ -34,6 +40,37 @@ export function ClaudeSessionView({
   const [permissionMode, setPermissionMode] = useState("bypassPermissions");
   const [startPrompt, setStartPrompt] = useState("");
   const [starting, setStarting] = useState(false);
+
+  // Resizable bottom input pane. Dragging the divider above it grows the text box.
+  const [inputHeight, setInputHeight] = useState(DEFAULT_INPUT_HEIGHT);
+  const [draggingInput, setDraggingInput] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleInputResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setDraggingInput(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draggingInput) return;
+    const handleMove = (e: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const maxH = rect.height - RESERVE_MESSAGES;
+      const next = rect.bottom - e.clientY;
+      setInputHeight(
+        Math.max(MIN_INPUT_HEIGHT, Math.min(Math.max(MIN_INPUT_HEIGHT, maxH), next))
+      );
+    };
+    const handleUp = () => setDraggingInput(false);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [draggingInput]);
 
   const { messages, status, permissionRequest, result } = useSessionMessages(
     sessionId,
@@ -190,7 +227,7 @@ export function ClaudeSessionView({
 
   // ----- Has session -----
   return (
-    <div className="flex flex-col h-full bg-base-100">
+    <div ref={containerRef} className="flex flex-col h-full bg-base-100">
       <Header
         status={status}
         permissionMode={currentModeLabel}
@@ -227,8 +264,19 @@ export function ClaudeSessionView({
         </div>
       )}
 
+      {/* Draggable divider to resize the input pane */}
+      <div
+        className={`shrink-0 h-1 cursor-ns-resize transition-colors ${
+          draggingInput ? "bg-primary" : "bg-base-300 hover:bg-primary"
+        }`}
+        onMouseDown={handleInputResizeStart}
+        title="Drag to resize"
+      />
+
       {/* Input area */}
-      <SessionInput onSend={handleSend} disabled={!isActive} />
+      <div className="shrink-0" style={{ height: inputHeight }}>
+        <SessionInput onSend={handleSend} disabled={!isActive} />
+      </div>
     </div>
   );
 }

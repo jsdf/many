@@ -6,6 +6,10 @@ interface ProjectOverviewTabProps {
   meta: ProjectMetadata | null;
   loading: boolean;
   onRefresh: () => void;
+  // Refetches PR state from GitHub and writes it back to prs.yml. Resolves with
+  // the refresh outcome.
+  onRefreshPrs: () => Promise<{ refreshed: number; errors: string[] }>;
+  refreshingPrs: boolean;
   // Select the worktree at this path in the worktree pane. Undefined disables
   // the "go to worktree" action on worktree-kind env rows.
   onGoToWorktree?: (worktreePath: string) => void;
@@ -51,18 +55,22 @@ const Section: React.FC<{
   icon: React.ReactNode;
   title: string;
   count: number;
+  action?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ icon, title, count, children }) => {
+}> = ({ icon, title, count, action, children }) => {
   const [open, setOpen] = useState(true);
   return (
     <section>
-      <button
-        className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-base-content/70 w-full hover:text-base-content"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
-        {icon} {title}{count > 0 ? ` (${count})` : ""}
-      </button>
+      <div className="flex items-center mb-2">
+        <button
+          className="flex items-center gap-1.5 flex-1 min-w-0 text-sm font-semibold text-base-content/70 hover:text-base-content"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <ChevronRight size={14} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+          {icon} {title}{count > 0 ? ` (${count})` : ""}
+        </button>
+        {action}
+      </div>
       {open && (count === 0 ? <p className="text-xs text-base-content/40">None.</p> : children)}
     </section>
   );
@@ -145,8 +153,27 @@ const EnvRow: React.FC<{ env: ProjectEnv; onGoToWorktree?: (path: string) => voi
   );
 };
 
-const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, onRefresh, onGoToWorktree }) => {
+const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
+  meta,
+  loading,
+  onRefresh,
+  onRefreshPrs,
+  refreshingPrs,
+  onGoToWorktree,
+}) => {
   const hasAnyFiles = meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs);
+  const [prError, setPrError] = useState<string | null>(null);
+
+  const handleRefreshPrs = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPrError(null);
+    try {
+      const { errors } = await onRefreshPrs();
+      setPrError(errors.length > 0 ? errors.join("\n") : null);
+    } catch (err) {
+      setPrError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-base-100">
@@ -171,8 +198,31 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({ meta, loading, 
             {meta!.title && <h3 className="text-base font-semibold m-0">{meta!.title}</h3>}
 
             {meta!.hasPrs && (
-              <Section icon={<GitPullRequest size={14} />} title="PRs" count={meta!.prs.length}>
+              <Section
+                icon={<GitPullRequest size={14} />}
+                title="PRs"
+                count={meta!.prs.length}
+                action={
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    onClick={handleRefreshPrs}
+                    disabled={refreshingPrs}
+                    title="Refetch PR status from GitHub (gh)"
+                  >
+                    {refreshingPrs ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : (
+                      <RotateCw size={12} />
+                    )}
+                  </button>
+                }
+              >
                 <div className="flex flex-col gap-2">
+                  {prError && (
+                    <div className="alert alert-error alert-soft text-xs py-1.5 px-2 whitespace-pre-wrap">
+                      {prError}
+                    </div>
+                  )}
                   {meta!.prs.map((pr, i) => (
                     <PrRow key={pr.url || i} pr={pr} />
                   ))}

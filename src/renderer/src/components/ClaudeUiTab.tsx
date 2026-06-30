@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { getRpcClient } from "../rpc-client";
 import { handleReadlineEdit } from "../readline-edit";
-import { Settings2, ChevronUp, ChevronDown, Check, X, AlertTriangle } from "lucide-react";
+import { Settings2, ChevronUp, ChevronDown, ChevronRight, Check, X, AlertTriangle, Copy } from "lucide-react";
 import type { ClaudeUiEvent, ClaudeUiContentBlock, ClaudeUiPermissionMode } from "../../../shared/protocol";
+import { MarkdownContent } from "./MarkdownContent";
 
 const PERMISSION_MODES: { value: ClaudeUiPermissionMode; label: string }[] = [
   { value: "auto", label: "Auto" },
@@ -16,7 +17,7 @@ const PERMISSION_MODES: { value: ClaudeUiPermissionMode; label: string }[] = [
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ToolUseBlock({ id, name, input }: { id: string; name: string; input: unknown }) {
+function ToolUseBlock({ name, input }: { name: string; input: unknown }) {
   const [open, setOpen] = useState(false);
   const preview = (input as any)?.command ?? (input as any)?.file_path ?? (input as any)?.pattern ?? (input as any)?.path ?? "";
   const text = typeof preview === "string" && preview.length > 80 ? preview.slice(0, 80) + "..." : String(preview ?? "");
@@ -61,17 +62,76 @@ function ToolResultView({ content, isError }: { content: string; isError: boolea
   );
 }
 
-function ContentBlockView({ block }: { block: ClaudeUiContentBlock }) {
-  if (block.type === "text") {
-    return <div className="whitespace-pre-wrap break-words">{block.text}</div>;
+// Copy-as-markdown button shown beside an assistant message.
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <button
+      className="opacity-0 group-hover:opacity-100 transition-opacity text-base-content/40 hover:text-base-content/80"
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => {});
+      }}
+      title="Copy as markdown"
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
+  );
+}
+
+// A run of consecutive tool calls/results. Renders expanded (each tool on its
+// own line, the way they stream in) while it is the latest activity, then
+// auto-collapses to a one-line summary once a non-tool message follows. Stays
+// manually toggleable after that.
+function ToolGroup({ entries, live }: { entries: ToolEntry[]; live: boolean }) {
+  const [open, setOpen] = useState(live);
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) setOpen(false);
+    wasLive.current = live;
+  }, [live]);
+
+  const uses = entries.filter((e): e is Extract<ToolEntry, { kind: "use" }> => e.kind === "use");
+  const summary: { name: string; count: number }[] = [];
+  for (const u of uses) {
+    const last = summary[summary.length - 1];
+    if (last && last.name === u.name) last.count += 1;
+    else summary.push({ name: u.name, count: 1 });
   }
-  if (block.type === "tool_use") {
-    return <ToolUseBlock id={block.id} name={block.name} input={block.input} />;
-  }
-  if (block.type === "tool_result") {
-    return <ToolResultView content={block.content} isError={block.isError} />;
-  }
-  return null;
+  const label = summary.map((s) => s.name + (s.count > 1 ? ` ×${s.count}` : "")).join(", ");
+  const total = uses.length;
+
+  return (
+    <div className="px-3 py-1">
+      <button
+        className="flex items-center gap-1.5 w-full text-left text-xs font-mono text-base-content/50 hover:text-base-content/70 select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className={`text-base-content/40 inline-flex transition-transform ${open ? "rotate-90" : ""}`}>
+          <ChevronRight size={12} />
+        </span>
+        <span className="px-2 py-0.5 rounded-md bg-base-300 shrink-0">
+          {total} tool{total !== 1 ? "s" : ""}
+        </span>
+        {label && <span className="truncate text-base-content/40">{label}</span>}
+      </button>
+      {open && (
+        <div className="mt-0.5 ml-4">
+          {entries.map((e) =>
+            e.kind === "use" ? (
+              <ToolUseBlock key={e.key} name={e.name} input={e.input} />
+            ) : (
+              <ToolResultView key={e.key} content={e.content} isError={e.isError} />
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +144,59 @@ type DisplayItem =
   | { kind: "tool_feedback"; id: string; content: ClaudeUiContentBlock[] }
   | { kind: "result"; id: string; isError: boolean; costUsd?: number; durationMs?: number }
   | { kind: "error"; id: string; message: string };
+
+// Render rows: assistant text becomes markdown, and consecutive tool
+// calls/results are coalesced into a single collapsible ToolGroup.
+type ToolEntry =
+  | { kind: "use"; key: string; name: string; input: unknown }
+  | { kind: "result"; key: string; content: string; isError: boolean };
+
+type Row =
+  | { kind: "prompt"; key: string; text: string }
+  | { kind: "text"; key: string; text: string }
+  | { kind: "tools"; key: string; entries: ToolEntry[] }
+  | { kind: "result"; key: string; isError: boolean; costUsd?: number; durationMs?: number }
+  | { kind: "error"; key: string; message: string };
+
+function buildRows(items: DisplayItem[]): Row[] {
+  const rows: Row[] = [];
+  let tools: ToolEntry[] | null = null;
+  const flushTools = () => {
+    if (tools && tools.length > 0) rows.push({ kind: "tools", key: `tools:${tools[0].key}`, entries: tools });
+    tools = null;
+  };
+  const pushTool = (entry: ToolEntry) => {
+    if (!tools) tools = [];
+    tools.push(entry);
+  };
+
+  for (const item of items) {
+    if (item.kind === "prompt") {
+      flushTools();
+      rows.push({ kind: "prompt", key: item.id, text: item.text });
+    } else if (item.kind === "result") {
+      flushTools();
+      rows.push({ kind: "result", key: item.id, isError: item.isError, costUsd: item.costUsd, durationMs: item.durationMs });
+    } else if (item.kind === "error") {
+      flushTools();
+      rows.push({ kind: "error", key: item.id, message: item.message });
+    } else {
+      item.content.forEach((block, i) => {
+        const key = `${item.id}:${i}`;
+        if (block.type === "text") {
+          flushTools();
+          rows.push({ kind: "text", key, text: block.text });
+        } else if (block.type === "tool_use") {
+          pushTool({ kind: "use", key, name: block.name, input: block.input });
+        } else if (block.type === "tool_result") {
+          pushTool({ kind: "result", key, content: block.content, isError: block.isError });
+        }
+      });
+    }
+  }
+  flushTools();
+  return rows;
+}
 
 let itemCounter = 0;
 function nextId() { return String(++itemCounter); }
@@ -230,49 +343,44 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
             {sessionId ? "Ready. Type a prompt below." : "Starting session..."}
           </div>
         )}
-        {items.map((item) => {
-          if (item.kind === "prompt") {
+        {buildRows(items).map((row, idx, arr) => {
+          if (row.kind === "prompt") {
             return (
-              <div key={item.id} className="px-3 py-2 bg-base-200/50">
+              <div key={row.key} className="px-3 py-2 bg-base-200/50">
                 <div className="text-xs opacity-50 text-primary mb-0.5">You</div>
-                <div className="whitespace-pre-wrap break-words">{item.text}</div>
+                <div className="whitespace-pre-wrap break-words">{row.text}</div>
               </div>
             );
           }
-          if (item.kind === "assistant") {
+          if (row.kind === "text") {
             return (
-              <div key={item.id} className="px-3 py-2">
-                <div className="text-xs opacity-50 text-secondary mb-0.5">Claude</div>
-                {item.content.map((block, i) => (
-                  <ContentBlockView key={i} block={block} />
-                ))}
+              <div key={row.key} className="group px-3 py-2">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs opacity-50 text-secondary">Claude</span>
+                  <CopyButton text={row.text} />
+                </div>
+                <MarkdownContent text={row.text} />
               </div>
             );
           }
-          if (item.kind === "tool_feedback") {
-            return (
-              <div key={item.id} className="px-3 py-1">
-                {item.content.map((block, i) => (
-                  <ContentBlockView key={i} block={block} />
-                ))}
-              </div>
-            );
+          if (row.kind === "tools") {
+            return <ToolGroup key={row.key} entries={row.entries} live={idx === arr.length - 1} />;
           }
-          if (item.kind === "result") {
+          if (row.kind === "result") {
             const parts: string[] = [];
-            if (item.durationMs !== undefined) parts.push(`${(item.durationMs / 1000).toFixed(1)}s`);
-            if (item.costUsd !== undefined) parts.push(`$${item.costUsd.toFixed(4)}`);
+            if (row.durationMs !== undefined) parts.push(`${(row.durationMs / 1000).toFixed(1)}s`);
+            if (row.costUsd !== undefined) parts.push(`$${row.costUsd.toFixed(4)}`);
             return (
-              <div key={item.id} className={`px-3 py-1 text-xs opacity-40 border-b border-base-300 ${item.isError ? "text-error opacity-70" : ""}`}>
-                {item.isError ? "Error" : "Done"}{parts.length > 0 ? ` - ${parts.join(" / ")}` : ""}
+              <div key={row.key} className={`px-3 py-1 text-xs opacity-40 border-b border-base-300 ${row.isError ? "text-error opacity-70" : ""}`}>
+                {row.isError ? "Error" : "Done"}{parts.length > 0 ? ` - ${parts.join(" / ")}` : ""}
               </div>
             );
           }
-          if (item.kind === "error") {
+          if (row.kind === "error") {
             return (
-              <div key={item.id} className="px-3 py-2 flex gap-2 items-start text-error text-xs">
+              <div key={row.key} className="px-3 py-2 flex gap-2 items-start text-error text-xs">
                 <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                <span className="whitespace-pre-wrap break-words">{item.message}</span>
+                <span className="whitespace-pre-wrap break-words">{row.message}</span>
               </div>
             );
           }

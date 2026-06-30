@@ -1678,6 +1678,7 @@ ${bold("WEB UI:")}
   many web                     # Start the web UI and open in browser
   many web --port 8080         # Use a specific port
   many web --no-open           # Don't open browser automatically
+  many web --tailscale         # Expose the server over your tailnet via tailscale serve
 
 ${bold("TERMINAL DAEMON:")}
   many daemon                  # Show the terminal daemon status + running terminals
@@ -1691,6 +1692,7 @@ async function cmdWeb(args: string[]): Promise<void> {
   let host: string | undefined;
   let open = !process.env.MANY_NO_OPEN;
   let token: string | undefined;
+  let tailscale = false;
 
   // Parse arguments
   for (let i = 0; i < args.length; i++) {
@@ -1707,6 +1709,8 @@ async function cmdWeb(args: string[]): Promise<void> {
     } else if (args[i] === "--token") {
       token = args[i + 1];
       i++;
+    } else if (args[i] === "--tailscale") {
+      tailscale = true;
     } else if (args[i] === "--open" || args[i] === "-o") {
       open = true;
     } else if (args[i] === "--no-open") {
@@ -1721,6 +1725,17 @@ async function cmdWeb(args: string[]): Promise<void> {
   // handleSignals:false so we can prompt before killing terminals on Ctrl+C
   // instead of letting the server's default handler decide silently.
   const server = await startWebServer({ port, host, open, token, handleSignals: false });
+
+  if (tailscale) {
+    const { startTailscaleServe } = await import("./tailscale.js");
+    const baseUrl = await startTailscaleServe(server.port);
+    if (baseUrl) {
+      const tokenParam = server.url.split("token=")[1] ?? "";
+      console.log(green(`\nTailscale serve: ${baseUrl}/?token=${tokenParam}\n`));
+    } else {
+      console.log(red("\nFailed to start tailscale serve (is tailscale installed and up?).\n"));
+    }
+  }
 
   let handlingExit = false;
   const onSigint = async () => {
@@ -1744,11 +1759,16 @@ async function cmdWeb(args: string[]): Promise<void> {
     await server.shutdown({ killTerminals });
     if (killTerminals) console.log(dim("Terminal daemon shut down."));
     else console.log(dim("Server stopped; terminal daemon left running."));
+    if (tailscale) await (await import("./tailscale.js")).stopTailscaleServe();
     process.exit(0);
   };
   process.on("SIGINT", () => { onSigint().catch(() => process.exit(1)); });
   // SIGTERM: graceful, never prompt — leave the daemon running if terminals exist.
-  process.on("SIGTERM", () => { server.shutdown().then(() => process.exit(0)); });
+  process.on("SIGTERM", () => {
+    server.shutdown()
+      .then(async () => { if (tailscale) await (await import("./tailscale.js")).stopTailscaleServe(); })
+      .then(() => process.exit(0));
+  });
 }
 
 async function cmdDaemon(subcommand: string | null): Promise<void> {

@@ -3,6 +3,7 @@ import { ProjectEntry } from "../types";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
 import FsActionDialog, { FsAction } from "./FsActionDialog";
 import FileTree, { FileTreeRow } from "./FileTree";
+import { getRpcClient } from "../rpc-client";
 import { useFsTree } from "../useFsTree";
 import { useOpenFile } from "../useFileEditors";
 import { buildTreeRows } from "../treeRows";
@@ -95,6 +96,13 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
         items.push({ label: "New File", onClick: () => setFsAction({ mode: "newFile", dirPath: entry.path }) });
         items.push({ label: "New Folder", onClick: () => setFsAction({ mode: "newFolder", dirPath: entry.path }) });
       }
+      items.push({
+        label: "Open in Editor",
+        onClick: () =>
+          getRpcClient()
+            .query("action.openEditor", { path: entry.path })
+            .catch((err) => console.error("[action] openEditor failed:", err)),
+      });
       items.push({ label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(entry.path, worktreePath)) });
       items.push({ label: "Copy absolute path", onClick: () => copyToClipboard(entry.path) });
       if (!isProject) {

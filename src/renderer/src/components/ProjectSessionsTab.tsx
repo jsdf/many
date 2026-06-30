@@ -19,7 +19,7 @@ interface ClaudeSession {
 
 interface ProjectSessionsTabProps {
   worktreePath: string;
-  onResumeSession?: (sessionId: string, sessionType?: "chat" | "claude-code") => void;
+  onResumeSession?: (sessionId: string, target: "ui" | "terminal") => void;
 }
 
 function formatAge(iso: string): string {
@@ -122,15 +122,24 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath, o
                   )}
                 </p>
                 {onResumeSession && (
-                  <div className="flex justify-end mt-2">
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      className="btn btn-soft btn-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onResumeSession(session.sessionId, "ui");
+                      }}
+                    >
+                      Resume (UI)
+                    </button>
                     <button
                       className="btn btn-soft btn-primary btn-xs"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onResumeSession(session.sessionId, session.sessionType);
+                        onResumeSession(session.sessionId, "terminal");
                       }}
                     >
-                      Resume
+                      Resume (term)
                     </button>
                   </div>
                 )}

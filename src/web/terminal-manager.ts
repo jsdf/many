@@ -34,6 +34,9 @@ interface TerminalSession {
   exitListeners: Set<() => void>;
   logFileHandle?: fs.FileHandle;
   logBytesWritten: number;
+  // While an auto-run initial command is pending, user keystrokes are buffered
+  // here so they don't get interleaved with the command before it's submitted.
+  inputBuffer?: string[];
 }
 
 export interface TerminalSessionInfo {
@@ -108,14 +111,6 @@ export class TerminalManager {
       } as Record<string, string>,
     });
 
-    // Auto-run initial command after shell starts
-    if (initialCommand) {
-      // Small delay to let the shell initialize
-      setTimeout(() => {
-        ptyProcess.write(initialCommand + "\n");
-      }, 500);
-    }
-
     const now = Date.now();
     const session: TerminalSession = {
       ptyProcess,
@@ -134,6 +129,22 @@ export class TerminalManager {
     };
 
     this.sessions.set(terminalId, session);
+
+    // Auto-run initial command after shell starts. Buffer any user input that
+    // arrives before then so it can't be interleaved with the command (which
+    // would corrupt it). Flush the buffered input once the command is submitted.
+    if (initialCommand) {
+      session.inputBuffer = [];
+      // Small delay to let the shell initialize
+      setTimeout(() => {
+        ptyProcess.write(initialCommand + "\n");
+        const buffered = session.inputBuffer;
+        session.inputBuffer = undefined;
+        if (buffered) {
+          for (const data of buffered) ptyProcess.write(data);
+        }
+      }, 500);
+    }
 
     // Open log file if configured
     if (terminalLogDir) {
@@ -185,6 +196,10 @@ export class TerminalManager {
     const session = this.sessions.get(terminalId);
     if (session) {
       session.lastInputAt = Date.now();
+      if (session.inputBuffer) {
+        session.inputBuffer.push(data);
+        return;
+      }
       session.ptyProcess.write(data);
     }
   }

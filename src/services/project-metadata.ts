@@ -1,7 +1,22 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { parse as parseYaml } from "yaml";
+import { exec } from "child_process";
+import { promisify } from "util";
+import { parse as parseYaml, parseDocument, isSeq, isMap } from "yaml";
 import type { ProjectEnv, ProjectLink, ProjectMetadata, ProjectPr, ProjectTask } from "../shared/protocol.js";
+
+const _exec = promisify(exec);
+const userShell = process.env.SHELL || "/bin/bash";
+
+// Runs through a login shell so `gh` is found on PATH even when the server is
+// launched from a GUI (Electron) with a minimal environment.
+function execAsync(command: string) {
+  return _exec(`${userShell} -l -c ${JSON.stringify(command)}`);
+}
+
+// A real GitHub PR URL: github.com/<owner>/<repo>/pull/<number>. Excludes
+// `pull/new/...` create links and non-GitHub hosts, which `gh` can't view.
+const GITHUB_PR_RE = /^https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+(?:[/?#]|$)/i;
 
 // Leading YAML frontmatter block: `---` line, content, closing `---` line.
 const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*\r?\n?/;
@@ -118,6 +133,64 @@ async function readIfExists(filePath: string): Promise<string | null> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
   }
+}
+
+// Maps a GitHub PR's live state to the prs.yml `status` vocabulary
+// (draft/open/merged/closed).
+export function ghStateToStatus(state: string, isDraft: boolean): string {
+  if (state === "MERGED") return "merged";
+  if (state === "CLOSED") return "closed";
+  return isDraft ? "draft" : "open";
+}
+
+export type PrStatusFetcher = (url: string) => Promise<{ state: string; isDraft: boolean }>;
+
+// Fetches a single PR's live state via the `gh` CLI.
+const ghFetchPrStatus: PrStatusFetcher = async (url) => {
+  const { stdout } = await execAsync(`gh pr view ${JSON.stringify(url)} --json state,isDraft`);
+  const parsed = JSON.parse(stdout) as { state?: unknown; isDraft?: unknown };
+  return { state: String(parsed.state ?? ""), isDraft: parsed.isDraft === true };
+};
+
+// Refetches the live state of every GitHub PR listed in a project's prs.yml and
+// writes the updated `status` back into the file, preserving comments, notes,
+// and formatting via the YAML document API. PRs whose URL isn't a viewable
+// GitHub PR are skipped; per-PR fetch failures are collected and reported
+// rather than aborting the whole refresh. Returns the re-read metadata.
+export async function refreshPrsYml(
+  projectPath: string,
+  fetchStatus: PrStatusFetcher = ghFetchPrStatus
+): Promise<{ metadata: ProjectMetadata; refreshed: number; errors: string[] }> {
+  const filePath = path.join(projectPath, "prs.yml");
+  const content = await readIfExists(filePath);
+  if (content === null) throw new Error(`No prs.yml found in ${projectPath}`);
+
+  const doc = parseDocument(content);
+  const seq = doc.get("prs");
+  const errors: string[] = [];
+  let refreshed = 0;
+
+  if (isSeq(seq)) {
+    await Promise.all(
+      seq.items.map(async (item) => {
+        if (!isMap(item)) return;
+        const url = coerceStr(item.get("url"));
+        if (!url || !GITHUB_PR_RE.test(url)) return;
+        try {
+          const { state, isDraft } = await fetchStatus(url);
+          item.set("status", ghStateToStatus(state, isDraft));
+          refreshed++;
+        } catch (err) {
+          errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      })
+    );
+  }
+
+  if (refreshed > 0) await fs.writeFile(filePath, doc.toString(), "utf-8");
+
+  const metadata = await readProjectMetadata(projectPath);
+  return { metadata, refreshed, errors };
 }
 
 // Reads env-jsdf-style sidecar files from a project directory. Missing files

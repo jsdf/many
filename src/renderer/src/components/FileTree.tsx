@@ -1,5 +1,22 @@
 import React, { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS as DndCSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 import { FsEntry, ProjectEntry } from "../types";
 import { WorktreeActivity, sumActivityUnder } from "../treeActivity";
 import TreeRowItem from "./TreeRowItem";
@@ -25,6 +42,10 @@ interface FileTreeProps {
   rightSlot?: (row: FileTreeRow) => React.ReactNode;
   scrollClassName?: string;
   virtualized?: boolean;
+  // Paths that can be drag-reordered. When set (and non-virtualized), those rows
+  // get a drag handle and the list is wrapped in a sortable context.
+  sortableIds?: string[];
+  onReorder?: (activeId: string, overId: string) => void;
 }
 
 // Shared list renderer for the Projects tree and the Active tree. Both build
@@ -41,7 +62,15 @@ const FileTree: React.FC<FileTreeProps> = ({
   rightSlot,
   scrollClassName = "flex-1 overflow-auto",
   virtualized = false,
+  sortableIds,
+  onReorder,
 }) => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const sortable = React.useMemo(() => new Set(sortableIds ?? []), [sortableIds]);
+  const dndEnabled = !virtualized && !!sortableIds && sortableIds.length > 0;
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -67,17 +96,27 @@ const FileTree: React.FC<FileTreeProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPath, rows, virtualized]);
 
-  const renderRow = (row: FileTreeRow, style: React.CSSProperties) => {
+  const renderRow = (
+    row: FileTreeRow,
+    style: React.CSSProperties,
+    drag?: {
+      setNodeRef: (el: HTMLElement | null) => void;
+      style: React.CSSProperties;
+      handle: React.ReactNode;
+    },
+  ) => {
     const { entry, depth, isProject } = row;
     return (
       <div
         key={entry.path}
+        ref={drag?.setNodeRef}
         data-tree-path={entry.path}
         className="group/row"
         onContextMenu={onContextMenu ? (e) => onContextMenu(row, e) : undefined}
-        style={style}
+        style={{ ...style, ...drag?.style }}
       >
         <TreeRowItem
+          dragHandle={drag?.handle}
           name={entry.name}
           isDirectory={entry.isDirectory}
           isProject={isProject}
@@ -106,9 +145,33 @@ const FileTree: React.FC<FileTreeProps> = ({
   };
 
   if (!virtualized) {
+    const body = rows.map((row) =>
+      dndEnabled && sortable.has(row.entry.path) ? (
+        <SortableTreeRow key={row.entry.path} row={row}>
+          {(drag) => renderRow(row, { height: ROW_HEIGHT }, drag)}
+        </SortableTreeRow>
+      ) : (
+        renderRow(row, { height: ROW_HEIGHT })
+      ),
+    );
+    if (!dndEnabled) {
+      return (
+        <div ref={parentRef} className={scrollClassName}>
+          {body}
+        </div>
+      );
+    }
+    const handleDragEnd = (e: DragEndEvent) => {
+      const { active, over } = e;
+      if (over && active.id !== over.id) onReorder?.(active.id as string, over.id as string);
+    };
     return (
       <div ref={parentRef} className={scrollClassName}>
-        {rows.map((row) => renderRow(row, { height: ROW_HEIGHT }))}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={sortableIds!} strategy={verticalListSortingStrategy}>
+            {body}
+          </SortableContext>
+        </DndContext>
       </div>
     );
   }
@@ -129,6 +192,41 @@ const FileTree: React.FC<FileTreeProps> = ({
       </div>
     </div>
   );
+};
+
+// Wraps a single reorderable row, wiring dnd-kit's sortable node ref/transform
+// to the row container and exposing a grip handle that carries the drag
+// listeners (so clicking the row still selects/expands as usual).
+const SortableTreeRow: React.FC<{
+  row: FileTreeRow;
+  children: (drag: {
+    setNodeRef: (el: HTMLElement | null) => void;
+    style: React.CSSProperties;
+    handle: React.ReactNode;
+  }) => React.ReactNode;
+}> = ({ row, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.entry.path,
+  });
+  const style: React.CSSProperties = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+    position: "relative",
+  };
+  const handle = (
+    <span
+      className="absolute left-0 top-0 h-full flex items-center cursor-grab active:cursor-grabbing text-base-content/30 hover:text-base-content/70 opacity-0 group-hover/row:opacity-100 z-10"
+      title="Drag to reorder"
+      onClick={(e) => e.stopPropagation()}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical size={12} />
+    </span>
+  );
+  return <>{children({ setNodeRef, style, handle })}</>;
 };
 
 export default FileTree;

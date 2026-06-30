@@ -163,6 +163,8 @@ export interface TaskRecord {
   startedAt: string;
   endedAt?: string;
   exitCode?: number;
+  recursiveMemoryBytes?: number;
+  processCount?: number;
   launchedBy: "cli" | "web";
 }
 
@@ -508,6 +510,13 @@ export interface QueryProcedures {
     input: { projectPath: string };
     output: ProjectMetadata;
   };
+  // Refetches the live state of the GitHub PRs in the project's prs.yml via the
+  // `gh` CLI, writes the updated statuses back to the file, and returns the
+  // re-read metadata along with how many PRs were refreshed and any per-PR errors.
+  "project.refreshPrs": {
+    input: { projectPath: string };
+    output: { metadata: ProjectMetadata; refreshed: number; errors: string[] };
+  };
   "fs.listDir": {
     input: { dirPath: string };
     output: FsEntry[];
@@ -563,6 +572,11 @@ export interface QueryProcedures {
   };
   "folder.setPinned": {
     input: { path: string; pinned: boolean };
+    output: { ok: boolean };
+  };
+  // Persist the full pinned-folder order (drag-reorder in the Active tree).
+  "folder.reorderPinned": {
+    input: { order: string[] };
     output: { ok: boolean };
   };
   "repo.getSelected": {

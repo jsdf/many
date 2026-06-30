@@ -93,14 +93,19 @@ export function activeRoots(
   activity: Record<string, WorktreeActivity>,
   pinnedFolders: string[],
 ): FileTreeRow[] {
-  const roots = new Set<string>(pinnedFolders);
+  // Pinned folders come first, in their stored (drag-reorderable) order, so
+  // they stay at the top of the Active tree. Active-but-unpinned folders follow,
+  // sorted alphabetically.
+  const pinnedSet = new Set(pinnedFolders);
+  const others = new Set<string>();
   // Activity is reported for every path with a live session, including
   // worktrees that belong to no project. The Active tree on the Projects tab
   // must only surface project-owned paths, so skip activity outside a project.
   for (const [p, a] of Object.entries(activity)) {
-    if (isActive(a) && projectFor(projects, p)) roots.add(p);
+    if (isActive(a) && projectFor(projects, p) && !pinnedSet.has(p)) others.add(p);
   }
-  return [...roots].sort().map((path) => {
+  const ordered = [...pinnedFolders, ...[...others].sort()];
+  return ordered.map((path) => {
     const owner = projectFor(projects, path);
     const isProject = !!owner && owner.path === path;
     const name = isProject ? owner!.name : path.slice(path.lastIndexOf(sepOf(path)) + 1);

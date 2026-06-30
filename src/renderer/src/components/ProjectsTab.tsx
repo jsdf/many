@@ -7,6 +7,7 @@ import FsActionDialog, { FsAction } from "./FsActionDialog";
 import FileTree, { FileTreeRow } from "./FileTree";
 import { useFsTree } from "../useFsTree";
 import { useOpenFile } from "../useFileEditors";
+import { arrayMove } from "@dnd-kit/sortable";
 import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
 import { WorktreeActivity, isActive } from "../treeActivity";
 import { PinToggle, pinMenuItem } from "./pinControls";
@@ -28,6 +29,7 @@ interface ProjectsTabProps {
   worktreeActivity?: Record<string, WorktreeActivity>;
   pinnedFolders: string[];
   onTogglePin: (path: string, pinned: boolean) => void;
+  onReorderPin: (order: string[]) => void;
 }
 
 const ProjectsTab: React.FC<ProjectsTabProps> = ({
@@ -41,6 +43,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   worktreeActivity,
   pinnedFolders,
   onTogglePin,
+  onReorderPin,
 }) => {
   const { expanded, childrenByDir, loading, toggleDir, expandDir, expandPath } = useFsTree();
   const openFile = useOpenFile();
@@ -256,6 +259,13 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           pinMenuItem(pinned.has(entry.path), () => onTogglePin(entry.path, !pinned.has(entry.path))),
         );
       }
+      items.push({
+        label: "Open in Editor",
+        onClick: () =>
+          getRpcClient()
+            .query("action.openEditor", { path: entry.path })
+            .catch((err) => console.error("[action] openEditor failed:", err)),
+      });
       if (project) {
         items.push({ label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(entry.path, project.path)) });
       }
@@ -421,6 +431,16 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     [toggleNode],
   );
 
+  const handleReorderPin = useCallback(
+    (activeId: string, overId: string) => {
+      const oldIndex = pinnedFolders.indexOf(activeId);
+      const newIndex = pinnedFolders.indexOf(overId);
+      if (oldIndex < 0 || newIndex < 0) return;
+      onReorderPin(arrayMove(pinnedFolders, oldIndex, newIndex));
+    },
+    [pinnedFolders, onReorderPin],
+  );
+
   const handleContextMenu = useCallback((row: FileTreeRow, e: React.MouseEvent) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, row });
@@ -512,6 +532,8 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 onToggleCaret={handleToggleCaret}
                 onContextMenu={handleContextMenu}
                 rightSlot={renderRightSlot}
+                sortableIds={pinnedFolders}
+                onReorder={handleReorderPin}
                 scrollClassName={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}
               />
             ) : (
