@@ -102,10 +102,12 @@ export class ClaudeService {
       model: "claude-sonnet-4-6",
       pathToClaudeCodeExecutable: getClaudeCodeExecutablePath(),
       permissionMode: opts.permissionMode ?? "default",
-      // The SDK locates conversations under ~/.claude/projects/<sanitized-cwd>/,
-      // keyed by `cwd` (defaults to process.cwd()). Without this, resume looks in
-      // the server's project dir, not the worktree's, and fails to find the session.
-      ...(opts.cwd ? { cwd: opts.cwd } : {}),
+      // The v2 session API silently ignores SDKSessionOptions.cwd and spawns the
+      // Claude Code CLI in this process's cwd instead. We chdir around the
+      // synchronous session construction below so the spawn inherits the worktree's
+      // cwd, which determines where conversations are read/written
+      // (~/.claude/projects/<sanitized-cwd>/). CLAUDE_CODE_CWD is also set so the
+      // CLI reports the correct project root in its UI.
       env: {
         ...process.env,
         ...(opts.cwd ? { CLAUDE_CODE_CWD: opts.cwd } : {}),
@@ -133,10 +135,21 @@ export class ClaudeService {
     }
 
     let sdkSession: SDKSession;
-    if (opts.sessionId) {
-      sdkSession = unstable_v2_resumeSession(opts.sessionId, sessionOpts);
-    } else {
-      sdkSession = unstable_v2_createSession(sessionOpts);
+    const prevCwd = process.cwd();
+    try {
+      // The v2 session API ignores SDKSessionOptions.cwd and spawns the Claude
+      // Code CLI in this process's cwd, which determines where conversations are
+      // read/written (~/.claude/projects/<sanitized-cwd>/). chdir around the
+      // synchronous session construction so the spawn inherits the worktree's cwd;
+      // restore immediately (no await between, so this is atomic w.r.t. concurrent starts).
+      if (opts.cwd) process.chdir(opts.cwd);
+      if (opts.sessionId) {
+        sdkSession = unstable_v2_resumeSession(opts.sessionId, sessionOpts);
+      } else {
+        sdkSession = unstable_v2_createSession(sessionOpts);
+      }
+    } finally {
+      if (opts.cwd) process.chdir(prevCwd);
     }
 
     const session: ActiveSession = {
