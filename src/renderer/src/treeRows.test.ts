@@ -142,25 +142,32 @@ describe("buildTreeRows", () => {
     expect(rows.map((r) => r.entry.path)).toEqual(["/repo/a", "/repo/a/b"]);
   });
 
-  it("flattenRoots keeps a nested root as its own top-level item when its ancestor is expanded", () => {
-    // /repo/a/b is a separately-pinned subfolder of pinned /repo/a. With
-    // flattenRoots it stays a top-level (depth 0) row instead of nesting inline.
-    const roots = activeRoots(projects, {}, ["/repo/a", "/repo/a/b"]);
+  // REGRESSION GUARD (lost 2026-06-23 and again 2026-06-30): an active/pinned
+  // subproject must STILL appear, browseable and nested, under its parent when
+  // the parent is expanded - never hoisted out of the parent's file tree. This
+  // mirrors the exact data flow the Active tree uses (activeRoots + buildTreeRows).
+  it("keeps an active/pinned subproject browseable nested under its expanded parent (Active tree)", () => {
+    // /repo is the active parent; /repo/sub is a pinned subproject of it.
+    const roots = activeRoots(
+      projects,
+      { "/repo": { terminals: 1, claudeSessions: 0, openFiles: 0 } },
+      ["/repo/sub"],
+    );
     const childrenByDir = new Map<string, FsEntry[]>([
       [
-        "/repo/a",
+        "/repo",
         [
-          { name: "b", path: "/repo/a/b", isDirectory: true },
-          { name: "f.ts", path: "/repo/a/f.ts", isDirectory: false },
+          { name: "sub", path: "/repo/sub", isDirectory: true },
+          { name: "readme.md", path: "/repo/readme.md", isDirectory: false },
         ],
       ],
     ]);
-    const rows = buildTreeRows(roots, new Set(["/repo/a"]), childrenByDir, true);
-    const b = rows.find((r) => r.entry.path === "/repo/a/b")!;
-    expect(rows.filter((r) => r.entry.path === "/repo/a/b")).toHaveLength(1);
-    expect(b.depth).toBe(0);
-    // /repo/a/b is not nested among /repo/a's children; it stays a flat root.
-    expect(rows.map((r) => r.entry.path)).toEqual(["/repo/a", "/repo/a/f.ts", "/repo/a/b"]);
+    const rows = buildTreeRows(roots, new Set(["/repo"]), childrenByDir);
+    const sub = rows.find((r) => r.entry.path === "/repo/sub")!;
+    // Appears exactly once, nested under /repo (depth 1), among its files.
+    expect(rows.filter((r) => r.entry.path === "/repo/sub")).toHaveLength(1);
+    expect(sub.depth).toBe(1);
+    expect(rows.map((r) => r.entry.path)).toEqual(["/repo", "/repo/sub", "/repo/readme.md"]);
   });
 
   it("keeps a nested project browseable under its expanded parent", () => {

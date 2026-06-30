@@ -31,15 +31,18 @@ function projectFor(projects: ProjectEntry[], path: string): ProjectEntry | unde
 // directories up to that parent is expanded, keeping its own identity (project
 // name / isProject); when that chain is collapsed it renders standalone from the
 // roots loop instead. Either way it stays browseable under its parent.
-// `flattenRoots` keeps every root as its own top-level row, even when an
-// ancestor root is expanded: a root nested under another root is not absorbed
-// inline but stays a peer at depth 0. The Active tree uses this so separately
-// pinned subfolders always appear as their own top-level items.
+//
+// LOAD-BEARING INVARIANT (regressed 2026-06-23 and 2026-06-30, do not remove):
+// an active/pinned subproject MUST still appear and be browseable nested under
+// its parent when the parent is expanded - it must not be hoisted out of the
+// parent's file tree. Do NOT add a flag to render roots "flat" / always
+// top-level; that is what reintroduced the bug. See the buildTreeRows tests
+// "renders a nested root inline under its expanded ancestor" and
+// "keeps a nested project browseable under its expanded parent".
 export function buildTreeRows(
   roots: FileTreeRow[],
   expanded: Set<string>,
   childrenByDir: Map<string, FsEntry[]>,
-  flattenRoots = false,
 ): FileTreeRow[] {
   const result: FileTreeRow[] = [];
   const seen = new Set<string>();
@@ -71,10 +74,8 @@ export function buildTreeRows(
     if (!entries) return;
     for (const entry of entries) {
       // A descendant that is itself a root renders inline here with its own
-      // identity (project name / isProject) rather than as a plain child. In
-      // flat mode it is skipped instead, staying a top-level row of its own.
+      // identity (project name / isProject) rather than as a plain child.
       const asRoot = rootByPath.get(entry.path);
-      if (asRoot && flattenRoots) continue;
       const row: FileTreeRow = asRoot
         ? { entry: asRoot.entry, depth, project: asRoot.project, isProject: asRoot.isProject }
         : { entry, depth, project, isProject: false };
@@ -85,7 +86,7 @@ export function buildTreeRows(
     }
   };
   for (const root of roots) {
-    if (!flattenRoots && nestsUnderAncestor(root.entry.path)) continue;
+    if (nestsUnderAncestor(root.entry.path)) continue;
     if (!emit(root)) continue;
     if (expanded.has(root.entry.path)) walk(root.entry.path, root.depth + 1, root.project);
   }
