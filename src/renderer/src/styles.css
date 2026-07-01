@@ -16,6 +16,7 @@
   min-height: 100%;
   outline: none;
   line-height: 1.6;
+  font-size: 0.875rem;
 }
 .tiptap-host .ProseMirror > * + * {
   margin-top: 0.7em;

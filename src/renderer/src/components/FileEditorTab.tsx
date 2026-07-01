@@ -5,7 +5,7 @@ import { syntaxHighlighting, defaultHighlightStyle, LanguageDescription } from "
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { languages } from "@codemirror/language-data";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
@@ -158,6 +158,32 @@ function CodeEditor({
 }
 
 // --- TipTap WYSIWYG editor ---
+function ToolbarButton({
+  label,
+  title,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: React.ReactNode;
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      className={`btn btn-xs ${active ? "btn-primary" : "btn-ghost"}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
 function TiptapEditor({
   initialMarkdown,
   onChange,
@@ -185,7 +211,60 @@ function TiptapEditor({
     },
   });
 
-  return <EditorContent editor={editor} />;
+  const toolbarState = useEditorState({
+    editor,
+    selector: (ctx) => {
+      const e = ctx.editor;
+      if (!e) return null;
+      return {
+        bold: e.isActive("bold"),
+        italic: e.isActive("italic"),
+        strike: e.isActive("strike"),
+        code: e.isActive("code"),
+        heading1: e.isActive("heading", { level: 1 }),
+        heading2: e.isActive("heading", { level: 2 }),
+        heading3: e.isActive("heading", { level: 3 }),
+        paragraph: e.isActive("paragraph"),
+        bulletList: e.isActive("bulletList"),
+        orderedList: e.isActive("orderedList"),
+        taskList: e.isActive("taskList"),
+        blockquote: e.isActive("blockquote"),
+        codeBlock: e.isActive("codeBlock"),
+        canUndo: e.can().undo(),
+        canRedo: e.can().redo(),
+      };
+    },
+  });
+
+  return (
+    <>
+      {editor && (
+        <div className="tiptap-toolbar flex flex-wrap gap-1 items-center px-2 py-1 pr-20 border-b border-base-300 sticky top-0 z-[5] bg-base-100">
+          <ToolbarButton label={<span className="font-bold">B</span>} title="Bold" active={toolbarState?.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
+          <ToolbarButton label={<span className="italic">I</span>} title="Italic" active={toolbarState?.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />
+          <ToolbarButton label={<span className="line-through">S</span>} title="Strikethrough" active={toolbarState?.strike} onClick={() => editor.chain().focus().toggleStrike().run()} />
+          <ToolbarButton label="</>" title="Inline code" active={toolbarState?.code} onClick={() => editor.chain().focus().toggleCode().run()} />
+          <div className="w-px h-4 bg-base-300 mx-1" />
+          <ToolbarButton label="H1" title="Heading 1" active={toolbarState?.heading1} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} />
+          <ToolbarButton label="H2" title="Heading 2" active={toolbarState?.heading2} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
+          <ToolbarButton label="H3" title="Heading 3" active={toolbarState?.heading3} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} />
+          <ToolbarButton label="P" title="Paragraph" active={toolbarState?.paragraph} onClick={() => editor.chain().focus().setParagraph().run()} />
+          <div className="w-px h-4 bg-base-300 mx-1" />
+          <ToolbarButton label="•" title="Bullet list" active={toolbarState?.bulletList} onClick={() => editor.chain().focus().toggleBulletList().run()} />
+          <ToolbarButton label="1." title="Ordered list" active={toolbarState?.orderedList} onClick={() => editor.chain().focus().toggleOrderedList().run()} />
+          <ToolbarButton label="☑" title="Task list" active={toolbarState?.taskList} onClick={() => editor.chain().focus().toggleTaskList().run()} />
+          <div className="w-px h-4 bg-base-300 mx-1" />
+          <ToolbarButton label={'"'} title="Blockquote" active={toolbarState?.blockquote} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
+          <ToolbarButton label="{ }" title="Code block" active={toolbarState?.codeBlock} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+          <ToolbarButton label="HR" title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()} />
+          <div className="w-px h-4 bg-base-300 mx-1" />
+          <ToolbarButton label="↶" title="Undo" disabled={!toolbarState?.canUndo} onClick={() => editor.chain().focus().undo().run()} />
+          <ToolbarButton label="↷" title="Redo" disabled={!toolbarState?.canRedo} onClick={() => editor.chain().focus().redo().run()} />
+        </div>
+      )}
+      <EditorContent editor={editor} />
+    </>
+  );
 }
 
 function MarkdownEditor({
