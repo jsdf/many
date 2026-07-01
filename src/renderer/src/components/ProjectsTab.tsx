@@ -357,20 +357,15 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
       const matchedRows = (dirPath: string, depth: number, project: ProjectEntry): FileTreeRow[] => {
         const out: FileTreeRow[] = [];
-        // Only bypass filter for selected dir's children while search is still loading.
-        const immediateOfSel = searching && !!selPath && dirPath === selPath;
-        // The server already fuzzy-matched; every returned file is a match and
-        // every returned directory is an ancestor of one. So we trust the
-        // results: show files as-is and keep dirs that still have visible
-        // children (or are on the selected chain).
+        // The server already fuzzy-matched by item name; every returned entry is
+        // either a match itself or an ancestor directory of one. We trust the
+        // results wholesale: a matched directory legitimately has no children
+        // here, so we render every returned dir rather than dropping the
+        // childless ones (which would hide directory matches).
         for (const entry of childrenFor(dirPath)) {
           if (entry.isDirectory) {
-            const childRows = matchedRows(entry.path, depth + 1, project);
-            const onSelChain = !!selPath && isAncestorOf(entry.path, selPath);
-            if (childRows.length > 0 || onSelChain || immediateOfSel) {
-              out.push({ entry, depth, project, isProject: false });
-              out.push(...childRows);
-            }
+            out.push({ entry, depth, project, isProject: false });
+            out.push(...matchedRows(entry.path, depth + 1, project));
           } else {
             out.push({ entry, depth, project, isProject: false });
           }

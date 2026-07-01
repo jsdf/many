@@ -600,30 +600,47 @@ export function createQueryHandlers(opts: {
       if (!q) return {};
       const MAX_RESULTS = 1000;
 
-      // Fuzzy-match relative paths with the same lib as quick-open. We use only
-      // the match set (membership); the tree below is built in natural
-      // (dir-first, alphabetical) order, not by fzf score.
+      // Candidate items are every file plus every directory (derived from file
+      // path prefixes). We fuzzy-match against each item's NAME only, so typing
+      // a directory name surfaces that directory itself rather than every file
+      // nested beneath it. Membership is all we use; the tree below is built in
+      // natural (dir-first, alphabetical) order, not by fzf score.
       const files = await collectFilesRelative(dirPath, 20000);
-      const matched = new Fzf(files, { selector: (f: string) => f }).find(q);
+      const dirSet = new Set<string>();
+      for (const rel of files) {
+        const parts = rel.split(/[\\/]/);
+        for (let i = 1; i < parts.length; i++) dirSet.add(parts.slice(0, i).join("/"));
+      }
+      const candidates: { rel: string; isDirectory: boolean }[] = [
+        ...files.map((rel) => ({ rel, isDirectory: false })),
+        ...[...dirSet].map((rel) => ({ rel, isDirectory: true })),
+      ];
+      const nameOf = (rel: string) => {
+        const parts = rel.split(/[\\/]/);
+        return parts[parts.length - 1];
+      };
+      const matched = new Fzf(candidates, { selector: (c: { rel: string; isDirectory: boolean }) => nameOf(c.rel) }).find(q);
 
       const sep = dirPath.includes("\\") ? "\\" : "/";
       const result: Record<string, FsEntry[]> = {};
       const seen = new Set<string>();
       let count = 0;
-      for (const { item: rel } of matched) {
+      for (const { item } of matched) {
         if (count >= MAX_RESULTS) break;
         count++;
-        // Expand the matched file into its ancestor chain so the client can
+        // Expand the matched item into its ancestor chain so the client can
         // render it as a tree: each path segment becomes an entry under its
-        // parent directory.
-        const parts = rel.split(/[\\/]/);
+        // parent directory. Ancestor segments are always directories; only the
+        // final segment carries the matched item's own type.
+        const parts = item.rel.split(/[\\/]/);
         let parent = dirPath;
         for (let i = 0; i < parts.length; i++) {
           const full = parent + sep + parts[i];
           const key = parent + "\0" + full;
           if (!seen.has(key)) {
             seen.add(key);
-            (result[parent] ??= []).push({ name: parts[i], path: full, isDirectory: i < parts.length - 1 });
+            const isDirectory = i < parts.length - 1 ? true : item.isDirectory;
+            (result[parent] ??= []).push({ name: parts[i], path: full, isDirectory });
           }
           parent = full;
         }
