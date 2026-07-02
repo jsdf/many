@@ -14,8 +14,10 @@ import { Markdown, type MarkdownStorage } from "tiptap-markdown";
 import Image from "@tiptap/extension-image";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import type { Node as ProsemirrorNode } from "@tiptap/pm/model";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import mermaid from "mermaid";
 import PropertiesPanel from "./PropertiesPanel";
-import { MarkdownContent } from "./MarkdownContent";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
 
@@ -445,13 +447,79 @@ function MarkdownEditor({
   );
 }
 
-// Read-only preview using the shared chat markdown renderer. Frontmatter is
-// stripped (matching the WYSIWYG view, which surfaces it via PropertiesPanel)
-// so raw YAML isn't rendered as body text.
+mermaid.initialize({
+  startOnLoad: false,
+  securityLevel: "strict",
+  theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+});
+
+// Render a ```mermaid fenced block as an SVG diagram. mermaid.render is async
+// and needs a unique element id per diagram.
+function MermaidDiagram({ code }: { code: string }) {
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    let cancelled = false;
+    mermaid
+      .render(idRef.current, code)
+      .then(({ svg }) => {
+        if (!cancelled) {
+          setSvg(svg);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
+  if (error) {
+    return <pre className="text-error text-xs whitespace-pre-wrap">{error}</pre>;
+  }
+  return <div className="my-2 flex justify-center" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+function isMermaidCode(el: React.ReactNode): boolean {
+  return React.isValidElement(el) && /\blanguage-mermaid\b/.test(String((el.props as { className?: string }).className ?? ""));
+}
+
+// Shared chat renderer (react-markdown + remark-gfm) plus a mermaid code block
+// renderer. Kept separate from MarkdownContent so chat surfaces are unaffected.
+const PREVIEW_REMARK_PLUGINS = [remarkGfm];
+const PREVIEW_COMPONENTS: Components = {
+  code({ node: _node, className, children, ...rest }) {
+    if (/\blanguage-mermaid\b/.test(className ?? "")) {
+      return <MermaidDiagram code={String(children).replace(/\n$/, "")} />;
+    }
+    return (
+      <code className={className} {...rest}>
+        {children}
+      </code>
+    );
+  },
+  // Unwrap the <pre> around a mermaid block so the diagram isn't styled as code.
+  pre({ node: _node, children, ...rest }) {
+    if (isMermaidCode(children)) return <>{children}</>;
+    return <pre {...rest}>{children}</pre>;
+  },
+};
+
+// Read-only preview using the shared chat markdown renderer, with mermaid
+// diagram support. Frontmatter is stripped (matching the WYSIWYG view, which
+// surfaces it via PropertiesPanel) so raw YAML isn't rendered as body text.
 function MarkdownPreview({ content }: { content: string }) {
   return (
     <div className="h-full overflow-auto p-4">
-      <MarkdownContent text={parseFrontmatter(content).body} />
+      <div className="chat-markdown">
+        <ReactMarkdown remarkPlugins={PREVIEW_REMARK_PLUGINS} components={PREVIEW_COMPONENTS}>
+          {parseFrontmatter(content).body}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }
