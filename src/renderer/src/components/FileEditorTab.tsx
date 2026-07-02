@@ -6,6 +6,7 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { languages } from "@codemirror/language-data";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
@@ -300,7 +301,12 @@ function TiptapEditor({
   return (
     <>
       {editor && (
-        <div className="tiptap-toolbar flex flex-wrap gap-1 items-center px-2 py-1 pr-20 border-b border-base-300 sticky top-0 z-[5] bg-base-100">
+        <BubbleMenu
+          editor={editor}
+          updateDelay={300}
+          options={{ placement: "top", offset: 6 }}
+          className="tiptap-toolbar flex flex-wrap gap-1 items-center max-w-md p-1 rounded-box border border-base-300 bg-base-100 shadow-lg"
+        >
           <ToolbarButton label={<span className="font-bold">B</span>} title="Bold" active={toolbarState?.bold} onClick={() => editor.chain().focus().toggleBold().run()} />
           <ToolbarButton label={<span className="italic">I</span>} title="Italic" active={toolbarState?.italic} onClick={() => editor.chain().focus().toggleItalic().run()} />
           <ToolbarButton label={<span className="line-through">S</span>} title="Strikethrough" active={toolbarState?.strike} onClick={() => editor.chain().focus().toggleStrike().run()} />
@@ -321,7 +327,7 @@ function TiptapEditor({
           <div className="w-px h-4 bg-base-300 mx-1" />
           <ToolbarButton label="↶" title="Undo" disabled={!toolbarState?.canUndo} onClick={() => editor.chain().focus().undo().run()} />
           <ToolbarButton label="↷" title="Redo" disabled={!toolbarState?.canRedo} onClick={() => editor.chain().focus().redo().run()} />
-        </div>
+        </BubbleMenu>
       )}
       <EditorContent editor={editor} />
     </>
