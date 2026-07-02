@@ -21,7 +21,7 @@ import {
 } from "../cli/task-registry.js";
 import * as gitPool from "../cli/git-pool.js";
 import { TerminalManagerClient } from "../daemon/terminal-client.js";
-import { getClaudeSessions, getSessionMessages, getRecentSessionsForRoots } from "./claude-sessions.js";
+import { getClaudeSessions, getSessionMessages, getRecentSessionsForRoots, getSessionFilePath } from "./claude-sessions.js";
 import { computeWorktreeActivityTimes } from "./worktree-activity.js";
 import { RepoWatcher, WorkdirWatcher } from "./git-watcher.js";
 import {
@@ -408,6 +408,24 @@ export function createQueryHandlers(opts: {
         const reordered = order.filter((p) => current.has(p));
         for (const p of current) if (!reordered.includes(p)) reordered.push(p);
         appData.pinnedFolders = reordered;
+      });
+      return { ok: true };
+    },
+    "session.getPinned": async () => {
+      const appData = await loadAppData();
+      return appData.pinnedSessions ?? [];
+    },
+    "session.setPinned": async (input) => {
+      const { key, pinned } = input as { key: string; pinned: boolean };
+      await withAppData((appData) => {
+        const list = appData.pinnedSessions ?? [];
+        if (pinned && !list.includes(key)) {
+          list.push(key);
+        } else if (!pinned) {
+          const idx = list.indexOf(key);
+          if (idx >= 0) list.splice(idx, 1);
+        }
+        appData.pinnedSessions = list;
       });
       return { ok: true };
     },
@@ -1319,6 +1337,50 @@ export function createSubscriptionHandlers(opts: {
         watcher = watch(dir, onChange);
         watcher.on("error", () => { /* ignore watch errors */ });
       } catch { /* dir may not exist — initial push already returned content */ }
+
+      return () => {
+        if (debounce) clearTimeout(debounce);
+        if (watcher) { try { watcher.close(); } catch { /* ignore */ } }
+      };
+    },
+
+    "claude.sessionMessages.updates": (input, push) => {
+      const { sessionId, worktreePath, sinceOrdinal } = input as {
+        sessionId: string;
+        worktreePath: string;
+        sinceOrdinal: number;
+      };
+      let pushedTotal = sinceOrdinal ?? 0;
+      const filePath = getSessionFilePath(sessionId, worktreePath);
+      const dir = path.dirname(filePath);
+      const base = path.basename(filePath);
+
+      const readAndPush = async () => {
+        try {
+          const { messages, total } = await getSessionMessages(sessionId, worktreePath, pushedTotal, 1_000_000);
+          if (total > pushedTotal && messages.length) {
+            const fromOrdinal = pushedTotal;
+            pushedTotal = total;
+            push({ messages, fromOrdinal, total });
+          }
+        } catch { /* file may be gone; ignore */ }
+      };
+
+      // Check once in case the file grew between the client's initial query and this subscribe.
+      readAndPush();
+
+      let debounce: ReturnType<typeof setTimeout> | null = null;
+      const onChange = (_event: string, changed: string | Buffer | null) => {
+        if (changed && changed.toString() !== base) return;
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(readAndPush, 150);
+      };
+
+      let watcher: FSWatcher | null = null;
+      try {
+        watcher = watch(dir, onChange);
+        watcher.on("error", () => { /* ignore watch errors */ });
+      } catch { /* dir may not exist */ }
 
       return () => {
         if (debounce) clearTimeout(debounce);

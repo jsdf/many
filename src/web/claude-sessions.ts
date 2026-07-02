@@ -353,6 +353,13 @@ function extractToolUses(content: unknown): { name: string; input: string }[] {
 }
 
 /**
+ * Absolute path to a Claude session JSONL transcript on disk.
+ */
+export function getSessionFilePath(sessionId: string, worktreePath: string): string {
+  return path.join(getClaudeProjectsDir(), encodeProjectPath(worktreePath), `${sessionId}.jsonl`);
+}
+
+/**
  * Read all messages from a Claude session JSONL file.
  */
 export async function getSessionMessages(
@@ -361,10 +368,7 @@ export async function getSessionMessages(
   offset = 0,
   limit = 200,
 ): Promise<{ messages: SessionMessage[]; total: number }> {
-  const projectsDir = getClaudeProjectsDir();
-  const encodedPath = encodeProjectPath(worktreePath);
-  const projectDir = path.join(projectsDir, encodedPath);
-  const filePath = path.join(projectDir, `${sessionId}.jsonl`);
+  const filePath = getSessionFilePath(sessionId, worktreePath);
 
   try {
     await fs.promises.access(filePath);

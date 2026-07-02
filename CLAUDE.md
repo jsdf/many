@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Many Worktree Manager is a web application (with CLI) for managing Git worktree pools. It allows developers to create and organize multiple worktrees for parallel development workflows, for example running many instances of Claude Code in parallel to work on implementing features, without interfering with each other.
- 
+
 ## Design Goals
 
 - **Don't delete data without confirmation.** Destructive operations (cleaning worktree changes, discarding uncommitted work, archiving unmerged branches) should require explicit user confirmation or be clearly flagged. Automated flows should prefer skipping dirty worktrees over silently cleaning them.
@@ -45,12 +45,13 @@ Re-run after making changes to update.
 
 The project uses two build pipelines:
 
-- **Vite** builds the React renderer -> `out/renderer/`
-- **TypeScript** (`tsc -p tsconfig.cli.json`) builds the server and CLI -> `dist-cli/`
+- **Vite** builds the React renderer -&gt; `out/renderer/`
+- **TypeScript** (`tsc -p tsconfig.cli.json`) builds the server and CLI -&gt; `dist-cli/`
 
 The web server (`dist-cli/web/server.js`) serves the built renderer static files and provides a WebSocket RPC API.
 
 ## Dev Processes
+
 ### testing changes
 
 manually web ui test changes in the browser
@@ -60,6 +61,7 @@ manually web ui test changes in the browser
 don't forget to run and update tests, write new ones if new behaviors are specified
 
 ### after completing a task
+
 dont forget to commit. then run `npm run electron:install` - but ONLY when working in the main checkout, NOT when on a worktree (it would install an in-progress branch over the main app). Skip it on worktrees.
 
 ## Architecture Overview
@@ -176,8 +178,6 @@ App data is stored in a platform-specific location:
 - React functional components with hooks
 - WebSocket RPC client for server communication
 
-
-
 ## Multi-agent coordination
 
 When multiple Claude Code agents work on this repo in parallel, use the `agent-status/` directory to coordinate and avoid conflicts.
@@ -185,18 +185,19 @@ When multiple Claude Code agents work on this repo in parallel, use the `agent-s
 ### Protocol
 
 1. **On start**: create `agent-status/<task-slug>.md` named after your task (e.g. `add-slack-ingester.md`, `fix-mail-timeout.md`) with:
+
    ```
    # <short task description>
    Status: in-progress
    Started: <timestamp>
-
+   
    ## What I'm doing
    <brief description>
-
+   
    ## Files I'm actively editing
    - path/to/file.ts
    - path/to/other.ts
-
+   
    ## Files I'm done with
    (none yet)
    ```

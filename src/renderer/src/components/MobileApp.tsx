@@ -135,23 +135,29 @@ export default function MobileApp() {
     [sessions],
   );
 
-  // Folders view: group recent sessions by their worktree, ordered by the most
-  // recent session in each. Folder name falls back to the project name when the
-  // worktree path matches a known project root.
+  // Folders view: group recent sessions by their containing project (matching
+  // the desktop Projects tab), ordered by the most recent session in each.
+  // Sessions in a worktree under a project roll up to that project; sessions not
+  // under any configured project fall back to grouping by their worktree path.
   const folders = useMemo(() => {
-    const projectNames = new Map(projects.map((p) => [p.path, p.name]));
-    const byPath = new Map<string, RecentSession[]>();
+    const findProject = (wp: string) => {
+      const sep = wp.includes("\\") ? "\\" : "/";
+      return projects.find((pr) => wp === pr.path || wp.startsWith(pr.path + sep));
+    };
+    const byKey = new Map<string, { name: string; sessions: RecentSession[] }>();
     for (const s of sortedSessions) {
-      const group = byPath.get(s.worktreePath) ?? [];
-      group.push(s);
-      byPath.set(s.worktreePath, group);
+      const project = findProject(s.worktreePath);
+      const key = project ? project.path : s.worktreePath;
+      const name = project ? project.name : baseName(s.worktreePath);
+      const group = byKey.get(key) ?? { name, sessions: [] };
+      group.sessions.push(s);
+      byKey.set(key, group);
     }
-    return Array.from(byPath.entries()).map(([path, items]) => ({
+    return Array.from(byKey.entries()).map(([path, { name, sessions }]) => ({
       path,
-      name: projectNames.get(path) ?? baseName(path),
-      branch: items[0]?.gitBranch ?? "",
-      sessions: items,
-      recency: Date.parse(items[0]?.modified ?? "") || 0,
+      name,
+      sessions,
+      recency: Date.parse(sessions[0]?.modified ?? "") || 0,
     }));
   }, [sortedSessions, projects]);
 
@@ -183,12 +189,14 @@ export default function MobileApp() {
 
   return (
     <div className="flex flex-col h-screen bg-base-100 overflow-hidden">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-3 h-12 border-b border-base-300 shrink-0 bg-base-200/50">
-        <button className="btn btn-ghost btn-sm btn-square" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
-          <Menu size={20} />
-        </button>
-        <span className="font-semibold text-sm truncate flex-1">{headerTitle}</span>
+      {/* Top bar (pad past the notch / sensor housing) */}
+      <div className="border-b border-base-300 shrink-0 bg-base-200/50 pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center gap-2 px-3 h-12">
+          <button className="btn btn-ghost btn-sm btn-square" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
+            <Menu size={20} />
+          </button>
+          <span className="font-semibold text-sm truncate flex-1">{headerTitle}</span>
+        </div>
       </div>
 
       {/* Main: chat or empty state */}
@@ -223,7 +231,7 @@ export default function MobileApp() {
       {/* Drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="w-[85%] max-w-sm h-full bg-base-100 flex flex-col shadow-xl border-r border-base-300">
+          <div className="w-[85%] max-w-sm h-full bg-base-100 flex flex-col shadow-xl border-r border-base-300 pt-[env(safe-area-inset-top)]">
             {/* Drawer header */}
             <div className="flex items-center gap-2 px-3 h-12 border-b border-base-300 shrink-0">
               <span className="font-semibold text-sm flex-1">Sessions</span>
@@ -295,11 +303,6 @@ export default function MobileApp() {
                             {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </span>
                           <span className="font-medium text-sm truncate flex-1 min-w-0">{folder.name}</span>
-                          {folder.branch && (
-                            <span className="text-xs text-base-content/40 font-mono truncate max-w-[40%]">
-                              {folder.branch}
-                            </span>
-                          )}
                           <span className="text-xs text-base-content/30 shrink-0">{folder.sessions.length}</span>
                         </button>
                         {open && (
@@ -309,6 +312,7 @@ export default function MobileApp() {
                                 key={s.sessionId}
                                 session={s}
                                 active={routeSessionId === s.sessionId}
+                                showFolder
                                 onClick={() => selectSession(s)}
                               />
                             ))}

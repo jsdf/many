@@ -30,6 +30,8 @@ interface ProjectsTabProps {
   pinnedFolders: string[];
   onTogglePin: (path: string, pinned: boolean) => void;
   onReorderPin: (order: string[]) => void;
+  pinnedSessions: string[];
+  onTogglePinnedSession: (key: string, pinned: boolean) => void;
 }
 
 const ProjectsTab: React.FC<ProjectsTabProps> = ({
@@ -44,6 +46,8 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   pinnedFolders,
   onTogglePin,
   onReorderPin,
+  pinnedSessions,
+  onTogglePinnedSession,
 }) => {
   const { expanded, childrenByDir, loading, toggleDir, expandDir, expandPath } = useFsTree();
   const openFile = useOpenFile();
@@ -58,6 +62,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [fsAction, setFsAction] = useState<FsAction | null>(null);
 
   const pinned = useMemo(() => new Set(pinnedFolders), [pinnedFolders]);
+  const pinnedSessionSet = useMemo(() => new Set(pinnedSessions), [pinnedSessions]);
 
   // Active pane mode: the folder tree ("folders"), or a flat list of all live
   // terminals ordered by recency ("sessions").
@@ -187,8 +192,14 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
         label: (s.summary || s.firstPrompt || "").replace(/<[^>]+>/g, "").trim() || "Claude session",
       });
     }
-    return items.sort((a, b) => b.recency - a.recency);
-  }, [recentTerminals, recentSessions, isUnderAnyProject]);
+    const keyOf = (it: RecentItem) => (it.kind === "terminal" ? `t:${it.terminalId}` : `c:${it.sessionId}`);
+    return items.sort((a, b) => {
+      const ap = pinnedSessionSet.has(keyOf(a)) ? 0 : 1;
+      const bp = pinnedSessionSet.has(keyOf(b)) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return b.recency - a.recency;
+    });
+  }, [recentTerminals, recentSessions, isUnderAnyProject, pinnedSessionSet]);
 
   // Root rows for each tree. The Projects tree is rooted at the projects; the
   // Active tree is rooted at active + pinned folders. Both expand identically.
@@ -547,7 +558,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     return (
                       <div
                         key={itemKey}
-                        className={`flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${focused ? "bg-base-content text-base-100" : selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
+                        className={`group/row flex items-center h-6 px-1.5 rounded cursor-pointer text-xs ${focused ? "bg-base-content text-base-100" : selected ? "bg-primary/15 text-primary" : "hover:bg-base-300/60"}`}
                         title={item.worktreePath}
                         onClick={onClick}
                       >
@@ -560,6 +571,10 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                         <span className="flex-1 truncate">
                           {item.kind === "terminal" ? (item.title ? `Terminal ${item.terminalNumber}: ${item.title}` : `Terminal ${item.terminalNumber}`) : item.label}
                         </span>
+                        <PinToggle
+                          pinned={pinnedSessionSet.has(itemKey)}
+                          onToggle={() => onTogglePinnedSession(itemKey, !pinnedSessionSet.has(itemKey))}
+                        />
                       </div>
                     );
                   })

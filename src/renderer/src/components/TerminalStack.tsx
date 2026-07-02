@@ -396,16 +396,13 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
           <button className="btn btn-outline btn-neutral btn-xs" onClick={openClaudeUiSession}>
-            + Claude UI
-          </button>
-          <button className="btn btn-outline btn-neutral btn-xs" onClick={() => openClaudeSession()}>
-            + Chat
+            + Claude (UI)
           </button>
           <button className="btn btn-outline btn-neutral btn-xs" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
-            + Claude Code
+            + Claude (term)
           </button>
           <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
-            + New
+            + Terminal
           </button>
         </div>
       </div>

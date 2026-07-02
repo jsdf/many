@@ -71,6 +71,8 @@ interface SidebarProps {
   pinnedFolders: string[];
   onTogglePin: (path: string, pinned: boolean) => void;
   onReorderPin: (order: string[]) => void;
+  pinnedSessions: string[];
+  onTogglePinnedSession: (key: string, pinned: boolean) => void;
   onRepoSelect: (repoPath: string | null) => void;
   onWorktreeSelect: (worktree: Worktree | null) => void;
   onCreateWorktree: () => void;
@@ -921,6 +923,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   pinnedFolders,
   onTogglePin,
   onReorderPin,
+  pinnedSessions,
+  onTogglePinnedSession,
   onNavigateWorktrees,
   onNavigateTracked,
   onNavigateProjects,
@@ -1038,6 +1042,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           pinnedFolders={pinnedFolders}
           onTogglePin={onTogglePin}
           onReorderPin={onReorderPin}
+          pinnedSessions={pinnedSessions}
+          onTogglePinnedSession={onTogglePinnedSession}
         />
       ) : activeTab === "tracked" && showTrackedTab ? (
         <div className="flex-1 overflow-y-auto mb-3">

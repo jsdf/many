@@ -73,6 +73,7 @@ const App: React.FC = () => {
   const [starredWorktrees, setStarredWorktrees] = useState<Set<string>>(new Set());
   const [worktreeOrder, setWorktreeOrder] = useState<string[]>([]);
   const [pinnedFolders, setPinnedFolders] = useState<string[]>([]);
+  const [pinnedSessions, setPinnedSessions] = useState<string[]>([]);
   const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const mainContentRef = useRef<MainContentHandle>(null);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
@@ -301,6 +302,13 @@ const App: React.FC = () => {
       .catch((err) => console.error("Failed to load pinned folders:", err));
   }, []);
 
+  useEffect(() => {
+    getRpcClient()
+      .query("session.getPinned", {})
+      .then(setPinnedSessions)
+      .catch((err) => console.error("Failed to load pinned sessions:", err));
+  }, []);
+
   const togglePin = useCallback(async (path: string, pinned: boolean) => {
     setPinnedFolders((prev) =>
       pinned ? (prev.includes(path) ? prev : [...prev, path]) : prev.filter((p) => p !== path),
@@ -318,6 +326,17 @@ const App: React.FC = () => {
       await getRpcClient().query("folder.reorderPinned", { order });
     } catch (err) {
       console.error("Failed to reorder pinned folders:", err);
+    }
+  }, []);
+
+  const togglePinnedSession = useCallback(async (key: string, pinned: boolean) => {
+    setPinnedSessions((prev) =>
+      pinned ? (prev.includes(key) ? prev : [...prev, key]) : prev.filter((k) => k !== key),
+    );
+    try {
+      await getRpcClient().query("session.setPinned", { key, pinned });
+    } catch (err) {
+      console.error("Failed to set pinned session:", err);
     }
   }, []);
 
@@ -841,6 +860,8 @@ const App: React.FC = () => {
               pinnedFolders={pinnedFolders}
               onTogglePin={togglePin}
               onReorderPin={reorderPin}
+              pinnedSessions={pinnedSessions}
+              onTogglePinnedSession={togglePinnedSession}
               onRepoSelect={selectRepo}
               onWorktreeSelect={(worktree) => {
                 handleWorktreeSelect(worktree);

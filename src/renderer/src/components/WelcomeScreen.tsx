@@ -1,5 +1,5 @@
 import React from "react";
-import { GitBranch, Bot, Zap, FolderOpen } from "lucide-react";
+import { GitBranch, Bot, Zap, FolderOpen, Smartphone } from "lucide-react";
 
 const WelcomeScreen: React.FC = () => {
   return (
@@ -25,6 +25,9 @@ const WelcomeScreen: React.FC = () => {
             <p className="text-sm text-base-content/60 leading-snug">Open worktrees in your editor or terminal</p>
           </div>
         </div>
+        <a href="/mobile" className="inline-flex items-center gap-1.5 mt-10 text-sm text-base-content/60 hover:text-base-content">
+          <Smartphone size={16} /> Open mobile view
+        </a>
       </div>
     </div>
   );

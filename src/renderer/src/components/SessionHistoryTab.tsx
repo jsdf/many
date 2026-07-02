@@ -15,6 +15,9 @@ const SessionHistoryTab: React.FC<SessionHistoryTabProps> = ({ sessionId, worktr
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<SessionMessage[]>([]);
+  const stickToBottom = useRef(true);
+  const [ready, setReady] = useState(false);
 
   const loadMessages = useCallback(async (offset = 0) => {
     setLoading(true);
@@ -39,7 +42,17 @@ const SessionHistoryTab: React.FC<SessionHistoryTabProps> = ({ sessionId, worktr
   }, [sessionId, worktreePath]);
 
   useEffect(() => {
-    loadMessages(0);
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMessages(0).then(() => {
+      if (!cancelled) setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadMessages]);
 
   const displayItems = useMemo(() => coalesceMessages(messages), [messages]);
@@ -53,22 +66,46 @@ const SessionHistoryTab: React.FC<SessionHistoryTabProps> = ({ sessionId, worktr
     overscan: 5,
   });
 
-  // Auto-scroll to bottom on initial load
-  const initialScrollDone = useRef(false);
   useEffect(() => {
-    if (displayItems.length > 0 && !initialScrollDone.current) {
-      initialScrollDone.current = true;
-      requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(displayItems.length - 1, { align: "end" });
-      });
-    }
+    if (!ready) return;
+    const unsub = getRpcClient().subscribe(
+      "claude.sessionMessages.updates",
+      (data) => {
+        const { messages: incoming, fromOrdinal, total: newTotal } = data as {
+          messages: SessionMessage[];
+          fromOrdinal: number;
+          total: number;
+        };
+        setTotal(newTotal);
+        if (!incoming?.length) return;
+        setMessages((prev) => {
+          if (fromOrdinal > prev.length) return prev; // non-contiguous; leave to scroll pagination
+          const toAppend = incoming.slice(prev.length - fromOrdinal);
+          if (!toAppend.length) return prev;
+          return [...prev, ...toAppend];
+        });
+      },
+      { sessionId, worktreePath, sinceOrdinal: messagesRef.current.length }
+    );
+    return unsub;
+  }, [ready, sessionId, worktreePath]);
+
+  // Stick to the bottom as new messages arrive, unless the user has scrolled up.
+  useEffect(() => {
+    if (displayItems.length === 0) return;
+    if (!stickToBottom.current) return;
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(displayItems.length - 1, { align: "end" });
+    });
   }, [displayItems.length, virtualizer]);
 
   // Load more when scrolling near bottom
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
-    if (!el || loading || !hasMore) return;
+    if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottom.current = distFromBottom < 200;
+    if (loading || !hasMore) return;
     if (distFromBottom < 200) {
       loadMessages(messages.length);
     }

@@ -579,6 +579,16 @@ export interface QueryProcedures {
     input: { order: string[] };
     output: { ok: boolean };
   };
+  // Sessions (terminals/Claude sessions) pinned to the Active list. Keys are
+  // "t:<terminalId>" or "c:<sessionId>" (global).
+  "session.getPinned": {
+    input: {};
+    output: string[];
+  };
+  "session.setPinned": {
+    input: { key: string; pinned: boolean };
+    output: { ok: boolean };
+  };
   "repo.getSelected": {
     input: {};
     output: string | null;
@@ -954,6 +964,11 @@ export interface SubscriptionProcedures {
   "claudeui.events": {
     input: { sessionId: string };
     output: ClaudeUiEvent;
+  };
+  /** Live tail of a stored Claude session transcript: pushes newly appended messages as the .jsonl grows */
+  "claude.sessionMessages.updates": {
+    input: { sessionId: string; worktreePath: string; sinceOrdinal: number };
+    output: { messages: unknown[]; fromOrdinal: number; total: number };
   };
   /** Run a single automation on a worktree */
   "stream.runAutomation": {
