@@ -1,0 +1,22 @@
+src/renderer/src/components/ProjectSessionsTab.tsx
+  s_0cd3d3f1e3aeeb::t_1f17a78eb5be92 69-85
+src/renderer/src/components/ClaudeSessionTab.tsx
+  s_0cd3d3f1e3aeeb::t_981f24c8a857b8 437
+  s_0cd3d3f1e3aeeb::t_43803f32a6e5b8 350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "8a8994917d1937ad2bf8a111380e1c9705f98536",
+  "prompts": {},
+  "sessions": {
+    "s_0cd3d3f1e3aeeb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ebd48a6-653a-4349-b846-a54b8bec37a1",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
