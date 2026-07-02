@@ -15,6 +15,7 @@ import Image from "@tiptap/extension-image";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import type { Node as ProsemirrorNode } from "@tiptap/pm/model";
 import PropertiesPanel from "./PropertiesPanel";
+import { MarkdownContent } from "./MarkdownContent";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
 
@@ -444,10 +445,27 @@ function MarkdownEditor({
   );
 }
 
+// Read-only preview using the shared chat markdown renderer. Frontmatter is
+// stripped (matching the WYSIWYG view, which surfaces it via PropertiesPanel)
+// so raw YAML isn't rendered as body text.
+function MarkdownPreview({ content }: { content: string }) {
+  return (
+    <div className="h-full overflow-auto p-4">
+      <MarkdownContent text={parseFrontmatter(content).body} />
+    </div>
+  );
+}
+
 const CodeIcon = (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="16 18 22 12 16 6" />
     <polyline points="8 6 2 12 8 18" />
+  </svg>
+);
+const PreviewIcon = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 const WysiwygIcon = (
@@ -461,7 +479,7 @@ const WysiwygIcon = (
 const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data, onChange, onSave }) => {
   const markdown = isMarkdownFile(fileName);
   const media = mediaKind(fileName);
-  const [mode, setMode] = useState<"code" | "wysiwyg">(markdown ? "wysiwyg" : "code");
+  const [mode, setMode] = useState<"code" | "wysiwyg" | "preview">(markdown ? "wysiwyg" : "code");
 
   // Media is rendered from the file URL directly, so it bypasses the editor's
   // content read (and its binary / too-large limits).
@@ -504,9 +522,18 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
           >
             {CodeIcon}
           </button>
+          <button
+            className={`join-item btn btn-xs ${mode === "preview" ? "btn-primary" : "btn-outline btn-neutral"}`}
+            title="Preview"
+            onClick={() => setMode("preview")}
+          >
+            {PreviewIcon}
+          </button>
         </div>
       )}
-      {markdown && mode === "wysiwyg" ? (
+      {markdown && mode === "preview" ? (
+        <MarkdownPreview key="preview" content={data.content} />
+      ) : markdown && mode === "wysiwyg" ? (
         <MarkdownEditor key="wysiwyg" initialMarkdown={data.content} baseDir={dirname(filePath)} onChange={onChange} onSave={onSave} />
       ) : (
         <CodeEditor key="code" initialDoc={data.content} fileName={fileName} onChange={onChange} onSave={onSave} />
