@@ -66,6 +66,23 @@ const ProjectSessionsTab: React.FC<ProjectSessionsTabProps> = ({ worktreePath, o
             <ArrowLeft size={12} /> Sessions
           </button>
           <span className="text-xs text-base-content/40 font-mono">{openSessionId.slice(0, 8)}</span>
+          <div className="flex-1" />
+          {onResumeSession && (
+            <>
+              <button
+                className="btn btn-soft btn-xs"
+                onClick={() => onResumeSession(openSessionId, "ui")}
+              >
+                Resume (UI)
+              </button>
+              <button
+                className="btn btn-soft btn-primary btn-xs"
+                onClick={() => onResumeSession(openSessionId, "terminal")}
+              >
+                Resume (term)
+              </button>
+            </>
+          )}
         </div>
         <div className="flex-1 min-h-0">
           <SessionHistoryTab sessionId={openSessionId} worktreePath={worktreePath} />

@@ -347,6 +347,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
           <div className="flex flex-col gap-3 w-full max-w-lg p-6">
             <textarea
               ref={textareaRef}
+              autoFocus
               className="textarea textarea-bordered w-full min-h-[60px] text-sm"
               placeholder="Initial prompt (optional)"
               value={inputText}
@@ -433,6 +434,7 @@ export default function ClaudeSessionTab({ worktreePath, sessionId: initialSessi
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
+            autoFocus
             className="textarea textarea-bordered flex-1 min-h-[40px] max-h-[200px] resize-none text-sm leading-relaxed"
             placeholder={isActive ? "Send a message…" : "Session not active"}
             value={inputText}
