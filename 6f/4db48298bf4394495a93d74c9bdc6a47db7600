@@ -1,0 +1,20 @@
+src/renderer/src/components/FileEditorTab.tsx
+  s_89227a3ecbf1c2::t_2d6fd4e1ec3b13 9
+  s_89227a3ecbf1c2::t_9c0f457873c8c9 304-309,330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "6f4db48298bf4394495a93d74c9bdc6a47db7600",
+  "prompts": {},
+  "sessions": {
+    "s_89227a3ecbf1c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32455182-0d80-4112-8d7b-27501beffd46",
+        "model": "claude-fable-5"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
