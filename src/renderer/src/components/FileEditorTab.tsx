@@ -12,6 +12,8 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Markdown, type MarkdownStorage } from "tiptap-markdown";
 import Image from "@tiptap/extension-image";
+import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
+import type { Node as ProsemirrorNode } from "@tiptap/pm/model";
 import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
@@ -28,6 +30,61 @@ const TightTaskList = TaskList.extend({
         default: true,
         parseHTML: (el: HTMLElement) => el.getAttribute("data-tight") !== "false",
         renderHTML: (attrs: { tight?: boolean }) => ({ "data-tight": attrs.tight ? "true" : "false" }),
+      },
+    };
+  },
+});
+
+// GFM tables can only hold single-line cells, so collapse newlines and escape
+// pipes to keep the cell from splitting the row on reparse.
+function escapeTableCell(text: string): string {
+  return text.replace(/\n+/g, " ").replace(/\|/g, "\\|");
+}
+
+interface MdSerializerState {
+  out: string;
+  write(s: string): void;
+  ensureNewLine(): void;
+  renderInline(node: ProsemirrorNode): void;
+  closeBlock(node: ProsemirrorNode): void;
+}
+
+// tiptap-markdown's built-in table serializer relies on prosemirror-markdown
+// escaping pipes/newlines inside cells, but the installed prosemirror-markdown
+// (1.13.4) does neither, so a literal "|" or a multi-line cell corrupts the
+// table on save. Re-implement the GFM serializer here with explicit escaping,
+// flattening all of a cell's blocks into one line (GFM has no multi-line cells).
+const RoundtripTable = Table.extend({
+  addStorage() {
+    return {
+      ...this.parent?.(),
+      markdown: {
+        serialize(state: MdSerializerState, node: ProsemirrorNode) {
+          node.forEach((row, _rowOffset, rowIndex) => {
+            state.write("| ");
+            row.forEach((cell, _cellOffset, colIndex) => {
+              if (colIndex) state.write(" | ");
+              let firstBlock = true;
+              cell.forEach((block) => {
+                if (!block.textContent.trim()) return;
+                if (!firstBlock) state.write(" ");
+                const start = state.out.length;
+                state.renderInline(block);
+                state.out = state.out.slice(0, start) + escapeTableCell(state.out.slice(start));
+                firstBlock = false;
+              });
+            });
+            state.write(" |");
+            state.ensureNewLine();
+            if (rowIndex === 0) {
+              const delimiter = Array.from({ length: row.childCount }, () => "---").join(" | ");
+              state.write(`| ${delimiter} |`);
+              state.ensureNewLine();
+            }
+          });
+          state.closeBlock(node);
+        },
+        parse: {},
       },
     };
   },
@@ -264,6 +321,10 @@ function TiptapEditor({
       TightTaskList,
       TaskItem.configure({ nested: true }),
       ResolvedImage,
+      RoundtripTable,
+      TableRow,
+      TableHeader,
+      TableCell,
       Markdown.configure({ html: false }),
     ],
     content: initialMarkdown,
@@ -324,6 +385,7 @@ function TiptapEditor({
           <ToolbarButton label={'"'} title="Blockquote" active={toolbarState?.blockquote} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
           <ToolbarButton label="{ }" title="Code block" active={toolbarState?.codeBlock} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
           <ToolbarButton label="HR" title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()} />
+          <ToolbarButton label="⊞" title="Insert table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} />
           <div className="w-px h-4 bg-base-300 mx-1" />
           <ToolbarButton label="↶" title="Undo" disabled={!toolbarState?.canUndo} onClick={() => editor.chain().focus().undo().run()} />
           <ToolbarButton label="↷" title="Redo" disabled={!toolbarState?.canRedo} onClick={() => editor.chain().focus().redo().run()} />
