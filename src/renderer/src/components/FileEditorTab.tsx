@@ -10,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Markdown, type MarkdownStorage } from "tiptap-markdown";
+import Image from "@tiptap/extension-image";
 import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
@@ -70,6 +71,41 @@ function fileApiUrl(filePath: string): string {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token") ?? (import.meta.env.DEV ? "dev" : "");
   return `/api/file?path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+}
+
+function dirname(filePath: string): string {
+  const i = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return i < 0 ? "" : filePath.slice(0, i);
+}
+
+// Collapse "." and ".." segments in a "/"-separated path, preserving a leading slash.
+function normalizePath(p: string): string {
+  const parts = p.split(/[\\/]+/);
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "" || part === ".") {
+      if (out.length === 0 && part === "") out.push("");
+      continue;
+    }
+    if (part === ".." && out.length && out[out.length - 1] !== "" && out[out.length - 1] !== "..") {
+      out.pop();
+      continue;
+    }
+    out.push(part);
+  }
+  return out.join("/") || "/";
+}
+
+// Markdown image sources reference files relative to the .md file's directory.
+// Resolve those to the token-guarded /api/file URL so the browser can load them,
+// while leaving remote/data URLs untouched. The original src stays in the doc's
+// attributes (only the rendered <img> is rewritten), so it round-trips to markdown.
+function resolveImageSrc(src: string, baseDir: string): string {
+  if (!src) return src;
+  if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(src) || /^data:/i.test(src)) return src;
+  const absolute = src.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(src);
+  const abs = absolute ? normalizePath(src) : normalizePath(`${baseDir}/${src}`);
+  return fileApiUrl(abs);
 }
 
 function MediaViewer({ kind, filePath, fileName }: { kind: MediaKind; filePath: string; fileName: string }) {
@@ -186,13 +222,37 @@ function ToolbarButton({
 
 function TiptapEditor({
   initialMarkdown,
+  baseDir,
   onChange,
 }: {
   initialMarkdown: string;
+  baseDir: string;
   onChange: (content: string) => void;
 }) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  // Rewrite the rendered <img src> to the token-guarded /api/file URL while
+  // keeping the raw markdown path in the node's src attribute (so it serializes
+  // back unchanged). baseDir is captured once at mount, matching the uncontrolled
+  // editor's read-once model.
+  const [ResolvedImage] = useState(() =>
+    Image.extend({
+      addAttributes() {
+        const parent: Record<string, unknown> = this.parent?.() ?? {};
+        return {
+          ...parent,
+          src: {
+            ...(parent.src as object),
+            renderHTML: (attrs: { src?: string }) =>
+              attrs.src ? { src: resolveImageSrc(attrs.src, baseDir) } : {},
+          },
+        };
+      },
+      // Inline images live inside paragraphs, matching markdown semantics; the
+      // default block image merges with the following paragraph on serialization.
+    }).configure({ inline: true }),
+  );
 
   // StarterKit bundles the UndoRedo (history) extension, so Cmd/Ctrl+Z works.
   // tiptap-markdown parses the initial markdown string and re-serializes on
@@ -202,6 +262,7 @@ function TiptapEditor({
       StarterKit,
       TightTaskList,
       TaskItem.configure({ nested: true }),
+      ResolvedImage,
       Markdown.configure({ html: false }),
     ],
     content: initialMarkdown,
@@ -269,10 +330,12 @@ function TiptapEditor({
 
 function MarkdownEditor({
   initialMarkdown,
+  baseDir,
   onChange,
   onSave,
 }: {
   initialMarkdown: string;
+  baseDir: string;
   onChange: (content: string) => void;
   onSave: () => void;
 }) {
@@ -303,6 +366,7 @@ function MarkdownEditor({
       />
       <TiptapEditor
         initialMarkdown={parsed.body}
+        baseDir={baseDir}
         onChange={(md) => {
           bodyRef.current = md;
           emit();
@@ -375,7 +439,7 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
         </div>
       )}
       {markdown && mode === "wysiwyg" ? (
-        <MarkdownEditor key="wysiwyg" initialMarkdown={data.content} onChange={onChange} onSave={onSave} />
+        <MarkdownEditor key="wysiwyg" initialMarkdown={data.content} baseDir={dirname(filePath)} onChange={onChange} onSave={onSave} />
       ) : (
         <CodeEditor key="code" initialDoc={data.content} fileName={fileName} onChange={onChange} onSave={onSave} />
       )}

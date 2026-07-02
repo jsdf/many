@@ -31,6 +31,8 @@
 .tiptap-host .ProseMirror ol { list-style: decimal; padding-left: 1.5em; }
 .tiptap-host .ProseMirror li > p { margin: 0; }
 .tiptap-host .ProseMirror li { margin: 0.2em 0; }
+.tiptap-host .ProseMirror img { max-width: 100%; height: auto; border-radius: 0.25rem; }
+.tiptap-host .ProseMirror img.ProseMirror-selectednode { outline: 2px solid var(--color-primary); }
 .tiptap-host .ProseMirror blockquote {
   border-left: 3px solid var(--color-base-300);
   padding-left: 1em;
