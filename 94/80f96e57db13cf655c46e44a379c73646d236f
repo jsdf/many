@@ -1,0 +1,23 @@
+src/renderer/src/components/FileEditorTab.tsx
+  s_a2c805bce2ad50::t_64b4562a0816a8 525-531,534-536
+  s_a2c805bce2ad50::t_325777f973c972 448-458,465-468
+  s_a2c805bce2ad50::t_8182662554adf6 482
+  s_a2c805bce2ad50::t_4ac03ef29f8908 18
+  s_a2c805bce2ad50::t_f160295b2f0315 469-470
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "9480f96e57db13cf655c46e44a379c73646d236f",
+  "prompts": {},
+  "sessions": {
+    "s_a2c805bce2ad50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "808f6a94-6207-45e1-be61-dba55f68640c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
