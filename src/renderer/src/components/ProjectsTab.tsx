@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { X, Ban } from "lucide-react";
+import { X, Ban, ChevronDown, ChevronRight } from "lucide-react";
 import { ProjectEntry, ProjectNode, FsEntry } from "../types";
 import { getRpcClient } from "../rpc-client";
 import ContextMenu, { ContextMenuItem } from "./ContextMenu";
@@ -81,6 +81,9 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   // drags the divider it becomes an explicit pixel height.
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
   const [draggingActive, setDraggingActive] = useState(false);
+  // Accordion collapse of the Active / Projects sections via their headers.
+  const [activeCollapsed, setActiveCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeTreeRef = useRef<HTMLDivElement>(null);
 
@@ -505,9 +508,15 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     >
       {activeRows.length > 0 && (
         <div className="shrink-0 flex flex-col">
-          <div className="mb-1 px-0.5 flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-base-content/60">Active</span>
-            <div className="join">
+          <div
+            className="mb-1 px-0.5 flex items-center justify-between gap-2 cursor-pointer"
+            onClick={() => setActiveCollapsed((c) => !c)}
+          >
+            <span className="text-xs font-semibold text-base-content/60 flex items-center gap-0.5">
+              {activeCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              Active
+            </span>
+            <div className="join" onClick={(e) => e.stopPropagation()}>
               <button
                 className={`join-item btn btn-xs ${activeMode === "recent" ? "btn-primary" : "btn-outline btn-neutral"}`}
                 onClick={() => setActiveMode("recent")}
@@ -522,6 +531,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               </button>
             </div>
           </div>
+          {!activeCollapsed && (
           <div
             ref={activeTreeRef}
             className="overflow-hidden"
@@ -582,22 +592,37 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
               </div>
             )}
           </div>
-          <div
-            className={`shrink-0 h-1 my-1.5 rounded cursor-ns-resize transition-colors ${draggingActive ? "bg-primary" : "bg-base-300 hover:bg-primary"}`}
-            onMouseDown={handleActiveResizeStart}
-            title="Drag to resize"
-          />
+          )}
+          {!activeCollapsed && (
+            <div
+              className={`shrink-0 h-1 my-1.5 rounded cursor-ns-resize transition-colors ${draggingActive ? "bg-primary" : "bg-base-300 hover:bg-primary"}`}
+              onMouseDown={handleActiveResizeStart}
+              title="Drag to resize"
+            />
+          )}
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-2 px-0.5">
-        <span className="text-xs font-semibold text-base-content/60">Projects</span>
-        <button className="btn btn-outline btn-neutral btn-xs" onClick={onAddProject}>
+      <div
+        className="flex items-center justify-between mb-2 px-0.5 cursor-pointer"
+        onClick={() => setProjectsCollapsed((c) => !c)}
+      >
+        <span className="text-xs font-semibold text-base-content/60 flex items-center gap-0.5">
+          {projectsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+          Projects
+        </span>
+        <button
+          className="btn btn-outline btn-neutral btn-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddProject();
+          }}
+        >
           + Add Project
         </button>
       </div>
 
-      {projects.length > 0 && (
+      {!projectsCollapsed && projects.length > 0 && (
         <div className="relative mb-2 px-0.5">
           <input
             type="text"
@@ -620,28 +645,29 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
         </div>
       )}
 
-      {projects.length === 0 ? (
-        <p className="text-base-content/50 text-xs text-center mt-4 px-2">
-          No projects yet. Click "+ Add Project" to add a local directory.
-        </p>
-      ) : filtering && !searching && rows.length === 0 ? (
-        <p className="text-base-content/50 text-xs text-center mt-4 px-2">
-          No matches.
-        </p>
-      ) : (
-        <FileTree
-          rows={rows}
-          selectedPath={selectedNode?.path}
-          worktreeActivity={worktreeActivity}
-          isExpanded={(row) => filtering || expanded.has(row.entry.path)}
-          isLoading={(row) => loading.has(row.entry.path)}
-          onRowClick={handleRowClick}
-          onToggleCaret={handleToggleCaret}
-          onContextMenu={handleContextMenu}
-          rightSlot={renderRightSlot}
-          virtualized
-        />
-      )}
+      {!projectsCollapsed &&
+        (projects.length === 0 ? (
+          <p className="text-base-content/50 text-xs text-center mt-4 px-2">
+            No projects yet. Click "+ Add Project" to add a local directory.
+          </p>
+        ) : filtering && !searching && rows.length === 0 ? (
+          <p className="text-base-content/50 text-xs text-center mt-4 px-2">
+            No matches.
+          </p>
+        ) : (
+          <FileTree
+            rows={rows}
+            selectedPath={selectedNode?.path}
+            worktreeActivity={worktreeActivity}
+            isExpanded={(row) => filtering || expanded.has(row.entry.path)}
+            isLoading={(row) => loading.has(row.entry.path)}
+            onRowClick={handleRowClick}
+            onToggleCaret={handleToggleCaret}
+            onContextMenu={handleContextMenu}
+            rightSlot={renderRightSlot}
+            virtualized
+          />
+        ))}
 
       {menu && (
         <ContextMenu
