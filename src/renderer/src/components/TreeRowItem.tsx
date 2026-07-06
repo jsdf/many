@@ -7,6 +7,7 @@ export interface TreeRowItemProps {
   isProject: boolean;
   depth: number;
   selected: boolean;
+  focused?: boolean;
   expanded: boolean;
   loading?: boolean;
   dimmed?: boolean;
@@ -31,6 +32,7 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
   isProject,
   depth,
   selected,
+  focused,
   expanded,
   loading,
   dimmed,
@@ -42,7 +44,7 @@ const TreeRowItem: React.FC<TreeRowItemProps> = ({
   rightSlot,
   dragHandle,
 }) => (
-  <div className={`flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"}`}>
+  <div className={`flex items-center w-full h-full rounded ${selected ? "bg-primary/15" : "hover:bg-base-300/60"} ${focused ? "ring-1 ring-inset ring-primary/60" : ""}`}>
     {dragHandle}
     <div
       role="button"

@@ -72,6 +72,14 @@ const FileTree: React.FC<FileTreeProps> = ({
   const sortable = React.useMemo(() => new Set(sortableIds ?? []), [sortableIds]);
   const dndEnabled = !virtualized && !!sortableIds && sortableIds.length > 0;
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard-navigation cursor, decoupled from selection so arrowing up/down a
+  // file tree doesn't select/open every row it passes. Starts on (and re-syncs
+  // to) the selected row.
+  const [focusedPath, setFocusedPath] = React.useState<string | undefined>(selectedPath);
+  useEffect(() => {
+    if (selectedPath) setFocusedPath(selectedPath);
+  }, [selectedPath]);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -82,19 +90,64 @@ const FileTree: React.FC<FileTreeProps> = ({
   // Keep the selected row visible. Virtualized lists scroll by index (the row
   // may not be in the DOM); plain lists scroll the rendered element. Re-runs
   // when the row list changes too, so selection stays visible after expand.
+  const scrollTarget = focusedPath ?? selectedPath;
   useEffect(() => {
-    if (!selectedPath) return;
-    const index = rows.findIndex((r) => r.entry.path === selectedPath);
+    if (!scrollTarget) return;
+    const index = rows.findIndex((r) => r.entry.path === scrollTarget);
     if (index < 0) return;
     if (virtualized) {
       virtualizer.scrollToIndex(index, { align: "auto" });
     } else {
       parentRef.current
-        ?.querySelector(`[data-tree-path="${CSS.escape(selectedPath)}"]`)
+        ?.querySelector(`[data-tree-path="${CSS.escape(scrollTarget)}"]`)
         ?.scrollIntoView({ block: "nearest" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPath, rows, virtualized]);
+  }, [scrollTarget, rows, virtualized]);
+
+  // Arrow-key navigation: up/down move the cursor, left/right collapse/expand
+  // the focused directory (or hop to parent / first child), Enter activates it.
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (rows.length === 0) return;
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"].includes(e.key)) return;
+    e.preventDefault();
+    const idx = rows.findIndex((r) => r.entry.path === focusedPath);
+    if (idx < 0) {
+      setFocusedPath(rows[0].entry.path);
+      return;
+    }
+    const row = rows[idx];
+    const isDir = row.entry.isDirectory;
+    const rowExpanded = isDir && isExpanded(row);
+    const move = (i: number) => setFocusedPath(rows[i].entry.path);
+    const toggle = () => onToggleCaret?.(row, { stopPropagation() {} } as React.MouseEvent);
+    switch (e.key) {
+      case "ArrowDown":
+        if (idx < rows.length - 1) move(idx + 1);
+        break;
+      case "ArrowUp":
+        if (idx > 0) move(idx - 1);
+        break;
+      case "ArrowRight":
+        if (isDir && !rowExpanded) toggle();
+        else if (isDir && rowExpanded && idx < rows.length - 1) move(idx + 1);
+        break;
+      case "ArrowLeft":
+        if (isDir && rowExpanded) toggle();
+        else {
+          for (let j = idx - 1; j >= 0; j--) {
+            if (rows[j].depth < row.depth) {
+              move(j);
+              break;
+            }
+          }
+        }
+        break;
+      case "Enter":
+        onRowClick(row);
+        break;
+    }
+  };
 
   const renderRow = (
     row: FileTreeRow,
@@ -122,6 +175,7 @@ const FileTree: React.FC<FileTreeProps> = ({
           isProject={isProject}
           depth={depth}
           selected={selectedPath === entry.path}
+          focused={focusedPath === entry.path}
           expanded={entry.isDirectory && isExpanded(row)}
           loading={isLoading?.(row)}
           dimmed={!isProject && entry.name.startsWith(".")}
@@ -132,7 +186,10 @@ const FileTree: React.FC<FileTreeProps> = ({
           openFileCount={
             entry.isDirectory ? sumActivityUnder(worktreeActivity, entry.path).openFiles : 0
           }
-          onClick={() => onRowClick(row)}
+          onClick={() => {
+            setFocusedPath(entry.path);
+            onRowClick(row);
+          }}
           onToggleCaret={
             entry.isDirectory && onToggleCaret
               ? (e) => onToggleCaret(row, e)
@@ -161,7 +218,7 @@ const FileTree: React.FC<FileTreeProps> = ({
     );
     if (!dndEnabled) {
       return (
-        <div ref={parentRef} className={scrollClassName}>
+        <div ref={parentRef} className={`${scrollClassName} outline-none`} tabIndex={0} onKeyDown={handleKeyDown}>
           {body}
         </div>
       );
@@ -171,7 +228,7 @@ const FileTree: React.FC<FileTreeProps> = ({
       if (over && active.id !== over.id) onReorder?.(active.id as string, over.id as string);
     };
     return (
-      <div ref={parentRef} className={scrollClassName}>
+      <div ref={parentRef} className={`${scrollClassName} outline-none`} tabIndex={0} onKeyDown={handleKeyDown}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sortableIds!} strategy={verticalListSortingStrategy}>
             {body}
@@ -182,7 +239,7 @@ const FileTree: React.FC<FileTreeProps> = ({
   }
 
   return (
-    <div ref={parentRef} className={scrollClassName}>
+    <div ref={parentRef} className={`${scrollClassName} outline-none`} tabIndex={0} onKeyDown={handleKeyDown}>
       <div style={{ height: `${virtualizer.getTotalSize()}px`, width: "100%", position: "relative" }}>
         {virtualizer.getVirtualItems().map((vi) =>
           renderRow(rows[vi.index], {
