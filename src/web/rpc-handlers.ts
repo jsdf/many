@@ -190,6 +190,16 @@ async function openInEditor(folderPath: string, editor?: string | null): Promise
   return openInFileManager(folderPath);
 }
 
+/** Open a file or directory in the OS default application. */
+async function openPath(targetPath: string): Promise<boolean> {
+  logger.info(`[action] openPath: path=${targetPath}`);
+  const platform = process.platform;
+  if (platform === "darwin") spawnDetached("open", [targetPath]);
+  else if (platform === "win32") spawnDetached("cmd", ["/c", "start", "", targetPath]);
+  else spawnDetached("xdg-open", [targetPath]);
+  return true;
+}
+
 async function openInTerminal(folderPath: string, terminal?: string | null): Promise<boolean> {
   logger.info(`[action] openInTerminal: path=${folderPath}, terminal=${terminal ?? "(default)"}`);
   const platform = process.platform;
@@ -849,6 +859,11 @@ export function createQueryHandlers(opts: {
     "action.openVSCode": async (input) => {
       const { path: p } = input as { path: string };
       await openVSCode(p);
+      return { ok: true };
+    },
+    "action.openPath": async (input) => {
+      const { path: p } = input as { path: string };
+      await openPath(p);
       return { ok: true };
     },
     "action.selectFolder": async (input) => {

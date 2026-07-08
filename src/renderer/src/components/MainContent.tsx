@@ -479,6 +479,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
           x={tabMenu.x}
           y={tabMenu.y}
           items={[
+            { label: "Open in default app", onClick: () => getRpcClient().query("action.openPath", { path: tabMenu.file.path }).catch((err) => console.error("[action] openPath failed:", err)) },
             { label: "Copy relative path", onClick: () => navigator.clipboard.writeText(relativeToRoot(tabMenu.file.path, selectedWorktree.path)).catch(() => {}) },
             { label: "Copy absolute path", onClick: () => navigator.clipboard.writeText(tabMenu.file.path).catch(() => {}) },
           ]}

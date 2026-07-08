@@ -103,6 +103,15 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
             .query("action.openEditor", { path: entry.path })
             .catch((err) => console.error("[action] openEditor failed:", err)),
       });
+      if (!entry.isDirectory) {
+        items.push({
+          label: "Open in default app",
+          onClick: () =>
+            getRpcClient()
+              .query("action.openPath", { path: entry.path })
+              .catch((err) => console.error("[action] openPath failed:", err)),
+        });
+      }
       items.push({ label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(entry.path, worktreePath)) });
       items.push({ label: "Copy absolute path", onClick: () => copyToClipboard(entry.path) });
       if (!isProject) {

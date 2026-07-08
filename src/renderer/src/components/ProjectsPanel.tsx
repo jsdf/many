@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { Folder, Terminal, X, Circle } from "lucide-react";
-import { ProjectNode, OpenFile } from "../types";
+import { Folder, Terminal, X, Circle, ArrowUp } from "lucide-react";
+import { ProjectEntry, ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useProjectMetadata } from "../hooks/useProjectMetadata";
@@ -27,6 +27,8 @@ export interface ProjectsPanelHandle {
 
 interface ProjectsPanelProps {
   project: ProjectNode | null;
+  projects: ProjectEntry[];
+  onSelectNode: (node: ProjectNode) => void;
   pendingResume: { projectPath: string; sessionId: string; sessionType?: "chat" | "claude-code" } | null;
   onPendingResumeConsumed: () => void;
   pendingOpenFile: { projectPath: string; file: OpenFile } | null;
@@ -48,6 +50,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   sidebarCollapsed,
   onExpandSidebar,
   onGoToWorktree,
+  projects,
+  onSelectNode,
 }, ref) => {
   const isNarrow = useMediaQuery('(max-width: 768px)');
   const [splitFraction, setSplitFraction] = useState(DEFAULT_SPLIT);
@@ -173,7 +177,23 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
 
   const active = openFiles.find((f) => f.path === activeFile) ?? null;
 
+  // Parent node for the "up" button: the current node's parent directory,
+  // unless the current node is itself a registered project root (nothing above
+  // it in the projects tree). Reuses the registered project name when the
+  // parent is a root.
+  const sep = project.path.includes("\\") ? "\\" : "/";
+  const isProjectRoot = projects.some((p) => p.path === project.path);
+  const parentPath = project.path.slice(0, project.path.lastIndexOf(sep));
+  const parentNode: ProjectNode | null =
+    !isProjectRoot && parentPath
+      ? {
+          path: parentPath,
+          name: projects.find((p) => p.path === parentPath)?.name ?? parentPath.slice(parentPath.lastIndexOf(sep) + 1),
+        }
+      : null;
+
   const tabMenuItems = (file: OpenFile): ContextMenuItem[] => [
+    { label: "Open in default app", onClick: () => getRpcClient().query("action.openPath", { path: file.path }).catch((err) => console.error("[action] openPath failed:", err)) },
     { label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(file.path, project.path)) },
     { label: "Copy absolute path", onClick: () => copyToClipboard(file.path) },
   ];
@@ -181,6 +201,15 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   return (
     <div className="flex flex-col p-0 h-screen w-full min-w-0 items-stretch justify-start flex-1">
       <TopBar sidebarCollapsed={sidebarCollapsed} onExpandSidebar={onExpandSidebar}>
+        {parentNode && (
+          <button
+            className="btn btn-ghost btn-sm btn-square mr-1"
+            title={`Up to ${parentNode.name}`}
+            onClick={() => onSelectNode(parentNode)}
+          >
+            <ArrowUp size={16} />
+          </button>
+        )}
         <div className="mr-2">
           <h2 className="m-0 text-base font-semibold leading-tight">{project.name}</h2>
           <span className="block text-xs text-base-content/50 leading-tight" title={project.path}>{project.path}</span>

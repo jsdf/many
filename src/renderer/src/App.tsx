@@ -954,6 +954,11 @@ const App: React.FC = () => {
           <ProjectsPanel
             ref={projectsPanelRef}
             project={selectedNode}
+            projects={projects}
+            onSelectNode={(node) => {
+              setSelectedNode(node);
+              setMainPaneView({ type: 'projects' });
+            }}
             pendingResume={pendingResume}
             onPendingResumeConsumed={() => setPendingResume(null)}
             pendingOpenFile={pendingOpenFile}
