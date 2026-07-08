@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -38,6 +38,65 @@ interface TerminalInfo {
   isClaudeUi?: boolean;
   resumeSessionId?: string; // claude-code session this terminal was opened to resume
 }
+
+function formatTime(t: number): string {
+  return new Date(t).toLocaleTimeString();
+}
+
+function formatAgo(t: number): string {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  return `${Math.round(s / 3600)}h ago`;
+}
+
+// Clock icon in the terminal header that reveals the session's start time and
+// most-recent-output time on hover. Fetches fresh timestamps from the server on
+// each hover so "last activity" reflects live output.
+const TerminalActivityInfo: React.FC<{ worktreePath: string; terminalId: string }> = ({
+  worktreePath,
+  terminalId,
+}) => {
+  const [info, setInfo] = useState<{ createdAt?: number; lastDataAt?: number } | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const handleEnter = useCallback(async () => {
+    setOpen(true);
+    try {
+      const sessions = await getRpcClient().query("terminal.listSessions", { worktreePath });
+      const s = sessions.find((x) => x.id === terminalId);
+      if (s) setInfo({ createdAt: s.createdAt, lastDataAt: s.lastDataAt });
+    } catch {
+      // Session may be gone; leave prior info in place
+    }
+  }, [worktreePath, terminalId]);
+
+  return (
+    <div
+      className="relative flex items-center"
+      onMouseEnter={handleEnter}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button className="btn btn-ghost btn-xs" tabIndex={-1} title="Terminal timing">
+        <Clock size={12} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap rounded bg-base-300 text-base-content px-2 py-1 text-xs shadow-lg">
+          {info?.createdAt != null ? (
+            <div>Started: {formatTime(info.createdAt)}</div>
+          ) : (
+            <div>Started: unknown</div>
+          )}
+          {info?.lastDataAt != null ? (
+            <div>Last activity: {formatTime(info.lastDataAt)} ({formatAgo(info.lastDataAt)})</div>
+          ) : (
+            <div>Last activity: none</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 let terminalCounter = 0;
 
@@ -515,6 +574,9 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   );
                 })()}
                 <div className={`flex items-center ${isFocused ? 'text-base-100' : ''}`}>
+                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession && !term.isClaudeUi && (
+                    <TerminalActivityInfo worktreePath={worktreePath} terminalId={term.id} />
+                  )}
                   {term.isClaudeUi && (
                     <div className="dropdown dropdown-end">
                       <button tabIndex={0} className="btn btn-ghost btn-xs opacity-60 hover:opacity-100">&#8943;</button>

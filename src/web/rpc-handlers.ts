@@ -983,7 +983,13 @@ export function createQueryHandlers(opts: {
       ]);
       return ids.map((id) => {
         const info = all.find((s) => s.terminalId === id);
-        return { id, userLabel: info?.userLabel, taskId: info?.taskId };
+        return {
+          id,
+          userLabel: info?.userLabel,
+          taskId: info?.taskId,
+          createdAt: info?.createdAt,
+          lastDataAt: info?.lastDataAt,
+        };
       });
     },
     "terminal.setLabel": async (input) => {

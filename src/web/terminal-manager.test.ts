@@ -11,6 +11,29 @@ describe("TerminalManager.createSession", () => {
   });
 });
 
+describe("TerminalManager activity timestamps", () => {
+  it("exposes createdAt/lastDataAt and advances lastDataAt on PTY output", async () => {
+    const manager = new TerminalManager();
+    manager.createSession("ts1", "/tmp", 80, 24);
+
+    const before = manager.listAllSessions().find((s) => s.terminalId === "ts1")!;
+    expect(before.createdAt).toBeGreaterThan(0);
+    expect(before.lastDataAt).toBe(before.createdAt);
+
+    // Wait for real shell output triggered by an echo, then confirm the
+    // most-recent-data timestamp moved forward.
+    await new Promise<void>((resolve) => {
+      manager.addDataListener("ts1", () => resolve());
+      manager.sendData("ts1", "echo hi\n");
+    });
+
+    const after = manager.listAllSessions().find((s) => s.terminalId === "ts1")!;
+    expect(after.lastDataAt).toBeGreaterThanOrEqual(before.lastDataAt);
+
+    manager.closeSession("ts1");
+  });
+});
+
 describe("TerminalManager auto-run input buffering", () => {
   it("buffers user input until the initial command is submitted, then flushes it in order", () => {
     vi.useFakeTimers();

@@ -18,6 +18,8 @@ interface TerminalSession {
   createdAt: number;
   // Last time the user sent input (keystrokes/paste) to this terminal.
   lastInputAt: number;
+  // Last time output data was received from the PTY.
+  lastDataAt: number;
   // Window title set by the shell/program via OSC 0/2 escape sequences.
   title?: string;
   // User-assigned persistent label (overrides the default "Terminal N" display).
@@ -44,6 +46,7 @@ export interface TerminalSessionInfo {
   worktreePath: string;
   createdAt: number;
   lastInputAt: number;
+  lastDataAt: number;
   title?: string;
   userLabel?: string;
   taskId?: string;
@@ -117,6 +120,7 @@ export class TerminalManager {
       worktreePath,
       createdAt: now,
       lastInputAt: now,
+      lastDataAt: now,
       titleBuf: "",
       outputBlocks: [],
       currentBlockData: "",
@@ -163,6 +167,7 @@ export class TerminalManager {
     }
 
     ptyProcess.onData((data: string) => {
+      session.lastDataAt = Date.now();
       updateTitle(session, data);
       this.appendOutput(session, data);
       if (session.logFileHandle && session.logBytesWritten < MAX_LOG_BYTES) {
@@ -264,6 +269,7 @@ export class TerminalManager {
         worktreePath: session.worktreePath,
         createdAt: session.createdAt,
         lastInputAt: session.lastInputAt,
+        lastDataAt: session.lastDataAt,
         title: session.title,
         userLabel: session.userLabel,
         taskId: session.taskId,

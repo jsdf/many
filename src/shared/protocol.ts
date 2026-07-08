@@ -737,7 +737,7 @@ export interface QueryProcedures {
   };
   "terminal.listSessions": {
     input: { worktreePath: string };
-    output: Array<{ id: string; userLabel?: string; taskId?: string }>;
+    output: Array<{ id: string; userLabel?: string; taskId?: string; createdAt?: number; lastDataAt?: number }>;
   };
   "terminal.setLabel": {
     input: { terminalId: string; label: string };
@@ -750,6 +750,7 @@ export interface QueryProcedures {
       worktreePath: string;
       createdAt: number;
       lastInputAt: number;
+      lastDataAt: number;
       title?: string;
       userLabel?: string;
     }>;

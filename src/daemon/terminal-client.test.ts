@@ -59,6 +59,7 @@ class FakeManager implements DaemonManager {
       worktreePath: s.worktreePath,
       createdAt: 0,
       lastInputAt: 0,
+      lastDataAt: 0,
     }));
   }
   getSessionCountsByWorktree(): Record<string, number> {
