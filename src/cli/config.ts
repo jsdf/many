@@ -26,12 +26,22 @@ export interface PoolConfig {
   claudeCommand?: string;
 }
 
+export type AutomationRunTarget = 'worktree' | 'mainRepo';
+
+export interface AutomationSchedule {
+  cron: string;
+  enabled: boolean;
+}
+
 export interface AutomationDefinition {
   id: string;
   name: string;
-  type: 'custom' | 'skill';
+  type: 'custom' | 'skill' | 'shell';
   prompt?: string;
   skillName?: string;
+  script?: string;
+  runTarget?: AutomationRunTarget;
+  schedule?: AutomationSchedule;
 }
 
 export interface RepositoryConfig {
@@ -42,6 +52,8 @@ export interface RepositoryConfig {
   pools?: PoolConfig[];
   defaultTaskPool?: string | null;
   automations?: AutomationDefinition[];
+  showAutomationsTab?: boolean;
+  showTrackedTab?: boolean;
 }
 
 export interface SessionMeta {

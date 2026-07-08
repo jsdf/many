@@ -991,7 +991,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             Tracked
           </button>
         )}
-        {showAutomationsTab && hasTaskPools && (
+        {showAutomationsTab && (
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "automations" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
             onClick={() => onAutomationsSubViewChange?.("running")}
@@ -1051,7 +1051,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             Tracked branches are shown in the main panel.
           </p>
         </div>
-      ) : activeTab === "automations" && showAutomationsTab && hasTaskPools ? (
+      ) : activeTab === "automations" && showAutomationsTab ? (
         <AutomationsTab
           currentRepo={currentRepo}
           subView={automationsSubView ?? "running"}

@@ -80,12 +80,22 @@ export interface PoolConfig {
   claudeCommand?: string;
 }
 
+export type AutomationRunTarget = 'worktree' | 'mainRepo';
+
+export interface AutomationSchedule {
+  cron: string;
+  enabled: boolean;
+}
+
 export interface AutomationDefinition {
   id: string;
   name: string;
-  type: 'custom' | 'skill';
+  type: 'custom' | 'skill' | 'shell';
   prompt?: string;
   skillName?: string;
+  script?: string;
+  runTarget?: AutomationRunTarget;
+  schedule?: AutomationSchedule;
 }
 
 export type WorkItemStatus = 'pending' | 'running' | 'completed' | 'failed';

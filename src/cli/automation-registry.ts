@@ -208,6 +208,29 @@ export async function getRun(id: string): Promise<AutomationRun | null> {
   return rowToRun(row, getWorkItemsForRun(id));
 }
 
+/**
+ * Mark any automation run left in "running" state as "failed", along with its
+ * running work items. Automations are driven by the in-process scheduler and
+ * automation-service, so a run cannot still be legitimately in progress after
+ * this process restarts (a crashed/killed server would otherwise leave it
+ * stuck "running" forever, blocking future scheduled fires of that automation).
+ */
+export async function reconcileAutomationRuns(): Promise<void> {
+  const db = getDb();
+  const now = Date.now();
+
+  db.prepare(
+    `UPDATE work_items SET status = 'failed'
+     WHERE status = 'running'
+       AND run_id IN (SELECT id FROM automation_runs WHERE status = 'running')`
+  ).run();
+
+  db.prepare(
+    `UPDATE automation_runs SET status = 'failed', ended_at = COALESCE(ended_at, ?)
+     WHERE status = 'running'`
+  ).run(now);
+}
+
 export async function listRuns(filter?: {
   repoPath?: string;
   status?: AutomationRunStatus;

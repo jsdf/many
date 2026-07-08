@@ -23,7 +23,7 @@ export interface RunAutomationOptions {
   repoPath: string;
   automation: AutomationDefinition;
   repoConfig: RepositoryConfig;
-  worktreePath: string;
+  worktreePath?: string;
   prompt?: string;
   onProgress?: OnProgress;
   runCommand?: RunCommand;
@@ -32,24 +32,41 @@ export interface RunAutomationOptions {
 export async function runAutomation(
   options: RunAutomationOptions
 ): Promise<AutomationRun> {
-  const { repoPath, automation, repoConfig, worktreePath, onProgress } = options;
+  const { repoPath, automation, repoConfig, onProgress } = options;
+  const runTarget = automation.runTarget ?? "worktree";
+  const isShell = automation.type === "shell";
 
   const pool = repoConfig.pools?.find((p) => p.taskCommand || p.backgroundTaskCommand);
-  if (!pool) {
+  if (runTarget !== "mainRepo" && !pool) {
     throw new Error("No task pool configured");
   }
-  const taskCommand = pool.backgroundTaskCommand || pool.taskCommand;
-  if (!taskCommand) {
+  const poolTaskCommand = pool?.backgroundTaskCommand || pool?.taskCommand;
+  if (runTarget !== "mainRepo" && !isShell && !poolTaskCommand) {
     throw new Error("No task command configured");
   }
 
   let prompt: string;
-  if (automation.type === "skill") {
-    prompt = `/${automation.skillName}`;
-    if (options.prompt) prompt += ` ${options.prompt}`;
+  let commandToRun: string;
+  let workItemText: string;
+
+  if (isShell) {
+    const script = automation.script ?? "";
+    if (!script.trim()) {
+      throw new Error("No script configured for shell automation");
+    }
+    prompt = "";
+    commandToRun = script;
+    workItemText = `shell: ${automation.name}`;
   } else {
-    prompt = automation.prompt ?? "";
-    if (options.prompt) prompt += `\n\n${options.prompt}`;
+    if (automation.type === "skill") {
+      prompt = `/${automation.skillName}`;
+      if (options.prompt) prompt += ` ${options.prompt}`;
+    } else {
+      prompt = automation.prompt ?? "";
+      if (options.prompt) prompt += `\n\n${options.prompt}`;
+    }
+    commandToRun = poolTaskCommand!;
+    workItemText = prompt;
   }
 
   const run = await createRun({
@@ -62,7 +79,7 @@ export async function runAutomation(
   onProgress?.({ type: "step", text: `Running automation: ${automation.name}` });
 
   try {
-    await addWorkItems(run.id, [prompt]);
+    await addWorkItems(run.id, [workItemText]);
     const currentRun = await getRun(run.id);
     const workItem = currentRun?.workItems[0];
     if (!workItem) throw new Error("Failed to create work item");
@@ -71,36 +88,67 @@ export async function runAutomation(
     await fs.mkdir(logDir, { recursive: true });
     const logFile = path.join(logDir, `${run.id}-task.log`);
 
-    const result = await launchTask(
-      repoPath,
-      {
-        poolType: pool.type,
-        poolPrefix: pool.prefix,
-        prompt,
-        maintenanceCommand: pool.maintenanceCommand,
-        initCommand: repoConfig.initCommand,
-        mainBranch: repoConfig.mainBranch,
-        worktreeDirectory: repoConfig.worktreeDirectory,
-        taskCommand,
-        launchedBy: "web",
-        logFile,
-      },
-      onProgress,
-      options.runCommand
-    );
+    let targetWorktreePath: string;
+    let taskId: string;
+
+    if (runTarget === "mainRepo") {
+      // Run directly against the main checkout — no pool, no claim/create, never released.
+      const result = await launchTask(
+        repoPath,
+        {
+          poolType: "ephemeral",
+          poolPrefix: "mainrepo",
+          prompt: workItemText,
+          existingWorktreePath: repoPath,
+          mainBranch: repoConfig.mainBranch,
+          worktreeDirectory: repoConfig.worktreeDirectory,
+          taskCommand: commandToRun,
+          launchedBy: "web",
+          logFile,
+        },
+        onProgress,
+        options.runCommand
+      );
+      targetWorktreePath = result.worktreePath;
+      taskId = result.taskRecord.id;
+    } else {
+      // Pool worktree path (default) — claim/create a worktree from the pool.
+      if (!pool) throw new Error("No task pool configured");
+      const result = await launchTask(
+        repoPath,
+        {
+          poolType: pool.type,
+          poolPrefix: pool.prefix,
+          prompt: workItemText,
+          maintenanceCommand: pool.maintenanceCommand,
+          initCommand: repoConfig.initCommand,
+          mainBranch: repoConfig.mainBranch,
+          worktreeDirectory: repoConfig.worktreeDirectory,
+          taskCommand: commandToRun,
+          launchedBy: "web",
+          logFile,
+        },
+        onProgress,
+        options.runCommand
+      );
+      targetWorktreePath = result.worktreePath;
+      taskId = result.taskRecord.id;
+    }
 
     await updateWorkItem(run.id, workItem.id, {
       status: "running",
-      taskId: result.taskRecord.id,
-      worktreePath: result.worktreePath,
+      taskId,
+      worktreePath: targetWorktreePath,
     });
 
     const exitCode = await spawnTaskProcess(
-      taskCommand,
-      result.worktreePath,
+      commandToRun,
+      targetWorktreePath,
       prompt,
       logFile,
-      result.taskRecord.id,
+      taskId,
+      repoConfig,
+      repoPath,
       onProgress
     );
 
@@ -122,20 +170,24 @@ export async function runAutomation(
 }
 
 function spawnTaskProcess(
-  taskCommand: string,
+  commandToRun: string,
   cwd: string,
   prompt: string,
   logFile: string,
   taskId: string,
+  repoConfig: RepositoryConfig,
+  repoPath: string,
   onProgress?: OnProgress
 ): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(userShell, ["-li", "-c", taskCommand], {
+    const child = spawn(userShell, ["-li", "-c", commandToRun], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         MANY_TASK_PROMPT: prompt,
+        MANY_MAIN_BRANCH: repoConfig.mainBranch ?? "",
+        MANY_REPO_PATH: repoPath,
       },
     });
 

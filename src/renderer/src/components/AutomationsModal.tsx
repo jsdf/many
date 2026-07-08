@@ -1,7 +1,27 @@
 import React, { useState, useEffect } from "react";
-import { AutomationDefinition } from "../types";
+import { AutomationDefinition, AutomationRunTarget } from "../types";
 import { getRpcClient } from "../rpc-client";
 import TopBar from "./TopBar";
+import { isValidCron } from "../../../shared/cron";
+
+const DEFAULT_SYNC_SCRIPT = `set -euo pipefail
+BRANCH="\${MANY_MAIN_BRANCH:-main}"
+git fetch origin "$BRANCH"
+git checkout "$BRANCH"
+if git rebase "origin/$BRANCH"; then
+  git push
+else
+  echo "Rebase conflicts - invoking Claude to resolve"
+  claude -p "/fix-merge-conflicts resolve the current rebase conflicts in $(pwd), then run 'git rebase --continue' until the rebase completes"
+  # Safety: if the rebase is somehow still in progress, abort rather than push a bad state.
+  if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+    echo "Rebase still in progress after Claude; aborting" >&2
+    git rebase --abort
+    exit 1
+  fi
+  git push
+fi
+`;
 
 interface AutomationsModalProps {
   currentRepo: string;
@@ -84,19 +104,22 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
       automation.type === "skill"
         ? `/${automation.skillName}`
         : automation.prompt ?? "";
+    const isMainRepo = automation.runTarget === "mainRepo";
     try {
-      const repoConfig = await getRpcClient().query("repo.getConfig", { repoPath: currentRepo });
-      const pool = repoConfig.pools?.find((p) => p.taskCommand || p.backgroundTaskCommand);
-      if (!pool) {
-        setRunStatus({ id: automation.id, message: "No task pool configured", error: true });
-        return;
+      let worktreePath = "";
+      if (!isMainRepo) {
+        const repoConfig = await getRpcClient().query("repo.getConfig", { repoPath: currentRepo });
+        const pool = repoConfig.pools?.find((p) => p.taskCommand || p.backgroundTaskCommand);
+        if (!pool) {
+          setRunStatus({ id: automation.id, message: "No task pool configured", error: true });
+          return;
+        }
       }
-      getRpcClient().subscribe("stream.launchTask", () => {}, {
+      getRpcClient().subscribe("stream.runAutomation", () => {}, {
         repoPath: currentRepo,
-        poolType: pool.type,
-        poolPrefix: pool.prefix,
-        prompt,
-        taskCommand: pool.backgroundTaskCommand || pool.taskCommand,
+        automationId: automation.id,
+        worktreePath,
+        prompt: automation.type === "shell" ? undefined : prompt,
       });
       setRunStatus({ id: automation.id, message: "Launched", error: false });
     } catch (err) {
@@ -111,6 +134,17 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
       name: "",
       type: "custom",
       prompt: "",
+    });
+  };
+
+  const handleNewSyncAutomation = () => {
+    setEditing({
+      id: generateId(),
+      name: "Sync main with remote",
+      type: "shell",
+      runTarget: "mainRepo",
+      schedule: { cron: "0 * * * *", enabled: true },
+      script: DEFAULT_SYNC_SCRIPT,
     });
   };
 
@@ -157,10 +191,24 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                         <div className="text-xs text-base-content/50 mt-1">
                           {a.type === "skill" ? (
                             <span className="badge badge-info badge-xs mr-1">skill</span>
+                          ) : a.type === "shell" ? (
+                            <span className="badge badge-warning badge-xs mr-1">shell</span>
                           ) : (
                             <span className="badge badge-neutral badge-xs mr-1">custom</span>
                           )}
-                          {a.type === "skill" ? `/${a.skillName}` : (a.prompt ?? "").slice(0, 80)}
+                          {a.runTarget === "mainRepo" && (
+                            <span className="badge badge-ghost badge-xs mr-1">main repo</span>
+                          )}
+                          {a.schedule?.enabled && (
+                            <span className="badge badge-accent badge-xs mr-1" title="Scheduled">
+                              {a.schedule.cron}
+                            </span>
+                          )}
+                          {a.type === "skill"
+                            ? `/${a.skillName}`
+                            : a.type === "shell"
+                              ? (a.script ?? "").slice(0, 80)
+                              : (a.prompt ?? "").slice(0, 80)}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -198,9 +246,12 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                 </div>
               )}
 
-              <div className="mt-4">
+              <div className="mt-4 flex flex-col gap-2">
                 <button className="btn btn-outline btn-primary w-full" onClick={handleNew}>
                   New Automation
+                </button>
+                <button className="btn btn-outline btn-neutral w-full" onClick={handleNewSyncAutomation}>
+                  New: Sync main with remote
                 </button>
               </div>
             </>
@@ -224,11 +275,20 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
   onCancel,
 }) => {
   const [name, setName] = useState(automation.name);
-  const [type, setType] = useState<"custom" | "skill">(automation.type);
+  const [type, setType] = useState<"custom" | "skill" | "shell">(automation.type);
   const [prompt, setPrompt] = useState(automation.prompt ?? "");
   const [skillName, setSkillName] = useState(automation.skillName ?? "");
+  const [script, setScript] = useState(automation.script ?? "");
+  const [runTarget, setRunTarget] = useState<AutomationRunTarget>(automation.runTarget ?? "worktree");
+  const [scheduleEnabled, setScheduleEnabled] = useState(automation.schedule?.enabled ?? false);
+  const [cron, setCron] = useState(automation.schedule?.cron ?? "0 * * * *");
 
-  const isValid = name.trim() && (type === "skill" ? skillName.trim() : prompt.trim());
+  const cronValid = isValidCron(cron);
+
+  const isValid =
+    name.trim() &&
+    (type === "skill" ? skillName.trim() : type === "shell" ? script.trim() : prompt.trim()) &&
+    (!scheduleEnabled || cronValid);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,6 +299,9 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
       type,
       prompt: type === "custom" ? prompt.trim() : undefined,
       skillName: type === "skill" ? skillName.trim() : undefined,
+      script: type === "shell" ? script.trim() : undefined,
+      runTarget,
+      schedule: scheduleEnabled ? { cron: cron.trim(), enabled: true } : undefined,
     });
   };
 
@@ -273,6 +336,13 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
           >
             Custom Prompt
           </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${type === "shell" ? "btn-outline btn-primary" : "btn-ghost"}`}
+            onClick={() => setType("shell")}
+          >
+            Shell Script
+          </button>
         </div>
       </div>
 
@@ -298,6 +368,21 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
             References a Claude Code skill. The skill will be invoked as a slash command.
           </p>
         </div>
+      ) : type === "shell" ? (
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium">Script</label>
+          <textarea
+            className="textarea textarea-bordered w-full font-mono text-sm"
+            value={script}
+            onChange={(e) => setScript(e.target.value)}
+            rows={10}
+            placeholder="#!/bin/sh"
+          />
+          <p className="text-xs text-base-content/50 mt-1">
+            Runs in your shell. <code>$MANY_MAIN_BRANCH</code> and <code>$MANY_REPO_PATH</code>{" "}
+            are available, and the script may invoke <code>claude</code>.
+          </p>
+        </div>
       ) : (
         <div className="mb-4">
           <label className="block mb-2 text-sm font-medium">Prompt</label>
@@ -310,6 +395,59 @@ const AutomationForm: React.FC<AutomationFormProps> = ({
           />
         </div>
       )}
+
+      <div className="mb-4">
+        <label className="block mb-2 text-sm font-medium">Run target</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`btn btn-sm ${runTarget === "worktree" ? "btn-outline btn-primary" : "btn-ghost"}`}
+            onClick={() => setRunTarget("worktree")}
+          >
+            Pool worktree
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${runTarget === "mainRepo" ? "btn-outline btn-primary" : "btn-ghost"}`}
+            onClick={() => setRunTarget("mainRepo")}
+          >
+            Main repo
+          </button>
+        </div>
+        <p className="text-xs text-base-content/50 mt-1">
+          Main repo runs in the repo checkout directly, with no worktree claim.
+        </p>
+      </div>
+
+      <div className="mb-4">
+        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-sm"
+            checked={scheduleEnabled}
+            onChange={(e) => setScheduleEnabled(e.target.checked)}
+          />
+          Run on a schedule
+        </label>
+        {scheduleEnabled && (
+          <div className="mt-2">
+            <input
+              type="text"
+              className="input input-bordered w-full font-mono"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="0 * * * *"
+            />
+            <p className="text-xs text-base-content/50 mt-1">
+              <code>min hour dom month dow</code> (e.g. <code>0 * * * *</code> = hourly,{" "}
+              <code>*/15 * * * *</code> = every 15 min).{" "}
+              <span className={cronValid ? "text-success" : "text-error"}>
+                {cronValid ? "valid" : "invalid"}
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="flex justify-end gap-3">
         <button type="button" className="btn btn-outline btn-neutral" onClick={onCancel}>

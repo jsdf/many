@@ -10,7 +10,9 @@ import type { AddressInfo } from "net";
 import logger from "../shared/logger.js";
 import { loadAppData } from "../cli/config.js";
 import { startTrackedPoller } from "./tracked-poller.js";
+import { startAutomationScheduler } from "./automation-scheduler.js";
 import { reconcileTasks } from "../cli/task-registry.js";
+import { reconcileAutomationRuns } from "../cli/automation-registry.js";
 import { TerminalManagerClient } from "../daemon/terminal-client.js";
 import { RepoWatcher, WorkdirWatcher } from "./git-watcher.js";
 import { RpcServer } from "./rpc-server.js";
@@ -155,6 +157,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   // Reconcile task registry on startup
   await reconcileTasks();
+  // Mark any automation runs left "running" from a previous process as failed —
+  // the scheduler is in-process, so a run can't survive a server restart.
+  await reconcileAutomationRuns();
 
   // Determine static files directory
   const distDir = path.join(PROJECT_ROOT, "out", "renderer");
@@ -250,6 +255,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // Poll GitHub for assigned PRs and auto-track their branches
   const trackedPoller = startTrackedPoller();
 
+  // Fire cron-scheduled automations while this server process runs
+  const automationScheduler = startAutomationScheduler();
+
   // WebSocket upgrade — single path
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url || "/", `http://${host}:${port}`);
@@ -277,6 +285,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     if (shuttingDown) return;
     shuttingDown = true;
     trackedPoller.stop();
+    automationScheduler.stop();
     repoWatcher.close();
     worktreeWatcher.close();
     claudeService.destroy();
