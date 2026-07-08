@@ -1,0 +1,28 @@
+src/web/claude-sessions.ts
+  s_bc01bb54592f96::t_5fc7cea029e34e 294-297
+  s_bc01bb54592f96::t_ac62ea77a7bb4c 259-262,266-267
+src/cli/config.ts
+  s_bc01bb54592f96::t_c36b73ab5363e2 67-68
+  s_bc01bb54592f96::t_ef5a056747ef53 85
+src/web/rpc-handlers.ts
+  s_bc01bb54592f96::t_9be00557fa23ea 927
+  s_bc01bb54592f96::t_7beab9ea5f867d 1001
+  s_bc01bb54592f96::t_a89352c0c6be0f 252-261
+  s_bc01bb54592f96::t_907814e38e9842 1140,1148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "37c96cbafb59dba7c51915940f28bf26375eebdf",
+  "prompts": {},
+  "sessions": {
+    "s_bc01bb54592f96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7212180-bfc4-4d66-9d68-0485bb0be64c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
