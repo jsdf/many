@@ -64,6 +64,8 @@ export interface AppData {
   starredWorktrees: Record<string, string[]>;
   pinnedFolders: string[];
   pinnedSessions: string[];
+  // worktree paths where many has launched a terminal (used to scope recent Claude sessions to ones started in-app)
+  terminalWorktrees: string[];
   worktreeOrder: Record<string, string[]>;
   windowBounds: { width: number; height: number; x?: number; y?: number };
   worktreeTerminals: Record<string, unknown>;
@@ -80,6 +82,7 @@ const defaultAppData: AppData = {
   starredWorktrees: {},
   pinnedFolders: [],
   pinnedSessions: [],
+  terminalWorktrees: [],
   worktreeOrder: {},
   windowBounds: { width: 1200, height: 800 },
   worktreeTerminals: {},

@@ -249,6 +249,16 @@ async function listDirEntries(dirPath: string): Promise<FsEntry[]> {
 // Factory: create handlers with shared dependencies
 // ---------------------------------------------------------------------------
 
+// Records that many has launched a terminal in this worktree, so recent
+// Claude sessions can be scoped to ones started in-app.
+async function recordTerminalWorktree(worktreePath: string) {
+  await withAppData((appData) => {
+    const list = appData.terminalWorktrees ?? [];
+    if (!list.includes(worktreePath)) list.push(worktreePath);
+    appData.terminalWorktrees = list;
+  });
+}
+
 export function createQueryHandlers(opts: {
   terminalManager: TerminalManagerClient;
   claudeService: ClaudeService;
@@ -914,6 +924,7 @@ export function createQueryHandlers(opts: {
       else colorEnv.COLORFGBG = "0;15";
       const mergedEnv = { ...colorEnv, ...msg.env };
       const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir, msg.taskId);
+      await recordTerminalWorktree(msg.worktreePath);
 
       if (msg.taskId && !existed) {
         const pid = await terminalManager.getSessionPid(msg.terminalId);
@@ -986,8 +997,8 @@ export function createQueryHandlers(opts: {
     },
     "claude.recentSessions": async (input) => {
       const { rootPaths, limit } = input as { rootPaths: string[]; limit?: number };
-      const sessions = await getRecentSessionsForRoots(rootPaths, limit);
       const appData = await loadAppData();
+      const sessions = await getRecentSessionsForRoots(rootPaths, limit, appData.terminalWorktrees ?? []);
       const meta = appData.sessionMeta || {};
       return sessions.map((s) => ({
         sessionId: s.sessionId,
@@ -1126,6 +1137,7 @@ export function createQueryHandlers(opts: {
       const appData = await loadAppData();
       const { defaultClaudeCommand } = getGlobalSettings(appData);
       const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
+      await recordTerminalWorktree(worktreePath);
       return { sessionId };
     },
     "claudeui.resume": async (input) => {
@@ -1133,6 +1145,7 @@ export function createQueryHandlers(opts: {
       const appData = await loadAppData();
       const { defaultClaudeCommand } = getGlobalSettings(appData);
       await claudeUiService.resume(worktreePath, sessionId, defaultClaudeCommand ?? undefined);
+      await recordTerminalWorktree(worktreePath);
       return { sessionId };
     },
     "claudeui.list": async (input) => {

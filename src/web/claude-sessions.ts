@@ -256,10 +256,15 @@ function isUnder(cwd: string, root: string): boolean {
  * roots. Claude project dirs encode the cwd lossily (`/`->`-`), so we match
  * candidate dirs by encoded prefix and then verify each session's real cwd is
  * genuinely under a root before including it.
+ *
+ * If `allowedWorktrees` is given and non-empty, sessions are further scoped
+ * to those whose cwd is under one of those worktree paths, instead of under
+ * any of `rootPaths`.
  */
 export async function getRecentSessionsForRoots(
   rootPaths: string[],
-  limit = 10
+  limit = 10,
+  allowedWorktrees?: string[]
 ): Promise<ClaudeSession[]> {
   const projectsDir = getClaudeProjectsDir();
   let dirs: string[];
@@ -286,7 +291,10 @@ export async function getRecentSessionsForRoots(
       ""
     );
     for (const s of sessions) {
-      if (encodedRoots.some(({ root }) => isUnder(s.projectPath, root))) {
+      const included = allowedWorktrees && allowedWorktrees.length > 0
+        ? allowedWorktrees.some((w) => isUnder(s.projectPath, w))
+        : encodedRoots.some(({ root }) => isUnder(s.projectPath, root));
+      if (included) {
         all.push(s);
       }
     }
