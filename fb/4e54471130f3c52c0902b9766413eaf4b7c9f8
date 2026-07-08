@@ -1,0 +1,45 @@
+src/renderer/src/App.tsx
+  s_19b6475a90fdd2::t_1b6d7218fb002d 957-961
+src/renderer/src/components/ProjectsPanel.tsx
+  s_19b6475a90fdd2::t_53a27c56b39e18 53-54
+  s_19b6475a90fdd2::t_d0bfb7d68a0ab9 180-194
+  s_19b6475a90fdd2::t_c93c13e3e15684 30-31
+  s_19b6475a90fdd2::t_74c05112291281 2-3
+  s_19b6475a90fdd2::t_30be15f5a9cbd6 204-212
+  s_41189b44b5d735::t_34d3e2a08cf6fc 196
+src/renderer/src/components/ProjectsTab.tsx
+  s_41189b44b5d735::t_b02e13205c167d 283-291
+src/renderer/src/components/WorktreeFileTree.tsx
+  s_41189b44b5d735::t_7c6d83c00751b4 106-114
+src/renderer/src/components/MainContent.tsx
+  s_41189b44b5d735::t_21d4dc5eaf7870 482
+src/web/rpc-handlers.ts
+  s_41189b44b5d735::t_e20ff7ab1b1a38 193-202
+  s_41189b44b5d735::t_0110d41f27fd98 864-868
+src/shared/protocol.ts
+  s_41189b44b5d735::t_69828810b92055 668-671
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb4e54471130f3c52c0902b9766413eaf4b7c9f8",
+  "prompts": {},
+  "sessions": {
+    "s_19b6475a90fdd2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9c0e04b-8361-46e6-b4c4-5a06be386d4f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_41189b44b5d735": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0870a43-16cd-4200-b041-de5f01dd6300",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
