@@ -12,7 +12,7 @@ import TaskQueuePanel from "./components/TaskQueuePanel";
 import TrackedPanel from "./components/TrackedPanel";
 import NewTaskModal from "./components/NewTaskModal";
 import AutomationsModal from "./components/AutomationsModal";
-import { useHashRouter, useNavHistory, NavState } from "./router";
+import { useHashRouter, useNavHistory, NavState, MainPaneView } from "./router";
 import { NavContext } from "./nav-context";
 import CreateWorktreeModal from "./components/CreateWorktreeModal";
 import AddRepoModal from "./components/AddRepoModal";
@@ -30,6 +30,40 @@ import { useWorktreeSubscription, useConnectionStatus } from "./rpc-hooks";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import type { StreamEvent } from "../../shared/protocol";
 import type { TaskLaunchState } from "./components/NewTaskModal";
+
+// Human-readable label for a navigation entry, shown in the back/forward
+// history menus. Project-tab entries are prefixed with their containing
+// project (dir) name so nested folders/files are distinguishable.
+function navStateTitle(
+  view: MainPaneView['type'],
+  worktree: Worktree | null,
+  node: ProjectNode | null,
+  projects: ProjectEntry[],
+): string {
+  switch (view) {
+    case 'tracked':
+      return 'Tracked branches';
+    case 'runningTasks':
+      return 'Running tasks';
+    case 'automations':
+      return 'Automations';
+    case 'worktree':
+      return worktree ? worktree.worktreeName : 'Worktrees';
+    case 'projects': {
+      if (!node) return 'Projects';
+      const project = projects.find(
+        (p) => node.path === p.path || node.path.startsWith(p.path + '/'),
+      );
+      if (project && node.path === project.path) return project.name;
+      // Prefix with the project name when known, otherwise the immediate
+      // parent dir, so the leaf name isn't ambiguous across projects.
+      const prefix = project
+        ? project.name
+        : node.path.slice(0, node.path.lastIndexOf('/')).split('/').pop() ?? '';
+      return prefix ? `${prefix} / ${node.name}` : node.name;
+    }
+  }
+}
 
 const App: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
@@ -152,8 +186,9 @@ const App: React.FC = () => {
       view: mainPaneView.type,
       worktreePath: selectedWorktree?.path ?? null,
       node: selectedNode,
+      title: navStateTitle(mainPaneView.type, selectedWorktree, selectedNode, projects),
     });
-  }, [recordNav, mainPaneView.type, selectedWorktree?.path, selectedNode?.path]);
+  }, [recordNav, mainPaneView.type, selectedWorktree, selectedNode, projects]);
 
   // Apply a history entry: switch tabs and restore the worktree/node that was
   // selected then. The worktree path is resolved against the live list.
@@ -172,6 +207,11 @@ const App: React.FC = () => {
 
   const goForward = useCallback(() => {
     const s = navHistory.forward();
+    if (s) applyNavState(s);
+  }, [navHistory, applyNavState]);
+
+  const goJump = useCallback((index: number) => {
+    const s = navHistory.jump(index);
     if (s) applyNavState(s);
   }, [navHistory, applyNavState]);
 
@@ -817,7 +857,7 @@ const App: React.FC = () => {
   const connectionStatus = useConnectionStatus();
 
   return (
-    <NavContext.Provider value={{ onBack: goBack, onForward: goForward, canBack: navHistory.canBack, canForward: navHistory.canForward }}>
+    <NavContext.Provider value={{ onBack: goBack, onForward: goForward, onJump: goJump, canBack: navHistory.canBack, canForward: navHistory.canForward, backEntries: navHistory.backEntries, forwardEntries: navHistory.forwardEntries }}>
     <FileEditorsProvider>
     <div className="flex flex-col h-screen">
       <ConnectionBanner status={connectionStatus} />

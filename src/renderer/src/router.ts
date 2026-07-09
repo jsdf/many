@@ -64,11 +64,14 @@ export function useHashRouter() {
 
 // A point in navigation history: which tab, plus what was selected there. The
 // worktree is held by path (resolved to the live object on restore); the
-// project node is held whole since it is just a name+path.
+// project node is held whole since it is just a name+path. `title` is a
+// human-readable label computed at record time (used by the back/forward
+// history menus).
 export interface NavState {
   view: MainPaneView['type'];
   worktreePath: string | null;
   node: ProjectNode | null;
+  title: string;
 }
 
 function sameNavState(a: NavState, b: NavState): boolean {
@@ -79,12 +82,24 @@ function sameNavState(a: NavState, b: NavState): boolean {
   );
 }
 
+// An entry surfaced to the back/forward history menus: its label plus the
+// absolute stack index to jump to.
+export interface NavHistoryEntry {
+  title: string;
+  index: number;
+}
+
 export interface NavHistory {
   record: (state: NavState) => void;
   back: () => NavState | null;
   forward: () => NavState | null;
+  jump: (index: number) => NavState | null;
   canBack: boolean;
   canForward: boolean;
+  // Entries reachable by going back, nearest first (i.e. one step back is
+  // listed first). Entries reachable by going forward, nearest first.
+  backEntries: NavHistoryEntry[];
+  forwardEntries: NavHistoryEntry[];
 }
 
 // In-memory back/forward history of navigation states. The app calls `record`
@@ -126,11 +141,34 @@ export function useNavHistory(): NavHistory {
     return stackRef.current[indexRef.current];
   }, []);
 
+  // Jump directly to an absolute stack index (used by the history menus).
+  const jump = useCallback((target: number) => {
+    if (target < 0 || target >= stackRef.current.length || target === indexRef.current) {
+      return null;
+    }
+    indexRef.current = target;
+    restoringRef.current = true;
+    force();
+    return stackRef.current[target];
+  }, []);
+
+  const backEntries: NavHistoryEntry[] = [];
+  for (let i = indexRef.current - 1; i >= 0; i--) {
+    backEntries.push({ title: stackRef.current[i].title, index: i });
+  }
+  const forwardEntries: NavHistoryEntry[] = [];
+  for (let i = indexRef.current + 1; i < stackRef.current.length; i++) {
+    forwardEntries.push({ title: stackRef.current[i].title, index: i });
+  }
+
   return {
     record,
     back,
     forward,
+    jump,
     canBack: indexRef.current > 0,
     canForward: indexRef.current < stackRef.current.length - 1,
+    backEntries,
+    forwardEntries,
   };
 }
