@@ -1,0 +1,67 @@
+src/daemon/terminal-daemon-protocol.ts
+  s_f4b4810194a6b2::t_d88548c2ce913a 10,13-23
+  s_f4b4810194a6b2::t_c9094ae200a60e 114
+  s_f4b4810194a6b2::t_8632f76b65edf4 101-104
+  s_f4b4810194a6b2::t_88c18310ceb4a7 64-75
+src/web/claude-ui/service.ts
+  s_f4b4810194a6b2::t_12bf13a8b5749a 4,7
+src/daemon/agent-client.test.ts
+  s_f4b4810194a6b2::t_7944b657932772 1-115
+src/daemon/terminal-daemon.ts
+  s_f4b4810194a6b2::t_56cbf7f9edc262 324,339-340
+  s_f4b4810194a6b2::t_f2304d6f524ffa 196-199,208-235
+  s_f4b4810194a6b2::t_1b671323fbd55d 278
+  s_f4b4810194a6b2::t_53630b6c436067 88
+  s_f4b4810194a6b2::t_56626188282f5f 277,281,288
+  s_f4b4810194a6b2::t_75c69aa28b7f06 28-46
+  s_f4b4810194a6b2::t_9514ba69931475 94-96,109-111
+src/cli/task-registry.ts
+  s_f4b4810194a6b2::t_ce84d31c9ed5ca 71-78
+src/shared/claude-event-map.ts
+  s_f4b4810194a6b2::t_e5aa7071473da4 1-60
+src/daemon/claude-agent-manager.ts
+  s_f4b4810194a6b2::t_8bc6d9f72991cb 52-55
+  s_f4b4810194a6b2::t_28c9d4af6c89b6 1-51,56-168
+src/daemon/claude-agent-manager.test.ts
+  s_f4b4810194a6b2::t_72ae76cd39a116 2-48,64-83,91-92,94-97,99-103,105-116,123-126,128-152,158-163,165-182,198-199
+  s_f4b4810194a6b2::t_9afe1a1b624b61 49-63,93,98,104,117-122,127,153-157,164,183-185,188-192,195-197
+  s_f4b4810194a6b2::t_71a483d0455616 186-187,193-194
+  s_f4b4810194a6b2::t_181b75a2735ddb 84-90
+  s_f4b4810194a6b2::t_bb9b7029d13d0e 1
+src/daemon/terminal-client.ts
+  s_f4b4810194a6b2::t_2fd6b77cbb4134 306
+  s_f4b4810194a6b2::t_8cc6a9ff3dcaf0 38,40-41
+  s_f4b4810194a6b2::t_be2580b55b0201 10,20-21
+  s_f4b4810194a6b2::t_e107b7b2ed2db5 94-98
+  s_f4b4810194a6b2::t_9e21f66b2f49d4 250-294
+src/daemon/daemon-lifecycle.ts
+  s_f4b4810194a6b2::t_5391fc9cb7c73c 114-122,127-146
+  s_f4b4810194a6b2::t_28423525f681fb 147-148
+src/cli/index.ts
+  s_f4b4810194a6b2::t_31cc7fd5c763ab 1491-1500,1510-1524
+  s_f4b4810194a6b2::t_a80428528f6c25 51,58-59
+  s_f4b4810194a6b2::t_956c381d976d97 1374
+  s_f4b4810194a6b2::t_ad42bf834b8650 1899-1902
+  s_f4b4810194a6b2::t_5d7e642742517e 2167-2170
+  s_f4b4810194a6b2::t_e4411dd3695875 1315,1317
+  s_f4b4810194a6b2::t_d59e80de563e51 1300-1314,1316,1318-1360,1373,1375-1439,1445-1447,1449-1459,1464-1466,1468-1490,1501-1509,1525-1562
+  s_f4b4810194a6b2::t_5187bc25d7e76f 1361-1372
+  s_f4b4810194a6b2::t_7159f8be63117e 1440-1442,1444,1448,1462
+  s_f4b4810194a6b2::t_b817f13865e422 1443,1460-1461,1463,1467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "cc0468011cb8ed012ec7e6d5985fbd0727541c0e",
+  "prompts": {},
+  "sessions": {
+    "s_f4b4810194a6b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "415766ef-6322-480a-a45f-1775f9fd244e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
