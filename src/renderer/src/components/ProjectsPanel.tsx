@@ -192,6 +192,13 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
         }
       : null;
 
+  // Registered projects nested under the current node, shown in the Overview.
+  const currentPath = project.path;
+  const subprojects = projects
+    .filter((p) => p.path !== currentPath && p.path.startsWith(currentPath + sep))
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .map((p) => ({ project: p, relativePath: relativeToRoot(p.path, currentPath) }));
+
   const tabMenuItems = (file: OpenFile): ContextMenuItem[] => [
     { label: "Open in default app", onClick: () => getRpcClient().query("action.openPath", { path: file.path }).catch((err) => console.error("[action] openPath failed:", err)) },
     { label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(file.path, project.path)) },
@@ -296,6 +303,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 onRefreshPrs={refreshPrs}
                 refreshingPrs={refreshingPrs}
                 onGoToWorktree={onGoToWorktree}
+                subprojects={subprojects}
+                onOpenSubproject={(path) => {
+                  const name = projects.find((p) => p.path === path)?.name ?? path.slice(path.lastIndexOf(sep) + 1);
+                  onSelectNode({ name, path });
+                }}
               />
             ) : activeFile === SESSIONS_TAB ? (
               <ProjectSessionsTab

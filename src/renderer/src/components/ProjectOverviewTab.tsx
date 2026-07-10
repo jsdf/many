@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { RotateCw, Star, GitPullRequest, CheckSquare, ChevronRight, Server, ExternalLink, FolderOpen, Cloud } from "lucide-react";
+import { RotateCw, Star, GitPullRequest, CheckSquare, ChevronRight, Server, ExternalLink, FolderOpen, Cloud, FolderTree } from "lucide-react";
 import type { ProjectMetadata, ProjectPr, ProjectTask, ProjectEnv } from "../../../shared/protocol";
+import type { ProjectEntry } from "../types";
 
 interface ProjectOverviewTabProps {
   meta: ProjectMetadata | null;
@@ -13,6 +14,11 @@ interface ProjectOverviewTabProps {
   // Select the worktree at this path in the worktree pane. Undefined disables
   // the "go to worktree" action on worktree-kind env rows.
   onGoToWorktree?: (worktreePath: string) => void;
+  // Registered projects nested under the current project, each with its path
+  // relative to the current project for display.
+  subprojects: { project: ProjectEntry; relativePath: string }[];
+  // Navigate the panel to a subproject's root.
+  onOpenSubproject: (path: string) => void;
 }
 
 function openUrl(url: string) {
@@ -153,6 +159,26 @@ const EnvRow: React.FC<{ env: ProjectEnv; onGoToWorktree?: (path: string) => voi
   );
 };
 
+const SubprojectRow: React.FC<{
+  name: string;
+  relativePath: string;
+  onOpen: () => void;
+}> = ({ name, relativePath, onOpen }) => (
+  <div
+    className="bg-base-200 border border-base-300 rounded-lg p-3 hover:border-primary/50 cursor-pointer"
+    onClick={onOpen}
+  >
+    <div className="flex items-center gap-2 min-w-0">
+      <FolderOpen size={14} className="shrink-0 text-base-content/60" />
+      <span className="text-sm text-base-content/80 truncate">{name}</span>
+      <span className="shrink-0 ml-auto text-base-content/40" title="Open subproject">
+        <ExternalLink size={12} />
+      </span>
+    </div>
+    <p className="text-xs text-base-content/50 mt-1 font-mono truncate">{relativePath}</p>
+  </div>
+);
+
 const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
   meta,
   loading,
@@ -160,8 +186,12 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
   onRefreshPrs,
   refreshingPrs,
   onGoToWorktree,
+  subprojects,
+  onOpenSubproject,
 }) => {
-  const hasAnyFiles = meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs);
+  const hasAnyFiles =
+    (meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs)) ||
+    subprojects.length > 0;
   const [prError, setPrError] = useState<string | null>(null);
 
   const handleRefreshPrs = async (e: React.MouseEvent) => {
@@ -195,13 +225,28 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
           </p>
         ) : (
           <div className="flex flex-col gap-4">
-            {meta!.title && <h3 className="text-base font-semibold m-0">{meta!.title}</h3>}
+            {meta?.title && <h3 className="text-base font-semibold m-0">{meta.title}</h3>}
 
-            {meta!.hasPrs && (
+            {subprojects.length > 0 && (
+              <Section icon={<FolderTree size={14} />} title="Subprojects" count={subprojects.length}>
+                <div className="flex flex-col gap-2">
+                  {subprojects.map(({ project, relativePath }) => (
+                    <SubprojectRow
+                      key={project.path}
+                      name={project.name}
+                      relativePath={relativePath}
+                      onOpen={() => onOpenSubproject(project.path)}
+                    />
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {meta?.hasPrs && (
               <Section
                 icon={<GitPullRequest size={14} />}
                 title="PRs"
-                count={meta!.prs.length}
+                count={meta.prs.length}
                 action={
                   <button
                     className="btn btn-ghost btn-xs"
@@ -223,27 +268,27 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
                       {prError}
                     </div>
                   )}
-                  {meta!.prs.map((pr, i) => (
+                  {meta.prs.map((pr, i) => (
                     <PrRow key={pr.url || i} pr={pr} />
                   ))}
                 </div>
               </Section>
             )}
 
-            {meta!.hasTasks && (
-              <Section icon={<CheckSquare size={14} />} title="Tasks" count={meta!.tasks.length}>
+            {meta?.hasTasks && (
+              <Section icon={<CheckSquare size={14} />} title="Tasks" count={meta.tasks.length}>
                 <div className="flex flex-col gap-2">
-                  {meta!.tasks.map((task, i) => (
+                  {meta.tasks.map((task, i) => (
                     <TaskRow key={task.url || i} task={task} />
                   ))}
                 </div>
               </Section>
             )}
 
-            {meta!.hasEnvs && (
-              <Section icon={<Server size={14} />} title="Environments" count={meta!.envs.length}>
+            {meta?.hasEnvs && (
+              <Section icon={<Server size={14} />} title="Environments" count={meta.envs.length}>
                 <div className="flex flex-col gap-2">
-                  {meta!.envs.map((env, i) => (
+                  {meta.envs.map((env, i) => (
                     <EnvRow key={env.path || env.url || i} env={env} onGoToWorktree={onGoToWorktree} />
                   ))}
                 </div>
