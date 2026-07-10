@@ -68,6 +68,14 @@ export function getTaskLogDir(): string {
   return path.join(getDataPath(), "task-logs");
 }
 
+export function getAgentLogDir(): string {
+  return path.join(getDataPath(), "agent-logs");
+}
+
+export function getAgentTranscriptPath(agentId: string): string {
+  return path.join(getAgentLogDir(), `${agentId}.ndjson`);
+}
+
 function generateTaskId(): string {
   const ts = Date.now().toString(36);
   const rand = Math.random().toString(36).slice(2, 6);

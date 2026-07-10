@@ -25,6 +25,25 @@ import {
   logDaemon,
 } from "./daemon-lifecycle.js";
 import { saveAndRegisterTerminalLog } from "./log-capture.js";
+import { ClaudeAgentManager, type AgentInfo } from "./claude-agent-manager.js";
+import type { ClaudeUiEvent } from "../shared/protocol.js";
+
+/**
+ * The subset of ClaudeAgentManager the IPC layer depends on. Declared as an
+ * interface so tests can supply a fake agent manager that does not spawn a real
+ * claude process (ClaudeAgentManager satisfies it structurally).
+ */
+export interface AgentManager {
+  create(
+    agentId: string,
+    worktreePath: string,
+    opts: { prompt?: string; claudeBin?: string }
+  ): AgentInfo;
+  send(agentId: string, message: string): void;
+  subscribe(agentId: string, listener: (e: ClaudeUiEvent) => void): () => void;
+  list(): AgentInfo[];
+  cleanup(): void;
+}
 
 /**
  * The subset of TerminalManager the IPC layer depends on. Declared as an
@@ -60,24 +79,21 @@ export interface DaemonManager {
   cleanup(): void;
 }
 
-interface ActiveSubscription {
-  terminalId: string;
-  dataListener?: (data: string) => void;
-  exitListener: () => void;
-}
-
 /**
  * Wire one client connection to the manager. Returns a disconnect cleanup that
  * removes this connection's listeners WITHOUT killing PTYs.
  */
 export function attachConnection(
   manager: DaemonManager,
+  agentManager: AgentManager,
   socket: net.Socket,
   onShutdown: () => void,
   onSessionCreated?: (terminalId: string, worktreePath: string) => void
 ): () => void {
   const decoder = new FrameDecoder();
-  const subs = new Map<number, ActiveSubscription>();
+  // Each subscription (terminal or agent) is represented by its own dispose
+  // function, so subscribe/unsubscribe don't need to know which kind it is.
+  const subs = new Map<number, () => void>();
 
   const send = (msg: unknown) => {
     if (!socket.destroyed) socket.write(encodeFrame(msg));
@@ -90,10 +106,9 @@ export function attachConnection(
     send({ type: "event", subId, event });
 
   const removeSub = (subId: number) => {
-    const sub = subs.get(subId);
-    if (!sub) return;
-    if (sub.dataListener) manager.removeDataListener(sub.terminalId, sub.dataListener);
-    manager.removeExitListener(sub.terminalId, sub.exitListener);
+    const dispose = subs.get(subId);
+    if (!dispose) return;
+    dispose();
     subs.delete(subId);
   };
 
@@ -178,7 +193,10 @@ export function attachConnection(
         const exitListener = () => sendEvent(subId, { type: "exit" });
         manager.addDataListener(terminalId, dataListener);
         manager.addExitListener(terminalId, exitListener);
-        subs.set(subId, { terminalId, dataListener, exitListener });
+        subs.set(subId, () => {
+          manager.removeDataListener(terminalId, dataListener);
+          manager.removeExitListener(terminalId, exitListener);
+        });
         respond(req.reqId, { ok: true });
         break;
       }
@@ -187,7 +205,34 @@ export function attachConnection(
         const { terminalId, subId } = req;
         const exitListener = () => sendEvent(subId, { type: "exit" });
         manager.addExitListener(terminalId, exitListener);
-        subs.set(subId, { terminalId, exitListener });
+        subs.set(subId, () => manager.removeExitListener(terminalId, exitListener));
+        respond(req.reqId, { ok: true });
+        break;
+      }
+      case "agentCreate": {
+        const agent = agentManager.create(req.agentId, req.worktreePath, {
+          prompt: req.prompt,
+          claudeBin: req.claudeBin,
+        });
+        respond(req.reqId, { agent });
+        break;
+      }
+      case "agentSend":
+        agentManager.send(req.agentId, req.message);
+        respond(req.reqId, { ok: true });
+        break;
+      case "agentList":
+        respond(req.reqId, { agents: agentManager.list() });
+        break;
+      case "agentSubscribe": {
+        // agentManager.subscribe replays its buffer synchronously into the
+        // listener, which sendEvent forwards immediately: the same atomic
+        // buffered-then-live guarantee as the terminal "subscribe" case above.
+        const { agentId, subId } = req;
+        const unsub = agentManager.subscribe(agentId, (event) =>
+          sendEvent(subId, { type: "agent", event })
+        );
+        subs.set(subId, unsub);
         respond(req.reqId, { ok: true });
         break;
       }
@@ -229,16 +274,18 @@ export function attachConnection(
 export function createDaemonServer(
   manager: DaemonManager,
   onShutdown: () => void,
-  onSessionCreated?: (terminalId: string, worktreePath: string) => void
+  onSessionCreated?: (terminalId: string, worktreePath: string) => void,
+  agentManager: AgentManager = new ClaudeAgentManager()
 ): net.Server {
   const server = net.createServer((socket) => {
-    attachConnection(manager, socket, onShutdown, onSessionCreated);
+    attachConnection(manager, agentManager, socket, onShutdown, onSessionCreated);
   });
   return server;
 }
 
 async function main(): Promise<void> {
   const manager = new TerminalManager();
+  const agentManager = new ClaudeAgentManager();
   const socketPath = getSocketPath();
 
   // Clear any stale Unix socket file from a previous (dead) daemon.
@@ -274,6 +321,7 @@ async function main(): Promise<void> {
         saveAndRegisterTerminalLog(s.terminalId, s.worktreePath, manager.getBufferedOutput(s.terminalId))
       )
     );
+    agentManager.cleanup();
     manager.cleanup();
     server.close();
     await removeDaemonInfo();
@@ -288,7 +336,8 @@ async function main(): Promise<void> {
         process.exit(1);
       });
     },
-    onSessionCreated
+    onSessionCreated,
+    agentManager
   );
 
   server.on("error", (err) => {

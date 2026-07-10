@@ -111,9 +111,39 @@ export async function spawnDaemon(timeoutMs = 5000): Promise<DaemonInfo> {
 export async function ensureDaemon(): Promise<DaemonInfo> {
   const existing = await isDaemonRunning();
   if (existing && (await canConnect(existing.socketPath))) {
-    return existing;
+    // A daemon from an older build speaks a different wire protocol: it would
+    // silently ignore ops it doesn't know (leaving the client hanging). The
+    // daemon is designed to outlive the app, so an old one can still be running
+    // after an upgrade. Replace it with a fresh daemon on version mismatch.
+    if (existing.version === DAEMON_PROTOCOL_VERSION) return existing;
+    logger.info(
+      `[terminal-daemon] replacing daemon (pid ${existing.pid}) with protocol v${existing.version}; this build speaks v${DAEMON_PROTOCOL_VERSION}`
+    );
+    await killDaemon(existing);
   }
   return spawnDaemon();
+}
+
+/** SIGTERM a daemon and wait for it to exit (SIGKILL as a fallback). */
+async function killDaemon(info: DaemonInfo, timeoutMs = 3000): Promise<void> {
+  try {
+    process.kill(info.pid, "SIGTERM");
+  } catch {
+    return; // already gone
+  }
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!isProcessAlive(info.pid)) break;
+    await delay(100);
+  }
+  if (isProcessAlive(info.pid)) {
+    try {
+      process.kill(info.pid, "SIGKILL");
+    } catch {
+      // ignore
+    }
+  }
+  await removeDaemonInfo();
 }
 
 function canConnect(socketPath: string): Promise<boolean> {

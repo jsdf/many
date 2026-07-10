@@ -7,7 +7,7 @@
  */
 
 import net from "net";
-import type { TerminalEvent } from "../shared/protocol.js";
+import type { TerminalEvent, ClaudeUiEvent } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 import logger from "../shared/logger.js";
 import {
@@ -17,6 +17,8 @@ import {
   type DaemonMessage,
   type DaemonResultMap,
   type SavedSessionLog,
+  type AgentEvent,
+  type AgentInfoWire,
 } from "./terminal-daemon-protocol.js";
 import { ensureDaemon, isDaemonRunning } from "./daemon-lifecycle.js";
 
@@ -33,9 +35,10 @@ interface Pending {
 }
 
 interface LocalSubscription {
-  op: "subscribe" | "subscribeExit";
+  op: "subscribe" | "subscribeExit" | "agentSubscribe";
   terminalId: string;
-  onEvent: (event: TerminalEvent) => void;
+  agentId?: string;
+  onEvent: (event: TerminalEvent | AgentEvent) => void;
 }
 
 export class TerminalManagerClient {
@@ -88,12 +91,11 @@ export class TerminalManagerClient {
 
       // Re-establish any live subscriptions (reconnect after a daemon restart).
       for (const [subId, sub] of this.subs) {
-        this.sendRaw({
-          reqId: this.nextReqId++,
-          op: sub.op,
-          terminalId: sub.terminalId,
-          subId,
-        } as DaemonRequest).catch(() => {});
+        const req: DaemonRequest =
+          sub.op === "agentSubscribe"
+            ? { reqId: this.nextReqId++, op: "agentSubscribe", agentId: sub.agentId!, subId }
+            : { reqId: this.nextReqId++, op: sub.op, terminalId: sub.terminalId, subId };
+        this.sendRaw(req).catch(() => {});
       }
 
       return socket;
@@ -245,6 +247,51 @@ export class TerminalManagerClient {
     await this.request({ reqId: this.newReqId(), op: "setLabel", terminalId, label });
   }
 
+  // --- agent sessions (many agent CLI) --------------------------------------
+
+  async agentCreate(
+    agentId: string,
+    worktreePath: string,
+    opts?: { prompt?: string; claudeBin?: string }
+  ): Promise<AgentInfoWire> {
+    const { agent } = await this.request({
+      reqId: this.newReqId(),
+      op: "agentCreate",
+      agentId,
+      worktreePath,
+      prompt: opts?.prompt,
+      claudeBin: opts?.claudeBin,
+    });
+    return agent;
+  }
+
+  async agentSend(agentId: string, message: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "agentSend", agentId, message });
+  }
+
+  async agentList(): Promise<AgentInfoWire[]> {
+    const { agents } = await this.request({ reqId: this.newReqId(), op: "agentList" });
+    return agents;
+  }
+
+  /** Subscribe to an agent's buffered transcript followed by its live events. */
+  async agentSubscribe(
+    agentId: string,
+    onEvent: (event: ClaudeUiEvent) => void
+  ): Promise<() => void> {
+    const subId = this.nextSubId++;
+    this.subs.set(subId, {
+      op: "agentSubscribe",
+      terminalId: "",
+      agentId,
+      onEvent: (e) => {
+        if ((e as AgentEvent).type === "agent") onEvent((e as AgentEvent).event);
+      },
+    });
+    await this.request({ reqId: this.newReqId(), op: "agentSubscribe", agentId, subId });
+    return () => this.unsubscribe(subId);
+  }
+
   // --- subscriptions --------------------------------------------------------
 
   /**
@@ -256,7 +303,7 @@ export class TerminalManagerClient {
     onEvent: (event: TerminalEvent) => void
   ): Promise<() => void> {
     const subId = this.nextSubId++;
-    this.subs.set(subId, { op: "subscribe", terminalId, onEvent });
+    this.subs.set(subId, { op: "subscribe", terminalId, onEvent: (e) => onEvent(e as TerminalEvent) });
     await this.request({ reqId: this.newReqId(), op: "subscribe", terminalId, subId });
     return () => this.unsubscribe(subId);
   }

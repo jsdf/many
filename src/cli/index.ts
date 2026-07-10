@@ -48,12 +48,15 @@ import {
   killTask as killTaskById,
   pruneOldTasks,
   getTaskLogDir,
+  getAgentTranscriptPath,
   TaskRecord,
   TaskStatus,
 } from "./task-registry.js";
 import { createReadStream, existsSync, openSync, closeSync } from "node:fs";
 import { promises as fsPromises } from "node:fs";
 import type { RunCommand } from "../services/types.js";
+import { TerminalManagerClient } from "../daemon/terminal-client.js";
+import type { ClaudeUiEvent } from "../shared/protocol.js";
 
 // CLI runCommand: inherits stdio so output goes directly to the terminal
 const cliRunCommand: RunCommand = (command, cwd) =>
@@ -1294,6 +1297,269 @@ async function cmdTask(promptArg: string | null, flags: ParsedFlags): Promise<vo
   console.log(`Worktree: ${targetWorktreePath}`);
 }
 
+// Agent command - create/message/tail a headless Claude session hosted by the
+// terminal daemon, so it survives between one-off `many agent` invocations.
+async function cmdAgent(subcommand: string | null, args: string[], flags: ParsedFlags): Promise<void> {
+  if (subcommand === "create") {
+    await cmdAgentCreate(args, flags);
+    return;
+  }
+  if (subcommand === "send") {
+    await cmdAgentSend(args);
+    return;
+  }
+  if (subcommand === "tail") {
+    await cmdAgentTail(args);
+    return;
+  }
+  if (subcommand) console.error(red(`Unknown agent subcommand: ${subcommand}`));
+  console.log("Usage: many agent [create|send|tail]");
+  process.exit(subcommand ? 1 : 0);
+}
+
+async function cmdAgentCreate(args: string[], flags: ParsedFlags): Promise<void> {
+  const { repoPath, config } = await getRepoAndConfig(flags);
+
+  const taskPools = (config.pools || []).filter((p) => p.backgroundTaskCommand || p.taskCommand);
+  if (taskPools.length === 0) {
+    console.error(red("No pools with a task command configured for this repository."));
+    process.exit(1);
+  }
+
+  // Select pool
+  let pool: PoolConfig;
+  const poolSelector = flags.pool ?? config.defaultTaskPool;
+  if (poolSelector) {
+    const match = taskPools.find((p) => p.prefix === poolSelector || p.name === poolSelector);
+    if (!match) {
+      console.error(red(`Pool "${poolSelector}" not found. Available: ${taskPools.map((p) => p.prefix).join(", ")}`));
+      process.exit(1);
+    }
+    pool = match;
+  } else if (taskPools.length === 1) {
+    pool = taskPools[0];
+  } else if (flags.noInteractive) {
+    exitNonInteractive(
+      "Multiple task pools available",
+      [`--pool <prefix>    Select pool (${taskPools.map((p) => p.prefix).join(", ")})`],
+    );
+  } else {
+    const items = taskPools.map((p) => ({
+      label: `${p.name} (${p.type}) — ${p.backgroundTaskCommand || p.taskCommand}`,
+      value: p,
+    }));
+    const selected = await selectFromList(items, { title: "Select a pool:" });
+    if (!selected) {
+      console.log("Cancelled.");
+      process.exit(0);
+    }
+    pool = selected;
+  }
+
+  const effectiveTaskCommand = pool.backgroundTaskCommand || pool.taskCommand;
+
+  // Pull the local --claude-bin flag out of args before treating the
+  // remainder as the (optional) initial prompt.
+  let claudeBin: string | undefined;
+  const promptArgs: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--claude-bin") {
+      claudeBin = args[++i];
+    } else {
+      promptArgs.push(args[i]);
+    }
+  }
+
+  // Prompt is optional for agents: an idle agent (no initial prompt) is fine.
+  let prompt: string | null = promptArgs[0] ?? null;
+  if (!prompt && !flags.noInteractive) {
+    prompt = await textInput("Initial prompt (optional):");
+  }
+  prompt = prompt?.trim() ?? "";
+
+  const startingPoint = flags.startingPoint;
+
+  // Resolve --worktree flag to an existing worktree path
+  let existingWorktreePath: string | undefined;
+  if (flags.worktree) {
+    const wt = await findWorktree(repoPath, flags.worktree);
+    if (!wt) {
+      console.error(red(`Worktree '${flags.worktree}' not found.`));
+      process.exit(1);
+    }
+    existingWorktreePath = wt.path;
+  }
+
+  const { worktreePath, taskRecord } = await servicelaunchTask(
+    repoPath,
+    {
+      poolType: pool.type,
+      poolPrefix: pool.prefix,
+      prompt: prompt || "(agent session, no initial prompt)",
+      startingPoint: startingPoint ?? undefined,
+      existingWorktreePath,
+      maintenanceCommand: pool.maintenanceCommand,
+      initCommand: config.initCommand,
+      mainBranch: config.mainBranch,
+      worktreeDirectory: config.worktreeDirectory,
+      taskCommand: effectiveTaskCommand,
+      launchedBy: "cli",
+    },
+    (event) => {
+      if (event.type === "step") console.log(cyan(`→ ${event.text}`));
+      else if (event.type === "stdout") process.stdout.write(event.text);
+      else if (event.type === "stderr") process.stderr.write(event.text);
+      else if (event.type === "error") console.error(red(`  ${event.text}`));
+    },
+    cliRunCommand
+  );
+
+  const client = new TerminalManagerClient();
+  await client.agentCreate(taskRecord.id, worktreePath, { prompt: prompt || undefined, claudeBin });
+  client.disconnect();
+
+  console.log(green(`Agent created: ${taskRecord.id}`));
+  console.log(dim(`  Worktree: ${worktreePath}`));
+  console.log(dim(`  Send:  many agent send ${taskRecord.id} "..."`));
+  console.log(dim(`  Tail:  many agent tail ${taskRecord.id} -f`));
+}
+
+async function cmdAgentSend(args: string[]): Promise<void> {
+  const agentId = args[0];
+  const message = args[1];
+  if (!agentId || !message) {
+    console.error(red("Usage: many agent send <agent-id> <message> [--wait]"));
+    process.exit(1);
+  }
+
+  const wait = args.includes("--wait");
+  const client = new TerminalManagerClient();
+
+  try {
+    if (wait) {
+      // agentSubscribe replays the buffered transcript before it resolves, so
+      // ignore everything until `live` is set (right before we send): otherwise
+      // we would print stale turns and resolve on an old replayed `result`.
+      let unsub: (() => void) | undefined;
+      let live = false;
+      await new Promise<void>((resolve, reject) => {
+        client
+          .agentSubscribe(agentId, (event) => {
+            if (!live) return;
+            if (event.type === "assistant") {
+              for (const block of event.content) {
+                if (block.type === "text") process.stdout.write(block.text);
+              }
+            } else if (event.type === "result") {
+              console.log();
+              resolve();
+            } else if (event.type === "error") {
+              reject(new Error(event.message));
+            }
+          })
+          .then((u) => {
+            unsub = u;
+            live = true;
+            return client.agentSend(agentId, message);
+          })
+          .catch(reject);
+      });
+      unsub?.();
+    } else {
+      await client.agentSend(agentId, message);
+      console.log(dim("sent"));
+    }
+  } catch (err) {
+    console.error(red(`Error: ${err instanceof Error ? err.message : String(err)}`));
+    process.exit(1);
+  } finally {
+    client.disconnect();
+  }
+}
+
+async function cmdAgentTail(args: string[]): Promise<void> {
+  const agentId = args[0];
+  if (!agentId) {
+    console.error(red("Usage: many agent tail <agent-id> [-f|--follow] [--json]"));
+    process.exit(1);
+  }
+  const follow = args.includes("-f") || args.includes("--follow");
+  const json = args.includes("--json");
+
+  if (follow) {
+    const client = new TerminalManagerClient();
+    // Following needs a live agent in the daemon (subscribe replays its buffer
+    // then streams live). If it isn't live, fall back to the on-disk transcript
+    // rather than hanging on a subscription that will never emit.
+    const live = await client.agentList().catch(() => [] as { agentId: string }[]);
+    if (!live.some((a) => a.agentId === agentId)) {
+      client.disconnect();
+      console.error(dim("Agent is not running; showing saved transcript only."));
+      await printAgentTranscriptFile(agentId, json);
+      return;
+    }
+    const unsub = await client.agentSubscribe(agentId, (event) => renderAgentEvent(event, json));
+    await new Promise<void>((resolve) => {
+      process.on("SIGINT", () => {
+        unsub();
+        client.disconnect();
+        resolve();
+      });
+    });
+    return;
+  }
+
+  await printAgentTranscriptFile(agentId, json);
+}
+
+async function printAgentTranscriptFile(agentId: string, json: boolean): Promise<void> {
+  const transcriptPath = getAgentTranscriptPath(agentId);
+  if (!existsSync(transcriptPath)) {
+    console.log(dim("No transcript yet for this agent."));
+    return;
+  }
+  const content = await fsPromises.readFile(transcriptPath, "utf-8");
+  for (const line of content.split("\n")) {
+    if (!line.trim()) continue;
+    renderAgentEvent(JSON.parse(line) as ClaudeUiEvent, json);
+  }
+}
+
+function renderAgentEvent(event: ClaudeUiEvent, json: boolean): void {
+  if (json) {
+    console.log(JSON.stringify(event));
+    return;
+  }
+  switch (event.type) {
+    case "prompt":
+      console.log(cyan(`\n> ${event.text}`));
+      break;
+    case "assistant":
+      for (const block of event.content) {
+        if (block.type === "text") process.stdout.write(block.text);
+        else if (block.type === "tool_use") console.log(dim(`\n[tool: ${block.name}]`));
+      }
+      break;
+    case "user":
+      for (const block of event.content) {
+        if (block.type === "tool_result") console.log(dim(`[tool result${block.isError ? " error" : ""}]`));
+      }
+      break;
+    case "result":
+      console.log(dim(`\n[turn done${event.isError ? " (error)" : ""}${event.costUsd != null ? ` $${event.costUsd.toFixed(4)}` : ""}]`));
+      break;
+    case "title":
+      console.log(dim(`[title: ${event.title}]`));
+      break;
+    case "error":
+      console.error(red(`[error] ${event.message}`));
+      break;
+    case "status":
+    case "init":
+      break;
+  }
+}
+
 // Tasks command - list/manage tracked tasks
 async function cmdTasks(subcommand: string | null, args: string[], flags: ParsedFlags): Promise<void> {
   await reconcileTasks();
@@ -1630,6 +1896,10 @@ ${bold("COMMANDS:")}
   ${bold("tasks log")} <id>          View a task's output log (-f to follow)
   ${bold("tasks kill")} <id>         Kill a running task
   ${bold("tasks prune")}             Remove old completed/failed task records
+  ${bold("agent create")} [prompt]   Create a headless Claude agent in a pool worktree
+                          Hosted by the terminal daemon, survives CLI exits
+  ${bold("agent send")} <id> <msg>   Send a message to a running agent (--wait to stream reply)
+  ${bold("agent tail")} <id>         Print an agent's transcript (-f to follow, --json for raw events)
   ${bold("validate-work-items")}     Validate .many-work-items.json in current dir
                           For use by automation producer tasks
 
@@ -1892,6 +2162,10 @@ async function main(): Promise<void> {
 
       case "tasks":
         await cmdTasks(positional[1] || null, positional.slice(2), flags);
+        break;
+
+      case "agent":
+        await cmdAgent(positional[1] || null, positional.slice(2), flags);
         break;
 
       case "__run-init":
