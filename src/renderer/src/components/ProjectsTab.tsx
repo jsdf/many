@@ -9,7 +9,7 @@ import { useFsTree } from "../useFsTree";
 import { useOpenFile } from "../useFileEditors";
 import { arrayMove } from "@dnd-kit/sortable";
 import { activeRoots, buildTreeRows, sortEntries } from "../treeRows";
-import { WorktreeActivity, isActive } from "../treeActivity";
+import { WorktreeActivity, isActive, sumActivityUnder } from "../treeActivity";
 import { PinToggle, pinMenuItem } from "./pinControls";
 import { relativeToRoot } from "../paths";
 import { useFocusedTerminal } from "../focused-terminal";
@@ -467,14 +467,15 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const renderRightSlot = useCallback(
     (row: FileTreeRow) => {
       if (!row.entry.isDirectory) return undefined;
-      // Close (kill terminals + close files) is offered when this exact node has
-      // activity, so it clears precisely what its badge counts at this path.
-      const own = worktreeActivity?.[row.entry.path];
+      // Close is offered whenever this folder has rolled-up activity (its own or
+      // any descendant's), so it clears everything the badge counts. The close
+      // handler fans out over every descendant path with terminals.
+      const rolled = sumActivityUnder(worktreeActivity, row.entry.path);
       const closeButton =
-        own && isActive(own) ? (
+        isActive(rolled) ? (
           <button
             className="opacity-0 group-hover/row:opacity-100 px-1 shrink-0 text-base-content/50 hover:text-error"
-            title="Close (kill terminals + close files)"
+            title="Close all terminals under this folder"
             onClick={(e) => {
               e.stopPropagation();
               onCloseProject(row.entry.path, row.entry.name);

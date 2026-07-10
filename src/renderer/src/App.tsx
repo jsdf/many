@@ -23,7 +23,7 @@ import SwitchWorktreeModal from "./components/SwitchWorktreeModal";
 import ReleaseWorktreeModal from "./components/ReleaseWorktreeModal";
 import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
-import { WorktreeActivity } from "./treeActivity";
+import { WorktreeActivity, sumActivityUnder } from "./treeActivity";
 import { getRpcClient } from "./rpc-client";
 import CloseProjectDialog from "./components/CloseProjectDialog";
 import { useWorktreeSubscription, useConnectionStatus } from "./rpc-hooks";
@@ -154,22 +154,30 @@ const App: React.FC = () => {
     [worktrees],
   );
 
-  // Close a project: kill its terminals. Confirms first when terminals would be killed.
+  // Close a project: kill terminals in this folder and every subfolder, so it
+  // clears everything the folder's rolled-up count badge shows. The rollup is a
+  // client-side concept, so we fan the exact-node close out over each descendant
+  // path that has terminals.
   const performCloseProject = useCallback(async (path: string) => {
-    try {
-      await getRpcClient().query("terminal.closeWorktree", { worktreePath: path });
-    } catch (err) {
-      console.error("[terminal.closeWorktree] failed:", err);
+    const sep = path.includes("\\") ? "\\" : "/";
+    const targets = Object.entries(mergedActivity)
+      .filter(([p, a]) => a.terminals > 0 && (p === path || p.startsWith(path + sep)))
+      .map(([p]) => p);
+    for (const worktreePath of targets) {
+      try {
+        await getRpcClient().query("terminal.closeWorktree", { worktreePath });
+      } catch (err) {
+        console.error("[terminal.closeWorktree] failed:", err);
+      }
     }
     try {
       const activity = await getRpcClient().query("worktree.activity", {});
       setWorktreeActivity(activity);
     } catch {}
-  }, []);
+  }, [mergedActivity]);
 
   const handleCloseProject = useCallback((path: string, name: string) => {
-    const a = mergedActivity[path];
-    const terminalCount = a?.terminals ?? 0;
+    const terminalCount = sumActivityUnder(mergedActivity, path).terminals;
     if (terminalCount > 0) {
       setCloseProjectTarget({ path, name, terminalCount });
     } else {
