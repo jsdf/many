@@ -1,0 +1,37 @@
+src/renderer/src/App.tsx
+  s_4f087cd3d6250b::t_6f4f54781e96c8 232-237
+  s_4f087cd3d6250b::t_6b749a836aded5 28
+  s_4f087cd3d6250b::t_df88f988b97592 231
+src/renderer/src/components/GlobalSettingsModal.tsx
+  s_4f087cd3d6250b::t_f1e0642855070b 4
+  s_4f087cd3d6250b::t_3e072477152d49 144-158
+  s_4f087cd3d6250b::t_8b096c57c7fa52 15
+  s_4f087cd3d6250b::t_9b5c31b74c4eed 39
+  s_4f087cd3d6250b::t_56ffb0cea537d6 61,63
+src/cli/config.ts
+  s_4f087cd3d6250b::t_551f7b26201f54 68
+src/renderer/src/markdown-serif.ts
+  s_4f087cd3d6250b::t_fb84f14c765d63 1-6
+src/renderer/src/styles.css
+  s_4f087cd3d6250b::t_f9013474791c4f 115-123
+src/renderer/src/components/FileEditorTab.tsx
+  s_4f087cd3d6250b::t_8766ad015c557e 856
+src/shared/protocol.ts
+  s_4f087cd3d6250b::t_efa0c17358ff07 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "677a5a4f58e7d3bf0758214f9fe7d230527ac7ec",
+  "prompts": {},
+  "sessions": {
+    "s_4f087cd3d6250b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "694fcfd6-13f9-405c-a84a-769d4841a22f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
