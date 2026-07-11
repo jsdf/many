@@ -1,0 +1,26 @@
+src/renderer/src/components/TerminalStack.tsx
+  s_b0e9ad71fd824f::t_98b1a3569228b7 11-12
+  s_b0e9ad71fd824f::t_2af71b1f630d6f 604-612
+  s_b0e9ad71fd824f::t_99d5528c36eaf3 2
+  s_b0e9ad71fd824f::t_d3e71f153227c5 115,118-125
+  s_b0e9ad71fd824f::t_24b23b7c90a3c2 667
+  s_b0e9ad71fd824f::t_0541c7e66924c4 126
+src/renderer/src/components/TerminalPanel.tsx
+  s_b0e9ad71fd824f::t_4e666d53f686e0 4,90-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5106683566a79f316fdd005de21694a5f018b151",
+  "prompts": {},
+  "sessions": {
+    "s_b0e9ad71fd824f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dda6c689-a2fe-410e-acca-52c21bc17c5f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
