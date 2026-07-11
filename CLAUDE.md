@@ -70,6 +70,10 @@ dont forget to commit. then run `npm run electron:install` - but ONLY when worki
 
 consider, is this react component or api getting out of hand? should it have smaller units factored out?
 
+### cost control
+
+consider using a sonnet subagent for writing code (esp. when will specified and not complex, risky or exploratory) though be sure to specify good practices for the subagent. if doing a complex change (e.g. moving stuff to daemon) be sure to plan for it or just do it yourself. similarly for manual browser testing generally use a sonnet subagent. make sure agents don't do any git operations or delete substantal files unless its an agent you spawned specifically for git operations.
+
 ## Architecture Overview
 
 ### Communication: WebSocket RPC (not REST/tRPC)
@@ -219,6 +223,7 @@ When multiple Claude Code agents work on this repo in parallel, use the `agent-s
 ### Rules
 
 - Never edit a file another agent is actively editing — this causes merge conflicts
+- do not try to work around not being able to edit a file another agent is editing by doing a worse code edit (e.g. injecting code from elsewhere). just poll until it is done with the file for up to 10s, and at that point stop and ask the user for help.
 - Files under "done with" are fair game
 - If you need a file another agent owns, leave a note in your status file requesting it and check back later
 - Keep status files minimal — just enough for other agents to know what's off-limits
