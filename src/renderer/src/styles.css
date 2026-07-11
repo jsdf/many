@@ -226,6 +226,14 @@
   /* let xterm theme control its own background */
 }
 
+/* Serif font toggle. Restyle only the rendered glyphs, not xterm's fontFamily
+   option: xterm measures its fixed character-cell width from that option, so
+   switching it to a serif face spreads every glyph across a too-wide monospace
+   cell. Overriding the visual font keeps the monospace cell metrics. */
+.terminal-wrapper.terminal-serif .xterm-rows {
+  font-family: Georgia, "Times New Roman", Times, serif !important;
+}
+
 /* info-item uses display:contents for CSS grid spanning */
 .info-item {
   display: contents;

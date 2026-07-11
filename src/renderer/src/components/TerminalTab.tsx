@@ -10,7 +10,7 @@ interface TerminalTabProps {
   terminalId: string;
   worktreePath: string;
   isVisible: boolean;
-  fontFamily?: string;
+  serif?: boolean;
   env?: Record<string, string>;
   initialCommand?: string;
   taskId?: string;
@@ -80,7 +80,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   terminalId,
   worktreePath,
   isVisible,
-  fontFamily,
+  serif,
   env,
   initialCommand,
   taskId,
@@ -97,7 +97,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
 
     const xterm = new Terminal({
       theme: getTerminalTheme(),
-      fontFamily: fontFamily || MONOSPACE_FONT,
+      fontFamily: MONOSPACE_FONT,
       fontSize: 13,
       lineHeight: 1.2,
       cursorBlink: true,
@@ -209,12 +209,14 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
     };
   }, [terminalId, worktreePath]);
 
-  // Apply font family changes to the live terminal
+  // Toggle serif via the `.terminal-serif` class (rule in styles.css), which
+  // restyles `.xterm-rows` glyphs while leaving xterm's monospace cell metrics
+  // untouched.
   useEffect(() => {
-    if (!xtermRef.current) return;
-    xtermRef.current.options.fontFamily = fontFamily || MONOSPACE_FONT;
-    fitAddonRef.current?.fit();
-  }, [fontFamily]);
+    const el = containerRef.current;
+    if (!el) return;
+    el.classList.toggle("terminal-serif", !!serif);
+  }, [serif]);
 
   // Re-fit when visibility changes
   useEffect(() => {

@@ -8,8 +8,6 @@ import ClaudeSessionTab from "./ClaudeSessionTab";
 import ClaudeUiTab, { type ClaudeUiTabHandle } from "./ClaudeUiTab";
 import { setFocusedTerminal, useFocusedTerminal } from "../focused-terminal";
 
-const SERIF_FONT = 'Georgia, "Times New Roman", Times, serif';
-
 interface TerminalStackProps {
   worktreePath: string;
   repoPath?: string;
@@ -664,7 +662,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     terminalId={term.id}
                     worktreePath={worktreePath}
                     isVisible={true}
-                    fontFamily={serifIds.has(term.id) ? SERIF_FONT : undefined}
+                    serif={serifIds.has(term.id)}
                     env={term.env}
                     initialCommand={term.initialCommand}
                     taskId={term.taskId}
