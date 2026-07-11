@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { RotateCw, Star, GitPullRequest, CheckSquare, ChevronRight, Server, ExternalLink, FolderOpen, Cloud, FolderTree } from "lucide-react";
+import { RotateCw, Star, GitPullRequest, CheckSquare, ChevronRight, Server, ExternalLink, FolderOpen, Cloud, FolderTree, FileText } from "lucide-react";
 import type { ProjectMetadata, ProjectPr, ProjectTask, ProjectEnv } from "../../../shared/protocol";
 import type { ProjectEntry } from "../types";
 
@@ -19,6 +19,8 @@ interface ProjectOverviewTabProps {
   subprojects: { project: ProjectEntry; relativePath: string }[];
   // Navigate the panel to a subproject's root.
   onOpenSubproject: (path: string) => void;
+  // Open one of the well-known project doc files (e.g. TODO.md) in the editor.
+  onOpenDoc: (name: string) => void;
 }
 
 function openUrl(url: string) {
@@ -188,9 +190,11 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
   onGoToWorktree,
   subprojects,
   onOpenSubproject,
+  onOpenDoc,
 }) => {
+  const docs = meta?.docs ?? [];
   const hasAnyFiles =
-    (meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs)) ||
+    (meta && (meta.hasProjectMd || meta.hasPrs || meta.hasTasks || meta.hasEnvs || docs.length > 0)) ||
     subprojects.length > 0;
   const [prError, setPrError] = useState<string | null>(null);
 
@@ -226,6 +230,22 @@ const ProjectOverviewTab: React.FC<ProjectOverviewTabProps> = ({
         ) : (
           <div className="flex flex-col gap-4">
             {meta?.title && <h3 className="text-base font-semibold m-0">{meta.title}</h3>}
+
+            {docs.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {docs.map((name) => (
+                  <button
+                    key={name}
+                    className="btn btn-outline btn-xs gap-1"
+                    onClick={() => onOpenDoc(name)}
+                    title={`Open ${name}`}
+                  >
+                    <FileText size={12} />
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {subprojects.length > 0 && (
               <Section icon={<FolderTree size={14} />} title="Subprojects" count={subprojects.length}>

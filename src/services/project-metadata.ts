@@ -193,14 +193,28 @@ export async function refreshPrsYml(
   return { metadata, refreshed, errors };
 }
 
+// Well-known project doc files surfaced as open-file shortcuts in the Overview.
+const DOC_FILES = ["PROJECT.md", "HISTORY.md", "LEARNINGS.md", "PRIORITIES.md", "TODO.md"];
+
+// Returns true if a file exists at the given path.
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Reads env-jsdf-style sidecar files from a project directory. Missing files
 // are reported via the `has*` flags rather than treated as errors.
 export async function readProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
-  const [projectMd, prsYml, tasksYml, envsYml] = await Promise.all([
+  const [projectMd, prsYml, tasksYml, envsYml, docPresence] = await Promise.all([
     readIfExists(path.join(projectPath, "PROJECT.md")),
     readIfExists(path.join(projectPath, "prs.yml")),
     readIfExists(path.join(projectPath, "tasks.yml")),
     readIfExists(path.join(projectPath, "envs.yml")),
+    Promise.all(DOC_FILES.map((name) => fileExists(path.join(projectPath, name)))),
   ]);
 
   const md = projectMd !== null ? parseProjectMd(projectMd) : { title: null, links: [] };
@@ -215,5 +229,6 @@ export async function readProjectMetadata(projectPath: string): Promise<ProjectM
     hasPrs: prsYml !== null,
     hasTasks: tasksYml !== null,
     hasEnvs: envsYml !== null,
+    docs: DOC_FILES.filter((_, i) => docPresence[i]),
   };
 }

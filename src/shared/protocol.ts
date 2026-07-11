@@ -72,6 +72,10 @@ export interface ProjectMetadata {
   hasPrs: boolean;
   hasTasks: boolean;
   hasEnvs: boolean;
+  // Names of the well-known project doc files present in the directory
+  // (PROJECT.md, HISTORY.md, LEARNINGS.md, PRIORITIES.md, TODO.md), in that
+  // order. Surfaced as open-file shortcuts in the Overview.
+  docs: string[];
 }
 
 export interface FsEntry {

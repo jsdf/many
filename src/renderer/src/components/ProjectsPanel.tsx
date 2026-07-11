@@ -308,6 +308,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                   const name = projects.find((p) => p.path === path)?.name ?? path.slice(path.lastIndexOf(sep) + 1);
                   onSelectNode({ name, path });
                 }}
+                onOpenDoc={(name) => {
+                  const filePath = `${project.path}${sep}${name}`;
+                  openFileInContext(project.path, { path: filePath, name });
+                  setActiveFile(filePath);
+                }}
               />
             ) : activeFile === SESSIONS_TAB ? (
               <ProjectSessionsTab

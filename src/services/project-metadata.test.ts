@@ -268,6 +268,21 @@ describe("readProjectMetadata", () => {
     expect(meta).toMatchObject({ hasProjectMd: true, hasPrs: true, hasTasks: true, hasEnvs: true });
   });
 
+  it("lists well-known doc files that exist, in canonical order", async () => {
+    await fs.writeFile(path.join(dir, "TODO.md"), "- do thing");
+    await fs.writeFile(path.join(dir, "PROJECT.md"), "# P");
+    await fs.writeFile(path.join(dir, "LEARNINGS.md"), "notes");
+
+    const meta = await readProjectMetadata(dir);
+    expect(meta.docs).toEqual(["PROJECT.md", "LEARNINGS.md", "TODO.md"]);
+  });
+
+  it("returns no docs when none of the well-known files exist", async () => {
+    await fs.writeFile(path.join(dir, "prs.yml"), "prs: []");
+    const meta = await readProjectMetadata(dir);
+    expect(meta.docs).toEqual([]);
+  });
+
   it("distinguishes absent files from empty ones via has* flags", async () => {
     await fs.writeFile(path.join(dir, "prs.yml"), "prs: []");
     const meta = await readProjectMetadata(dir);
