@@ -10,11 +10,15 @@ interface TerminalTabProps {
   terminalId: string;
   worktreePath: string;
   isVisible: boolean;
+  fontFamily?: string;
   env?: Record<string, string>;
   initialCommand?: string;
   taskId?: string;
   onTitleChange?: (title: string) => void;
 }
+
+const MONOSPACE_FONT =
+  '"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", monospace';
 
 const darkTheme = {
   background: "#1e1e1e",
@@ -76,6 +80,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   terminalId,
   worktreePath,
   isVisible,
+  fontFamily,
   env,
   initialCommand,
   taskId,
@@ -92,8 +97,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
 
     const xterm = new Terminal({
       theme: getTerminalTheme(),
-      fontFamily:
-        '"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", monospace',
+      fontFamily: fontFamily || MONOSPACE_FONT,
       fontSize: 13,
       lineHeight: 1.2,
       cursorBlink: true,
@@ -204,6 +208,13 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
       fitAddonRef.current = null;
     };
   }, [terminalId, worktreePath]);
+
+  // Apply font family changes to the live terminal
+  useEffect(() => {
+    if (!xtermRef.current) return;
+    xtermRef.current.options.fontFamily = fontFamily || MONOSPACE_FONT;
+    fitAddonRef.current?.fit();
+  }, [fontFamily]);
 
   // Re-fit when visibility changes
   useEffect(() => {

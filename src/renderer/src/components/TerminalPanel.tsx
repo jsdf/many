@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
-import { ChevronRight, ChevronDown, X } from "lucide-react";
+import { ChevronRight, ChevronDown, X, Type } from "lucide-react";
+
+const SERIF_FONT = 'Georgia, "Times New Roman", Times, serif';
 
 interface TerminalPanelProps {
   worktreePath: string;
@@ -17,6 +19,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
   const [terminals, setTerminals] = useState<TerminalInfo[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [useSerif, setUseSerif] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,9 +90,20 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
             </button>
           )}
           {!hasTerminals && <span className="text-sm text-base-content/60">Terminal</span>}
-          <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
-            + New Terminal
-          </button>
+          <div className="flex items-center gap-1.5">
+            {hasTerminals && (
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => setUseSerif((prev) => !prev)}
+                title={useSerif ? "Switch to monospace font" : "Switch to serif font"}
+              >
+                <Type size={12} /> {useSerif ? "Serif" : "Mono"}
+              </button>
+            )}
+            <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
+              + New Terminal
+            </button>
+          </div>
         </div>
 
         {hasTerminals && !isCollapsed && (
@@ -129,6 +143,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ worktreePath }) => {
               terminalId={term.id}
               worktreePath={worktreePath}
               isVisible={activeTerminalId === term.id}
+              fontFamily={useSerif ? SERIF_FONT : undefined}
             />
           ))}
         </div>

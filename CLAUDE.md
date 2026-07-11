@@ -56,6 +56,8 @@ The web server (`dist-cli/web/server.js`) serves the built renderer static files
 
 manually web ui test changes in the browser
 
+also consider, if a system is sufficiently decoupled, adding unit tests
+
 ### when changing services
 
 don't forget to run and update tests, write new ones if new behaviors are specified
@@ -63,6 +65,10 @@ don't forget to run and update tests, write new ones if new behaviors are specif
 ### after completing a task
 
 dont forget to commit. then run `npm run electron:install` - but ONLY when working in the main checkout, NOT when on a worktree (it would install an in-progress branch over the main app). Skip it on worktrees.
+
+### when writing code
+
+consider, is this react component or api getting out of hand? should it have smaller units factored out?
 
 ## Architecture Overview
 
