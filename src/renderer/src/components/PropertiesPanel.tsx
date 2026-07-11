@@ -130,7 +130,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ initialProperties, on
   const removeRow = (id: number) => commit(rows.filter((r) => r.id !== id));
 
   return (
-    <div className="border-b border-base-300 bg-base-200/40 px-4 py-2 text-[13px]">
+    <div className="border-b border-base-300 bg-base-200/40 pl-4 pr-24 py-2 text-[13px]">
       {rows.length > 0 && (
         <div className="flex flex-col gap-1">
           {rows.map((row) => (
