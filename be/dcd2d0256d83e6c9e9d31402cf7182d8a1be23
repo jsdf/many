@@ -1,0 +1,19 @@
+CLAUDE.md
+  s_fa3d90180d9046::t_a3282ca5fd3783 73-76,226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "bedcd2d0256d83e6c9e9d31402cf7182d8a1be23",
+  "prompts": {},
+  "sessions": {
+    "s_fa3d90180d9046": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77266ce8-8c25-48a7-99d8-c1f77a11c060",
+        "model": "unknown"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
