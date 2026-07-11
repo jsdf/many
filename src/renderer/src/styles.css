@@ -112,6 +112,16 @@
   flex: 1 1 auto;
 }
 
+/* Find-in-document match highlighting (CSS Custom Highlight API), shared by
+   the markdown preview and WYSIWYG hosts. */
+::highlight(many-find-all) {
+  background-color: rgba(255, 213, 0, 0.4);
+}
+::highlight(many-find-current) {
+  background-color: rgba(255, 145, 0, 0.85);
+  color: #000;
+}
+
 /* Markdown rendering for chat surfaces (session history + live Claude UI).
    Tailwind's preflight strips default element styling and the typography
    plugin isn't installed, so markdown elements are styled explicitly here,

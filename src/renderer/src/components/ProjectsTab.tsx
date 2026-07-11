@@ -78,14 +78,25 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
   >([]);
 
   // Active pane height. null means "size to content" (capped); once the user
-  // drags the divider it becomes an explicit pixel height.
-  const [activeHeight, setActiveHeight] = useState<number | null>(null);
+  // drags the divider it becomes an explicit pixel height. Persisted to
+  // localStorage so it survives navigating away and back to the projects page.
+  const [activeHeight, setActiveHeight] = useState<number | null>(() => {
+    const s = localStorage.getItem("projectsActiveHeight");
+    return s !== null && s !== "" ? Number(s) : null;
+  });
   const [draggingActive, setDraggingActive] = useState(false);
   // Accordion collapse of the Active / Projects sections via their headers.
-  const [activeCollapsed, setActiveCollapsed] = useState(false);
-  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [activeCollapsed, setActiveCollapsed] = useState(
+    () => localStorage.getItem("projectsActiveCollapsed") === "true",
+  );
+  const [projectsCollapsed, setProjectsCollapsed] = useState(
+    () => localStorage.getItem("projectsProjectsCollapsed") === "true",
+  );
+  // Collapsing Projects hands its space to the Active pane so it can be maximised.
+  const maximizeActive = projectsCollapsed && !activeCollapsed;
   const containerRef = useRef<HTMLDivElement>(null);
   const activeTreeRef = useRef<HTMLDivElement>(null);
+  const latestHeightRef = useRef<number>(0);
 
   const handleActiveResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -102,9 +113,14 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       if (!tree || !container) return;
       const top = tree.getBoundingClientRect().top;
       const maxH = container.getBoundingClientRect().bottom - top - RESERVE_PROJECTS;
-      setActiveHeight(Math.max(MIN_ACTIVE, Math.min(Math.max(MIN_ACTIVE, maxH), e.clientY - top)));
+      const h = Math.max(MIN_ACTIVE, Math.min(Math.max(MIN_ACTIVE, maxH), e.clientY - top));
+      latestHeightRef.current = h;
+      setActiveHeight(h);
     };
-    const handleUp = () => setDraggingActive(false);
+    const handleUp = () => {
+      setDraggingActive(false);
+      localStorage.setItem("projectsActiveHeight", String(latestHeightRef.current));
+    };
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
     return () => {
@@ -517,10 +533,15 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
       style={{ userSelect: draggingActive ? "none" : undefined }}
     >
       {activeRows.length > 0 && (
-        <div className="shrink-0 flex flex-col">
+        <div className={`flex flex-col ${maximizeActive ? "flex-1 min-h-0" : "shrink-0"}`}>
           <div
             className="mb-1 px-0.5 flex items-center justify-between gap-2 cursor-pointer"
-            onClick={() => setActiveCollapsed((c) => !c)}
+            onClick={() =>
+              setActiveCollapsed((c) => {
+                localStorage.setItem("projectsActiveCollapsed", String(!c));
+                return !c;
+              })
+            }
           >
             <span className="text-xs font-semibold text-base-content/60 flex items-center gap-0.5">
               {activeCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
@@ -544,8 +565,8 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
           {!activeCollapsed && (
           <div
             ref={activeTreeRef}
-            className="overflow-hidden"
-            style={activeHeight === null ? undefined : { height: activeHeight }}
+            className={`overflow-hidden ${maximizeActive ? "flex-1 min-h-0" : ""}`}
+            style={maximizeActive || activeHeight === null ? undefined : { height: activeHeight }}
           >
             {activeMode === "byFolder" ? (
               <FileTree
@@ -560,10 +581,10 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 rightSlot={renderRightSlot}
                 sortableIds={pinnedFolders}
                 onReorder={handleReorderPin}
-                scrollClassName={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}
+                scrollClassName={maximizeActive || activeHeight !== null ? "h-full overflow-auto" : "max-h-48 overflow-auto"}
               />
             ) : (
-              <div className={activeHeight === null ? "max-h-48 overflow-auto" : "h-full overflow-auto"}>
+              <div className={maximizeActive || activeHeight !== null ? "h-full overflow-auto" : "max-h-48 overflow-auto"}>
                 {recentItems.length === 0 ? (
                   <p className="text-base-content/50 text-xs px-2 py-1">Nothing recent</p>
                 ) : (
@@ -603,7 +624,7 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
             )}
           </div>
           )}
-          {!activeCollapsed && (
+          {!activeCollapsed && !maximizeActive && (
             <div
               className={`shrink-0 h-1 my-1.5 rounded cursor-ns-resize transition-colors ${draggingActive ? "bg-primary" : "bg-base-300 hover:bg-primary"}`}
               onMouseDown={handleActiveResizeStart}
@@ -615,7 +636,12 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
 
       <div
         className="flex items-center justify-between mb-2 px-0.5 cursor-pointer"
-        onClick={() => setProjectsCollapsed((c) => !c)}
+        onClick={() =>
+          setProjectsCollapsed((c) => {
+            localStorage.setItem("projectsProjectsCollapsed", String(!c));
+            return !c;
+          })
+        }
       >
         <span className="text-xs font-semibold text-base-content/60 flex items-center gap-0.5">
           {projectsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}

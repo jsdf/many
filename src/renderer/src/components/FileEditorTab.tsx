@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EditorState, Extension, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLineGutter, keymap } from "@codemirror/view";
 import { syntaxHighlighting, defaultHighlightStyle, LanguageDescription } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { languages } from "@codemirror/language-data";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { search, setSearchQuery, SearchQuery, SearchCursor } from "@codemirror/search";
 import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -20,6 +21,7 @@ import mermaid from "mermaid";
 import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
+import { createDomFinder } from "../dom-find";
 
 // Task lists are conventionally tight (no blank lines between checkboxes), but
 // tiptap-markdown only teaches bulletList/orderedList about the `tight` attribute,
@@ -92,6 +94,15 @@ const RoundtripTable = Table.extend({
     };
   },
 });
+
+// Uniform find-in-document controls implemented per editor mode (CodeMirror
+// selection-based search vs. CSS Custom Highlight API for read-only DOM views).
+export interface SearchHandle {
+  setQuery(query: string, caseSensitive: boolean): void;
+  next(): void;
+  prev(): void;
+  clear(): void;
+}
 
 export interface FileData {
   content: string;
@@ -194,18 +205,28 @@ function CodeEditor({
   fileName,
   onChange,
   onSave,
+  searchRef,
+  onMatches,
 }: {
   initialDoc: string;
   fileName: string;
   onChange: (content: string) => void;
   onSave: () => void;
+  searchRef?: React.Ref<SearchHandle>;
+  onMatches?: (count: number, index: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialDocRef = useRef(initialDoc);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const onMatchesRef = useRef(onMatches);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  onMatchesRef.current = onMatches;
+
+  const viewRef = useRef<EditorView | null>(null);
+  const matchesRef = useRef<{ from: number; to: number }[]>([]);
+  const currentRef = useRef(0);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -217,6 +238,7 @@ function CodeEditor({
       lineNumbers(),
       highlightActiveLineGutter(),
       history(),
+      search({ top: true }),
       keymap.of([
         { key: "Mod-s", preventDefault: true, run: () => { onSaveRef.current(); return true; } },
         ...defaultKeymap,
@@ -235,6 +257,7 @@ function CodeEditor({
       parent: containerRef.current,
       state: EditorState.create({ doc: initialDocRef.current, extensions }),
     });
+    viewRef.current = view;
 
     const desc = LanguageDescription.matchFilename(languages, fileName);
     if (desc) {
@@ -245,11 +268,67 @@ function CodeEditor({
 
     return () => {
       cancelled = true;
+      viewRef.current = null;
       view.destroy();
     };
     // Mount once; the latest doc is re-read on remount (e.g. mode toggle).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useImperativeHandle(searchRef, () => ({
+    setQuery(query: string, caseSensitive: boolean) {
+      const view = viewRef.current;
+      if (!view) return;
+      if (!query) {
+        view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: "" })) });
+        matchesRef.current = [];
+        currentRef.current = 0;
+        onMatchesRef.current?.(0, 0);
+        return;
+      }
+      view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: query, caseSensitive })) });
+      const norm = caseSensitive ? undefined : (s: string) => s.toLowerCase();
+      const q = caseSensitive ? query : query.toLowerCase();
+      const cursor = new SearchCursor(view.state.doc, q, 0, view.state.doc.length, norm);
+      const matches: { from: number; to: number }[] = [];
+      while (!cursor.next().done) matches.push({ from: cursor.value.from, to: cursor.value.to });
+      matchesRef.current = matches;
+      const selFrom = view.state.selection.main.from;
+      const firstAtOrAfter = matches.findIndex((m) => m.from >= selFrom);
+      currentRef.current = firstAtOrAfter >= 0 ? firstAtOrAfter : 0;
+      if (matches.length) {
+        const m = matches[currentRef.current];
+        view.dispatch({ selection: { anchor: m.from, head: m.to }, scrollIntoView: true });
+      }
+      onMatchesRef.current?.(matches.length, matches.length ? currentRef.current + 1 : 0);
+    },
+    next() {
+      const view = viewRef.current;
+      const matches = matchesRef.current;
+      if (!view || !matches.length) return;
+      currentRef.current = (currentRef.current + 1) % matches.length;
+      const m = matches[currentRef.current];
+      view.dispatch({ selection: { anchor: m.from, head: m.to }, scrollIntoView: true });
+      onMatchesRef.current?.(matches.length, currentRef.current + 1);
+    },
+    prev() {
+      const view = viewRef.current;
+      const matches = matchesRef.current;
+      if (!view || !matches.length) return;
+      currentRef.current = (currentRef.current - 1 + matches.length) % matches.length;
+      const m = matches[currentRef.current];
+      view.dispatch({ selection: { anchor: m.from, head: m.to }, scrollIntoView: true });
+      onMatchesRef.current?.(matches.length, currentRef.current + 1);
+    },
+    clear() {
+      const view = viewRef.current;
+      if (!view) return;
+      view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: "" })) });
+      matchesRef.current = [];
+      currentRef.current = 0;
+      onMatchesRef.current?.(0, 0);
+    },
+  }), []);
 
   return <div ref={containerRef} className="h-full overflow-hidden text-[13px]" />;
 }
@@ -404,11 +483,15 @@ function MarkdownEditor({
   baseDir,
   onChange,
   onSave,
+  searchRef,
+  onMatches,
 }: {
   initialMarkdown: string;
   baseDir: string;
   onChange: (content: string) => void;
   onSave: () => void;
+  searchRef?: React.Ref<SearchHandle>;
+  onMatches?: (count: number, index: number) => void;
 }) {
   // Split frontmatter from body once on mount; both editors are uncontrolled
   // (they read their initial value once), so we recombine via refs on change.
@@ -418,8 +501,37 @@ function MarkdownEditor({
 
   const emit = () => onChange(serializeFrontmatter(propsRef.current, bodyRef.current));
 
+  const hostRef = useRef<HTMLDivElement>(null);
+  const onMatchesRef = useRef(onMatches);
+  onMatchesRef.current = onMatches;
+  // The finder only reads the DOM (CSS Custom Highlight API), so it never
+  // touches ProseMirror's own DOM management.
+  const [finder] = useState(() => createDomFinder(() => hostRef.current));
+
+  useEffect(() => () => finder.clear(), [finder]);
+
+  useImperativeHandle(searchRef, () => ({
+    setQuery(query: string, caseSensitive: boolean) {
+      const { count, index } = finder.setQuery(query, caseSensitive);
+      onMatchesRef.current?.(count, index);
+    },
+    next() {
+      const { count, index } = finder.next();
+      onMatchesRef.current?.(count, index);
+    },
+    prev() {
+      const { count, index } = finder.prev();
+      onMatchesRef.current?.(count, index);
+    },
+    clear() {
+      finder.clear();
+      onMatchesRef.current?.(0, 0);
+    },
+  }), [finder]);
+
   return (
     <div
+      ref={hostRef}
       className="tiptap-host h-full overflow-auto"
       onKeyDownCapture={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -512,9 +624,43 @@ const PREVIEW_COMPONENTS: Components = {
 // Read-only preview using the shared chat markdown renderer, with mermaid
 // diagram support. Frontmatter is stripped (matching the WYSIWYG view, which
 // surfaces it via PropertiesPanel) so raw YAML isn't rendered as body text.
-function MarkdownPreview({ content }: { content: string }) {
+function MarkdownPreview({
+  content,
+  searchRef,
+  onMatches,
+}: {
+  content: string;
+  searchRef?: React.Ref<SearchHandle>;
+  onMatches?: (count: number, index: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onMatchesRef = useRef(onMatches);
+  onMatchesRef.current = onMatches;
+  const [finder] = useState(() => createDomFinder(() => containerRef.current));
+
+  useEffect(() => () => finder.clear(), [finder]);
+
+  useImperativeHandle(searchRef, () => ({
+    setQuery(query: string, caseSensitive: boolean) {
+      const { count, index } = finder.setQuery(query, caseSensitive);
+      onMatchesRef.current?.(count, index);
+    },
+    next() {
+      const { count, index } = finder.next();
+      onMatchesRef.current?.(count, index);
+    },
+    prev() {
+      const { count, index } = finder.prev();
+      onMatchesRef.current?.(count, index);
+    },
+    clear() {
+      finder.clear();
+      onMatchesRef.current?.(0, 0);
+    },
+  }), [finder]);
+
   return (
-    <div className="h-full overflow-auto p-4">
+    <div ref={containerRef} className="h-full overflow-auto p-4">
       <div className="chat-markdown">
         <ReactMarkdown remarkPlugins={PREVIEW_REMARK_PLUGINS} components={PREVIEW_COMPONENTS}>
           {parseFrontmatter(content).body}
@@ -543,11 +689,122 @@ const WysiwygIcon = (
     <line x1="4" y1="17" x2="14" y2="17" />
   </svg>
 );
+const ChevronUpIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="18 15 12 9 6 15" />
+  </svg>
+);
+const ChevronDownIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+const CloseIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+function FindBar({
+  query,
+  onQueryChange,
+  caseSensitive,
+  onCaseSensitiveChange,
+  count,
+  index,
+  onNext,
+  onPrev,
+  onClose,
+}: {
+  query: string;
+  onQueryChange: (query: string) => void;
+  caseSensitive: boolean;
+  onCaseSensitiveChange: (caseSensitive: boolean) => void;
+  count: number;
+  index: number;
+  onNext: () => void;
+  onPrev: () => void;
+  onClose: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <div className="absolute top-2 left-2 z-10 flex items-center gap-1 p-1 rounded-box border border-base-300 bg-base-100 shadow-md">
+      <input
+        ref={inputRef}
+        type="text"
+        className="input input-xs w-[180px]"
+        placeholder="Find in document"
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (e.shiftKey) onPrev();
+            else onNext();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          }
+        }}
+      />
+      <span className="text-xs text-base-content/60 tabular-nums w-10 text-center">
+        {count ? `${index}/${count}` : "0/0"}
+      </span>
+      <button className="btn btn-xs btn-ghost" title="Previous match" disabled={count === 0} onClick={onPrev}>
+        {ChevronUpIcon}
+      </button>
+      <button className="btn btn-xs btn-ghost" title="Next match" disabled={count === 0} onClick={onNext}>
+        {ChevronDownIcon}
+      </button>
+      <button
+        className={`btn btn-xs ${caseSensitive ? "btn-primary" : "btn-ghost"}`}
+        title="Match case"
+        onClick={() => onCaseSensitiveChange(!caseSensitive)}
+      >
+        Aa
+      </button>
+      <button className="btn btn-xs btn-ghost" title="Close" onClick={onClose}>
+        {CloseIcon}
+      </button>
+    </div>
+  );
+}
 
 const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data, onChange, onSave }) => {
   const markdown = isMarkdownFile(fileName);
   const media = mediaKind(fileName);
   const [mode, setMode] = useState<"code" | "wysiwyg" | "preview">(markdown ? "wysiwyg" : "code");
+
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findCaseSensitive, setFindCaseSensitive] = useState(false);
+  const [findCount, setFindCount] = useState(0);
+  const [findIndex, setFindIndex] = useState(0);
+  const searchRef = useRef<SearchHandle | null>(null);
+
+  useEffect(() => {
+    if (!findOpen) {
+      searchRef.current?.clear();
+      return;
+    }
+    searchRef.current?.setQuery(findQuery, findCaseSensitive);
+    // Re-applied whenever the editor remounts (mode switch) or the on-disk
+    // content is reloaded, since the underlying editors are uncontrolled.
+  }, [findOpen, findQuery, findCaseSensitive, mode, data.version]);
+
+  const onMatches = (count: number, index: number) => {
+    setFindCount(count);
+    setFindIndex(index);
+  };
+
+  const showFindBar = findOpen && !media && !data.error && data.loaded && !data.tooLarge && !data.binary;
 
   // Media is rendered from the file URL directly, so it bypasses the editor's
   // content read (and its binary / too-large limits).
@@ -573,7 +830,28 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
   }
 
   return (
-    <div className="relative h-full">
+    <div
+      className="relative h-full"
+      onKeyDownCapture={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          setFindOpen(true);
+        }
+      }}
+    >
+      {showFindBar && (
+        <FindBar
+          query={findQuery}
+          onQueryChange={setFindQuery}
+          caseSensitive={findCaseSensitive}
+          onCaseSensitiveChange={setFindCaseSensitive}
+          count={findCount}
+          index={findIndex}
+          onNext={() => searchRef.current?.next()}
+          onPrev={() => searchRef.current?.prev()}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
       {markdown && (
         <div className="absolute top-2 right-2 z-10 join shadow-md">
           <button
@@ -600,11 +878,27 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
         </div>
       )}
       {markdown && mode === "preview" ? (
-        <MarkdownPreview key="preview" content={data.content} />
+        <MarkdownPreview key="preview" content={data.content} searchRef={searchRef} onMatches={onMatches} />
       ) : markdown && mode === "wysiwyg" ? (
-        <MarkdownEditor key="wysiwyg" initialMarkdown={data.content} baseDir={dirname(filePath)} onChange={onChange} onSave={onSave} />
+        <MarkdownEditor
+          key="wysiwyg"
+          initialMarkdown={data.content}
+          baseDir={dirname(filePath)}
+          onChange={onChange}
+          onSave={onSave}
+          searchRef={searchRef}
+          onMatches={onMatches}
+        />
       ) : (
-        <CodeEditor key="code" initialDoc={data.content} fileName={fileName} onChange={onChange} onSave={onSave} />
+        <CodeEditor
+          key="code"
+          initialDoc={data.content}
+          fileName={fileName}
+          onChange={onChange}
+          onSave={onSave}
+          searchRef={searchRef}
+          onMatches={onMatches}
+        />
       )}
     </div>
   );
