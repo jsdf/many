@@ -1,0 +1,55 @@
+src/web/server.ts
+  s_8daa8ef32c4e3c::t_2d0d2cb07b917d 341-342
+  s_8daa8ef32c4e3c::t_f5606eec74a8c7 294-297
+  s_8daa8ef32c4e3c::t_6884f26caf59bd 240
+src/daemon/terminal-client.ts
+  s_8daa8ef32c4e3c::t_c6ceae5887ec92 300-383
+  s_8daa8ef32c4e3c::t_f8a14a31393fa7 10,22-23
+  s_8daa8ef32c4e3c::t_31d7d25ae25508 40,43-44
+  s_8daa8ef32c4e3c::t_1025218c62a8d7 100-102
+src/web/claude-ui/service.ts
+  s_8daa8ef32c4e3c::t_0557a061ec34d6 3,10-15,17,19,21,27-30,35,38,43-45,48-49,52-53,56-57,60-61,64-65,68-70,73-74
+src/daemon/terminal-daemon.ts
+  s_8daa8ef32c4e3c::t_74fd37af7926d4 266-317
+  s_8daa8ef32c4e3c::t_652dc63a4a25b0 357-358,361,369
+  s_8daa8ef32c4e3c::t_3cc5b903e3f050 51-73
+  s_8daa8ef32c4e3c::t_d5ad34dc4d96ed 406,422-423
+  s_8daa8ef32c4e3c::t_e299709e852471 115
+  s_8daa8ef32c4e3c::t_df57fd8449847f 29-31
+  s_8daa8ef32c4e3c::t_8990f097c3173d 50
+src/web/claude-ui/AGENTS.md
+  s_8daa8ef32c4e3c::t_a094be0c05a1df 3-11,13-15
+src/daemon/terminal-daemon-protocol.ts
+  s_8daa8ef32c4e3c::t_39077fae4df163 10,13,25-32
+  s_8daa8ef32c4e3c::t_4100ce7a10216a 84-103
+  s_8daa8ef32c4e3c::t_83c0880643f246 133-142
+  s_8daa8ef32c4e3c::t_eac32f0c9cc867 152
+  s_8daa8ef32c4e3c::t_057c88eb4c1ac9 33
+src/electron/main.ts
+  s_8daa8ef32c4e3c::t_160424d42d19c1 117,120
+src/daemon/claude-ui-manager.ts
+  s_8daa8ef32c4e3c::t_29c88b66b4de5f 1-218
+src/web/rpc-handlers.ts
+  s_8daa8ef32c4e3c::t_aa626ca4c24c8e 1549-1567
+  s_8daa8ef32c4e3c::t_7a8b81a527818f 1174,1178,1183,1188,1193,1198
+  s_8daa8ef32c4e3c::t_7c042257f64b36 1160
+src/daemon/claude-ui-manager.test.ts
+  s_8daa8ef32c4e3c::t_58ffbd0c36e69f 142,146-147
+  s_8daa8ef32c4e3c::t_4825ee4b3f1a1f 1-141,143-145,148-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "fe4b3701eb472e53c4d3fc2ed810476063d63c98",
+  "prompts": {},
+  "sessions": {
+    "s_8daa8ef32c4e3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d7e734ce-1b55-4da5-8748-f6a1f9257b8c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
