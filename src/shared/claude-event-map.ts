@@ -5,6 +5,9 @@ export function mapContentBlock(block: { type: string; [k: string]: unknown }): 
   if (block.type === "text" && typeof block.text === "string") {
     return { type: "text", text: block.text };
   }
+  if (block.type === "thinking" && typeof block.thinking === "string") {
+    return { type: "thinking", thinking: block.thinking };
+  }
   if (block.type === "tool_use") {
     return {
       type: "tool_use",

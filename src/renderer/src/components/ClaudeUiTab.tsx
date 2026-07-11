@@ -83,6 +83,28 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function ThinkingBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="px-3 py-1">
+      <button
+        className="flex items-center gap-1.5 text-left text-xs font-mono text-base-content/40 hover:text-base-content/60 select-none"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className={`inline-flex transition-transform ${open ? "rotate-90" : ""}`}>
+          <ChevronRight size={12} />
+        </span>
+        <span>Thinking</span>
+      </button>
+      {open && (
+        <div className="mt-1 ml-4 text-xs italic text-base-content/50 whitespace-pre-wrap break-words">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // A run of consecutive tool calls/results. Renders expanded (each tool on its
 // own line, the way they stream in) while it is the latest activity, then
 // auto-collapses to a one-line summary once a non-tool message follows. Stays
@@ -154,6 +176,7 @@ type ToolEntry =
 type Row =
   | { kind: "prompt"; key: string; text: string }
   | { kind: "text"; key: string; text: string }
+  | { kind: "thinking"; key: string; text: string }
   | { kind: "tools"; key: string; entries: ToolEntry[] }
   | { kind: "result"; key: string; isError: boolean; costUsd?: number; durationMs?: number }
   | { kind: "error"; key: string; message: string };
@@ -186,6 +209,9 @@ function buildRows(items: DisplayItem[]): Row[] {
         if (block.type === "text") {
           flushTools();
           rows.push({ kind: "text", key, text: block.text });
+        } else if (block.type === "thinking") {
+          flushTools();
+          rows.push({ kind: "thinking", key, text: block.thinking });
         } else if (block.type === "tool_use") {
           pushTool({ kind: "use", key, name: block.name, input: block.input });
         } else if (block.type === "tool_result") {
@@ -362,6 +388,9 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
                 <MarkdownContent text={row.text} />
               </div>
             );
+          }
+          if (row.kind === "thinking") {
+            return <ThinkingBlock key={row.key} text={row.text} />;
           }
           if (row.kind === "tools") {
             return <ToolGroup key={row.key} entries={row.entries} live={idx === arr.length - 1} />;

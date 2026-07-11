@@ -343,6 +343,7 @@ export type ClaudeUiPermissionMode =
 
 export type ClaudeUiContentBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | { type: "tool_result"; toolUseId: string; content: string; isError: boolean };
 
