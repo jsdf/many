@@ -1,11 +1,18 @@
 # Claude UI (CLI-backed sessions)
 
-`ClaudeUiService` (service.ts) manages live Claude sessions backed by
-`@libclaude/core`'s `ClaudeSession`, which spawns one long-lived
+Live Claude sessions backed by `@libclaude/core`'s `ClaudeSession` are hosted
+in the terminal daemon (`src/daemon/claude-ui-manager.ts`'s `ClaudeUiManager`),
+the same detached process that already owns terminal PTYs and headless
+`many agent` sessions — so a Claude UI session survives the web server /
+Electron app closing and is still there when it reconnects. `ClaudeUiService`
+(service.ts) is now a thin async RPC client over the daemon
+(`TerminalManagerClient`); it no longer owns any `ClaudeSession` itself.
+
+`ClaudeUiManager` spawns one long-lived
 `claude -p --input-format stream-json --output-format stream-json --verbose`
-process and treats each prompt as a turn in the same conversation. The service
-maps raw CLI events to `ClaudeUiEvent`s (protocol.ts) and broadcasts them to
-subscribers with a replay buffer for reconnects.
+process per session and treats each prompt as a turn in the same conversation.
+It maps raw CLI events to `ClaudeUiEvent`s (protocol.ts) and broadcasts them to
+subscribers (over the daemon socket) with a replay buffer for reconnects.
 
 ## stream-json control protocol
 

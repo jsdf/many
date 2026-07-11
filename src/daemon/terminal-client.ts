@@ -7,7 +7,7 @@
  */
 
 import net from "net";
-import type { TerminalEvent, ClaudeUiEvent } from "../shared/protocol.js";
+import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 import logger from "../shared/logger.js";
 import {
@@ -19,6 +19,8 @@ import {
   type SavedSessionLog,
   type AgentEvent,
   type AgentInfoWire,
+  type ClaudeUiInfoWire,
+  type ClaudeUiWireEvent,
 } from "./terminal-daemon-protocol.js";
 import { ensureDaemon, isDaemonRunning } from "./daemon-lifecycle.js";
 
@@ -35,10 +37,11 @@ interface Pending {
 }
 
 interface LocalSubscription {
-  op: "subscribe" | "subscribeExit" | "agentSubscribe";
+  op: "subscribe" | "subscribeExit" | "agentSubscribe" | "claudeUiSubscribe";
   terminalId: string;
   agentId?: string;
-  onEvent: (event: TerminalEvent | AgentEvent) => void;
+  sessionId?: string;
+  onEvent: (event: TerminalEvent | AgentEvent | ClaudeUiWireEvent) => void;
 }
 
 export class TerminalManagerClient {
@@ -94,7 +97,9 @@ export class TerminalManagerClient {
         const req: DaemonRequest =
           sub.op === "agentSubscribe"
             ? { reqId: this.nextReqId++, op: "agentSubscribe", agentId: sub.agentId!, subId }
-            : { reqId: this.nextReqId++, op: sub.op, terminalId: sub.terminalId, subId };
+            : sub.op === "claudeUiSubscribe"
+              ? { reqId: this.nextReqId++, op: "claudeUiSubscribe", sessionId: sub.sessionId!, subId }
+              : { reqId: this.nextReqId++, op: sub.op, terminalId: sub.terminalId, subId };
         this.sendRaw(req).catch(() => {});
       }
 
@@ -289,6 +294,90 @@ export class TerminalManagerClient {
       },
     });
     await this.request({ reqId: this.newReqId(), op: "agentSubscribe", agentId, subId });
+    return () => this.unsubscribe(subId);
+  }
+
+  // --- Claude UI sessions (claude-ui panel) ---------------------------------
+
+  async claudeUiCreate(
+    sessionId: string,
+    worktreePath: string,
+    claudeBin?: string
+  ): Promise<ClaudeUiInfoWire> {
+    const { session } = await this.request({
+      reqId: this.newReqId(),
+      op: "claudeUiCreate",
+      sessionId,
+      worktreePath,
+      claudeBin,
+    });
+    return session;
+  }
+
+  async claudeUiResume(
+    sessionId: string,
+    worktreePath: string,
+    seed: ClaudeUiEvent[],
+    opts?: { title?: string; firstPrompt?: string; claudeBin?: string }
+  ): Promise<ClaudeUiInfoWire> {
+    const { session } = await this.request({
+      reqId: this.newReqId(),
+      op: "claudeUiResume",
+      sessionId,
+      worktreePath,
+      seed,
+      title: opts?.title,
+      firstPrompt: opts?.firstPrompt,
+      claudeBin: opts?.claudeBin,
+    });
+    return session;
+  }
+
+  async claudeUiSend(sessionId: string, prompt: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiSend", sessionId, prompt });
+  }
+
+  async claudeUiList(worktreePath: string): Promise<ClaudeUiInfoWire[]> {
+    const { sessions } = await this.request({ reqId: this.newReqId(), op: "claudeUiList", worktreePath });
+    return sessions;
+  }
+
+  async claudeUiListAll(): Promise<ClaudeUiInfoWire[]> {
+    const { sessions } = await this.request({ reqId: this.newReqId(), op: "claudeUiListAll" });
+    return sessions;
+  }
+
+  async claudeUiSetPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiSetPermissionMode", sessionId, mode });
+  }
+
+  async claudeUiInterrupt(sessionId: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiInterrupt", sessionId });
+  }
+
+  async claudeUiReset(sessionId: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiReset", sessionId });
+  }
+
+  async claudeUiClose(sessionId: string): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiClose", sessionId });
+  }
+
+  /** Subscribe to a Claude UI session's buffered transcript then live events. */
+  async claudeUiSubscribe(
+    sessionId: string,
+    onEvent: (event: ClaudeUiEvent) => void
+  ): Promise<() => void> {
+    const subId = this.nextSubId++;
+    this.subs.set(subId, {
+      op: "claudeUiSubscribe",
+      terminalId: "",
+      sessionId,
+      onEvent: (e) => {
+        if ((e as ClaudeUiWireEvent).type === "claudeUi") onEvent((e as ClaudeUiWireEvent).event);
+      },
+    });
+    await this.request({ reqId: this.newReqId(), op: "claudeUiSubscribe", sessionId, subId });
     return () => this.unsubscribe(subId);
   }
 

@@ -237,7 +237,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const sessionStore = new SessionStore();
   const repoWatcher = new RepoWatcher();
   const worktreeWatcher = new WorkdirWatcher();
-  const claudeUiService = new ClaudeUiService();
+  const claudeUiService = new ClaudeUiService(terminalManager);
 
   const rpcServer = new RpcServer({
     noServer: true,
@@ -289,10 +289,12 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     repoWatcher.close();
     worktreeWatcher.close();
     claudeService.destroy();
-    claudeUiService.destroy();
     rpcServer.destroy();
     try {
-      const count = await terminalManager.getRunningCount();
+      // Claude UI sessions now live in the daemon, same as terminals and
+      // `many agent` sessions, so they count toward whether it's safe to
+      // shut the daemon down.
+      const count = (await terminalManager.getRunningCount()) + (await claudeUiService.getRunningCount());
       if (count === 0 || opts?.killTerminals) {
         await terminalManager.shutdownDaemon();
       }
@@ -336,7 +338,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       resolve({
         url: serverUrl,
         port: actualPort,
-        getRunningTerminalCount: () => terminalManager.getRunningCount(),
+        getRunningTerminalCount: async () =>
+          (await terminalManager.getRunningCount()) + (await claudeUiService.getRunningCount()),
         shutdown,
       });
     });

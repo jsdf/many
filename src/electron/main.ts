@@ -114,10 +114,10 @@ app.on("before-quit", (event) => {
       if (count > 0) {
         const { response } = await dialog.showMessageBox({
           type: "question",
-          buttons: ["Leave Running", "Shut Down Terminals"],
+          buttons: ["Leave Running", "Shut Down"],
           defaultId: 0,
           cancelId: 0,
-          message: `${count} terminal process${count === 1 ? " is" : "es are"} still running.`,
+          message: `${count} background session${count === 1 ? " is" : "s are"} still running.`,
           detail:
             "Leave them running in the background (the app can reconnect next launch), or shut them down now?",
         });

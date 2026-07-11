@@ -26,7 +26,9 @@ import {
 } from "./daemon-lifecycle.js";
 import { saveAndRegisterTerminalLog } from "./log-capture.js";
 import { ClaudeAgentManager, type AgentInfo } from "./claude-agent-manager.js";
-import type { ClaudeUiEvent } from "../shared/protocol.js";
+import { ClaudeUiManager } from "./claude-ui-manager.js";
+import type { ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { ClaudeUiInfoWire } from "./terminal-daemon-protocol.js";
 
 /**
  * The subset of ClaudeAgentManager the IPC layer depends on. Declared as an
@@ -42,6 +44,30 @@ export interface AgentManager {
   send(agentId: string, message: string): void;
   subscribe(agentId: string, listener: (e: ClaudeUiEvent) => void): () => void;
   list(): AgentInfo[];
+  cleanup(): void;
+}
+
+/**
+ * The subset of ClaudeUiManager the IPC layer depends on. Declared as an
+ * interface so tests can supply a fake UI manager that does not spawn a real
+ * claude process (ClaudeUiManager satisfies it structurally).
+ */
+export interface ClaudeUiManagerIface {
+  create(sessionId: string, worktreePath: string, claudeBin?: string): ClaudeUiInfoWire;
+  resume(
+    sessionId: string,
+    worktreePath: string,
+    seed: ClaudeUiEvent[],
+    opts: { title?: string; firstPrompt?: string; claudeBin?: string },
+  ): ClaudeUiInfoWire;
+  send(sessionId: string, prompt: string): void;
+  subscribe(sessionId: string, listener: (e: ClaudeUiEvent) => void): () => void;
+  list(worktreePath: string): ClaudeUiInfoWire[];
+  listAll(): ClaudeUiInfoWire[];
+  interrupt(sessionId: string): void;
+  setPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): void;
+  reset(sessionId: string): void;
+  close(sessionId: string): void;
   cleanup(): void;
 }
 
@@ -86,6 +112,7 @@ export interface DaemonManager {
 export function attachConnection(
   manager: DaemonManager,
   agentManager: AgentManager,
+  uiManager: ClaudeUiManagerIface,
   socket: net.Socket,
   onShutdown: () => void,
   onSessionCreated?: (terminalId: string, worktreePath: string) => void
@@ -236,6 +263,58 @@ export function attachConnection(
         respond(req.reqId, { ok: true });
         break;
       }
+      case "claudeUiCreate": {
+        const session = uiManager.create(req.sessionId, req.worktreePath, req.claudeBin);
+        respond(req.reqId, { session });
+        break;
+      }
+      case "claudeUiResume": {
+        const session = uiManager.resume(req.sessionId, req.worktreePath, req.seed, {
+          title: req.title,
+          firstPrompt: req.firstPrompt,
+          claudeBin: req.claudeBin,
+        });
+        respond(req.reqId, { session });
+        break;
+      }
+      case "claudeUiSend":
+        uiManager.send(req.sessionId, req.prompt);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiList":
+        respond(req.reqId, { sessions: uiManager.list(req.worktreePath) });
+        break;
+      case "claudeUiListAll":
+        respond(req.reqId, { sessions: uiManager.listAll() });
+        break;
+      case "claudeUiSetPermissionMode":
+        uiManager.setPermissionMode(req.sessionId, req.mode);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiInterrupt":
+        uiManager.interrupt(req.sessionId);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiReset":
+        uiManager.reset(req.sessionId);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiClose":
+        uiManager.close(req.sessionId);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiSubscribe": {
+        // uiManager.subscribe replays its buffer synchronously into the
+        // listener, which sendEvent forwards immediately: the same atomic
+        // buffered-then-live guarantee as the terminal "subscribe" case above.
+        const { sessionId, subId } = req;
+        const unsub = uiManager.subscribe(sessionId, (event) =>
+          sendEvent(subId, { type: "claudeUi", event })
+        );
+        subs.set(subId, unsub);
+        respond(req.reqId, { ok: true });
+        break;
+      }
       case "unsubscribe":
         removeSub(req.subId);
         respond(req.reqId, { ok: true });
@@ -275,10 +354,11 @@ export function createDaemonServer(
   manager: DaemonManager,
   onShutdown: () => void,
   onSessionCreated?: (terminalId: string, worktreePath: string) => void,
-  agentManager: AgentManager = new ClaudeAgentManager()
+  agentManager: AgentManager = new ClaudeAgentManager(),
+  uiManager: ClaudeUiManagerIface = new ClaudeUiManager()
 ): net.Server {
   const server = net.createServer((socket) => {
-    attachConnection(manager, agentManager, socket, onShutdown, onSessionCreated);
+    attachConnection(manager, agentManager, uiManager, socket, onShutdown, onSessionCreated);
   });
   return server;
 }
@@ -286,6 +366,7 @@ export function createDaemonServer(
 async function main(): Promise<void> {
   const manager = new TerminalManager();
   const agentManager = new ClaudeAgentManager();
+  const uiManager = new ClaudeUiManager();
   const socketPath = getSocketPath();
 
   // Clear any stale Unix socket file from a previous (dead) daemon.
@@ -322,6 +403,7 @@ async function main(): Promise<void> {
       )
     );
     agentManager.cleanup();
+    uiManager.cleanup();
     manager.cleanup();
     server.close();
     await removeDaemonInfo();
@@ -337,7 +419,8 @@ async function main(): Promise<void> {
       });
     },
     onSessionCreated,
-    agentManager
+    agentManager,
+    uiManager
   );
 
   server.on("error", (err) => {

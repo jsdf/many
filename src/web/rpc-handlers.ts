@@ -1157,7 +1157,7 @@ export function createQueryHandlers(opts: {
       const { worktreePath } = input as { worktreePath: string };
       const appData = await loadAppData();
       const { defaultClaudeCommand } = getGlobalSettings(appData);
-      const sessionId = claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
+      const sessionId = await claudeUiService.create(worktreePath, defaultClaudeCommand ?? undefined);
       await recordTerminalWorktree(worktreePath);
       return { sessionId };
     },
@@ -1171,31 +1171,31 @@ export function createQueryHandlers(opts: {
     },
     "claudeui.list": async (input) => {
       const { worktreePath } = input as { worktreePath: string };
-      return claudeUiService.list(worktreePath);
+      return await claudeUiService.list(worktreePath);
     },
     "claudeui.setPermissionMode": async (input) => {
       const { sessionId, mode } = input as { sessionId: string; mode: ClaudeUiPermissionMode };
-      claudeUiService.setPermissionMode(sessionId, mode);
+      await claudeUiService.setPermissionMode(sessionId, mode);
       return { ok: true };
     },
     "claudeui.send": async (input) => {
       const { sessionId, prompt } = input as { sessionId: string; prompt: string };
-      claudeUiService.send(sessionId, prompt);
+      await claudeUiService.send(sessionId, prompt);
       return { ok: true };
     },
     "claudeui.interrupt": async (input) => {
       const { sessionId } = input as { sessionId: string };
-      claudeUiService.interrupt(sessionId);
+      await claudeUiService.interrupt(sessionId);
       return { ok: true };
     },
     "claudeui.reset": async (input) => {
       const { sessionId } = input as { sessionId: string };
-      claudeUiService.reset(sessionId);
+      await claudeUiService.reset(sessionId);
       return { ok: true };
     },
     "claudeui.close": async (input) => {
       const { sessionId } = input as { sessionId: string };
-      claudeUiService.close(sessionId);
+      await claudeUiService.close(sessionId);
       return { ok: true };
     },
   };
@@ -1546,7 +1546,25 @@ export function createSubscriptionHandlers(opts: {
 
     "claudeui.events": (input, push) => {
       const { sessionId } = input as { sessionId: string };
-      return claudeUiService.subscribe(sessionId, (event) => push(event));
+
+      // claudeUiService.subscribe is async (it goes over the daemon socket),
+      // but SubscriptionHandler needs a sync cleanup. Same bridge pattern as
+      // terminal.events above: fire the async subscribe, store the unsub once
+      // resolved, and handle unsubscribe racing ahead of that resolution.
+      let unsub: (() => void) | null = null;
+      let cancelled = false;
+      claudeUiService
+        .subscribe(sessionId, (event) => push(event))
+        .then((u) => {
+          if (cancelled) u();
+          else unsub = u;
+        })
+        .catch((err) => logger.error("[claudeui.events] subscribe failed:", err));
+
+      return () => {
+        cancelled = true;
+        if (unsub) unsub();
+      };
     },
 
     "session.list.updates": (input, push) => {

@@ -7,10 +7,10 @@
  * JSON strings (same as over the websocket today), so no base64 needed.
  */
 
-import type { TerminalEvent, ClaudeUiEvent } from "../shared/protocol.js";
+import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 
-export const DAEMON_PROTOCOL_VERSION = 2;
+export const DAEMON_PROTOCOL_VERSION = 3;
 
 /** Agent info as sent over the wire (mirrors ClaudeAgentManager's AgentInfo). */
 export interface AgentInfoWire {
@@ -21,6 +21,15 @@ export interface AgentInfoWire {
 }
 
 export type AgentEvent = { type: "agent"; event: ClaudeUiEvent };
+
+/** Claude UI session info as sent over the wire (mirrors ClaudeUiManager's info). */
+export interface ClaudeUiInfoWire {
+  sessionId: string;
+  worktreePath: string;
+  title?: string;
+}
+
+export type ClaudeUiWireEvent = { type: "claudeUi"; event: ClaudeUiEvent };
 
 /** Metadata for a session saved to a log file (mirrors TerminalManager.saveAllSessionLogs). */
 export interface SavedSessionLog {
@@ -72,7 +81,26 @@ export type DaemonRequest =
     }
   | { reqId: number; op: "agentSend"; agentId: string; message: string }
   | { reqId: number; op: "agentSubscribe"; agentId: string; subId: number }
-  | { reqId: number; op: "agentList" };
+  | { reqId: number; op: "agentList" }
+  | { reqId: number; op: "claudeUiCreate"; sessionId: string; worktreePath: string; claudeBin?: string }
+  | {
+      reqId: number;
+      op: "claudeUiResume";
+      sessionId: string;
+      worktreePath: string;
+      seed: ClaudeUiEvent[];
+      title?: string;
+      firstPrompt?: string;
+      claudeBin?: string;
+    }
+  | { reqId: number; op: "claudeUiSend"; sessionId: string; prompt: string }
+  | { reqId: number; op: "claudeUiList"; worktreePath: string }
+  | { reqId: number; op: "claudeUiListAll" }
+  | { reqId: number; op: "claudeUiSetPermissionMode"; sessionId: string; mode: ClaudeUiPermissionMode }
+  | { reqId: number; op: "claudeUiInterrupt"; sessionId: string }
+  | { reqId: number; op: "claudeUiReset"; sessionId: string }
+  | { reqId: number; op: "claudeUiClose"; sessionId: string }
+  | { reqId: number; op: "claudeUiSubscribe"; sessionId: string; subId: number };
 
 export type DaemonOp = DaemonRequest["op"];
 
@@ -102,6 +130,16 @@ export interface DaemonResultMap {
   agentSend: { ok: true };
   agentSubscribe: { ok: true };
   agentList: { agents: AgentInfoWire[] };
+  claudeUiCreate: { session: ClaudeUiInfoWire };
+  claudeUiResume: { session: ClaudeUiInfoWire };
+  claudeUiSend: { ok: true };
+  claudeUiList: { sessions: ClaudeUiInfoWire[] };
+  claudeUiListAll: { sessions: ClaudeUiInfoWire[] };
+  claudeUiSetPermissionMode: { ok: true };
+  claudeUiInterrupt: { ok: true };
+  claudeUiReset: { ok: true };
+  claudeUiClose: { ok: true };
+  claudeUiSubscribe: { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +149,7 @@ export interface DaemonResultMap {
 export type DaemonMessage =
   | { type: "response"; reqId: number; result: unknown }
   | { type: "response"; reqId: number; error: string }
-  | { type: "event"; subId: number; event: TerminalEvent | AgentEvent };
+  | { type: "event"; subId: number; event: TerminalEvent | AgentEvent | ClaudeUiWireEvent };
 
 // ---------------------------------------------------------------------------
 // Length-prefix framing
