@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock, Type } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -7,6 +7,8 @@ import SessionHistoryTab from "./SessionHistoryTab";
 import ClaudeSessionTab from "./ClaudeSessionTab";
 import ClaudeUiTab, { type ClaudeUiTabHandle } from "./ClaudeUiTab";
 import { setFocusedTerminal, useFocusedTerminal } from "../focused-terminal";
+
+const SERIF_FONT = 'Georgia, "Times New Roman", Times, serif';
 
 interface TerminalStackProps {
   worktreePath: string;
@@ -110,7 +112,17 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [editValue, setEditValue] = useState("");
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
+  const [serifIds, setSerifIds] = useState<Set<string>>(new Set());
   const focusedId = useFocusedTerminal();
+
+  const toggleSerif = useCallback((terminalId: string) => {
+    setSerifIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(terminalId)) next.delete(terminalId);
+      else next.add(terminalId);
+      return next;
+    });
+  }, []);
 
   const toggleMaximize = useCallback((terminalId: string) => {
     setMaximizedId((prev) => (prev === terminalId ? null : terminalId));
@@ -589,6 +601,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                       </ul>
                     </div>
                   )}
+                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession && !term.isClaudeUi && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => toggleSerif(term.id)}
+                      title={serifIds.has(term.id) ? "Switch to monospace font" : "Switch to serif font"}
+                    >
+                      <Type size={14} />
+                    </button>
+                  )}
                   {!fixedTerminalHeight && !isMaximized && (
                     <button
                       className="btn btn-ghost btn-xs"
@@ -643,6 +664,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     terminalId={term.id}
                     worktreePath={worktreePath}
                     isVisible={true}
+                    fontFamily={serifIds.has(term.id) ? SERIF_FONT : undefined}
                     env={term.env}
                     initialCommand={term.initialCommand}
                     taskId={term.taskId}
