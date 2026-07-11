@@ -65,6 +65,7 @@ export interface GlobalSettings {
   defaultEditor: string | null;
   defaultTerminal: string | null;
   defaultClaudeCommand: string | null;
+  markdownSerif?: boolean;
 }
 
 export interface AppData {

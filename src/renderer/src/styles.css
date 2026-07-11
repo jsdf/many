@@ -112,6 +112,15 @@
   flex: 1 1 auto;
 }
 
+/* Serif toggle for all rendered markdown: the WYSIWYG editor, the file
+   preview, and Claude session history + UI (all rendered via .chat-markdown).
+   Toggled by the `markdown-serif` class on the document root, driven by the
+   global setting. */
+.markdown-serif .tiptap-host .ProseMirror,
+.markdown-serif .chat-markdown {
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
 /* Find-in-document match highlighting (CSS Custom Highlight API), shared by
    the markdown preview and WYSIWYG hosts. */
 ::highlight(many-find-all) {

@@ -853,7 +853,7 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
         />
       )}
       {markdown && (
-        <div className="absolute top-2 right-2 z-10 join shadow-md">
+        <div className="absolute top-2 right-2 z-10 join bg-base-100 shadow-md">
           <button
             className={`join-item btn btn-xs ${mode === "wysiwyg" ? "btn-primary" : "btn-outline btn-neutral"}`}
             title="WYSIWYG"

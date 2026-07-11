@@ -25,6 +25,7 @@ import ArchiveWorktreeModal from "./components/ArchiveWorktreeModal";
 import GlobalSettingsModal from "./components/GlobalSettingsModal";
 import { WorktreeActivity, sumActivityUnder } from "./treeActivity";
 import { getRpcClient } from "./rpc-client";
+import { applyMarkdownSerif } from "./markdown-serif";
 import CloseProjectDialog from "./components/CloseProjectDialog";
 import { useWorktreeSubscription, useConnectionStatus } from "./rpc-hooks";
 import { ConnectionBanner } from "./components/ConnectionBanner";
@@ -226,6 +227,13 @@ const App: React.FC = () => {
   useEffect(() => {
     setSidebarCollapsed(isNarrow);
   }, [isNarrow]);
+
+  useEffect(() => {
+    getRpcClient()
+      .query("settings.get", {})
+      .then((settings) => applyMarkdownSerif(settings.markdownSerif ?? false))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!draggingSidebar) return;

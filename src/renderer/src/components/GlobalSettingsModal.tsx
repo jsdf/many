@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
+import { applyMarkdownSerif } from "../markdown-serif";
 
 interface GlobalSettingsModalProps {
   onClose: () => void;
@@ -11,6 +12,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
   const [defaultEditor, setDefaultEditor] = useState("");
   const [defaultTerminal, setDefaultTerminal] = useState("");
   const [defaultClaudeCommand, setDefaultClaudeCommand] = useState("");
+  const [markdownSerif, setMarkdownSerif] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
         setDefaultEditor(settings.defaultEditor || "");
         setDefaultTerminal(settings.defaultTerminal || "");
         setDefaultClaudeCommand(settings.defaultClaudeCommand || "");
+        setMarkdownSerif(settings.markdownSerif ?? false);
       } catch (err) {
         console.error("Failed to load global settings:", err);
         setError("Failed to load settings");
@@ -55,7 +58,9 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
         defaultEditor: defaultEditor.trim() || null,
         defaultTerminal: defaultTerminal.trim() || null,
         defaultClaudeCommand: defaultClaudeCommand.trim() || null,
+        markdownSerif,
       });
+      applyMarkdownSerif(markdownSerif);
       onClose();
     } catch (err) {
       setError(
@@ -134,6 +139,21 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
                   />
                   <p className="text-xs text-base-content/50 mt-1.5">
                     Command used to launch Claude Code from the projects page. Leave empty to use "claude".
+                  </p>
+                </div>
+                <div className="mb-5">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={markdownSerif}
+                      onChange={(e) => setMarkdownSerif(e.target.checked)}
+                      disabled={isSaving}
+                    />
+                    Serif font for rendered markdown
+                  </label>
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    Render markdown in file viewers and Claude session history/UI with a serif font instead of sans-serif.
                   </p>
                 </div>
               </>
