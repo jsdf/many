@@ -1,0 +1,26 @@
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_bc0c3437f1a12c::t_43bdeb3a1d18de 392-394
+  s_bc0c3437f1a12c::t_4f41f9e391db87 86-107
+  s_bc0c3437f1a12c::t_10558d06347b55 179
+  s_bc0c3437f1a12c::t_66fe95a9a91e28 212-214
+src/shared/protocol.ts
+  s_bc0c3437f1a12c::t_57ae23cb0f219f 346
+src/shared/claude-event-map.ts
+  s_bc0c3437f1a12c::t_bd5fbb6048bb08 8-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "f2487633bff848e6f3417a0d8e74effe5e199131",
+  "prompts": {},
+  "sessions": {
+    "s_bc0c3437f1a12c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43ea5b3c-89e8-47f7-9bbb-a3ec2a745234",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
