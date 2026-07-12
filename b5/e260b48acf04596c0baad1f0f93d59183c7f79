@@ -1,0 +1,30 @@
+src/renderer/src/components/TerminalStack.tsx
+  s_4a3382f5a3e4fd::t_dfe6cb80a09680 522
+  s_4a3382f5a3e4fd::t_57be322c60364c 453-461
+src/renderer/src/components/ProjectsTab.tsx
+  s_8b5f5485805492::t_cc356ec327dd31 99-101,104-108,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b5e260b48acf04596c0baad1f0f93d59183c7f79",
+  "prompts": {},
+  "sessions": {
+    "s_4a3382f5a3e4fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b20ad887-166d-42c9-b1f3-5ac90b20f255",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_8b5f5485805492": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "180875bc-17e5-4994-bd60-fbf7bb48b0a5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
