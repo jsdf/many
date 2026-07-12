@@ -70,6 +70,15 @@ export class ClaudeUiService {
     return (await this.client.claudeUiListAll()).length;
   }
 
+  /** Count of live Claude UI sessions per worktree path (for activity indicators). */
+  async getRunningCountsByWorktree(): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const s of await this.client.claudeUiListAll()) {
+      counts[s.worktreePath] = (counts[s.worktreePath] || 0) + 1;
+    }
+    return counts;
+  }
+
   async subscribe(sessionId: string, listener: (e: ClaudeUiEvent) => void): Promise<() => void> {
     return this.client.claudeUiSubscribe(sessionId, listener);
   }

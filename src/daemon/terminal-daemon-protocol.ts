@@ -10,7 +10,7 @@
 import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 
-export const DAEMON_PROTOCOL_VERSION = 3;
+export const DAEMON_PROTOCOL_VERSION = 4;
 
 /** Agent info as sent over the wire (mirrors ClaudeAgentManager's AgentInfo). */
 export interface AgentInfoWire {
@@ -54,6 +54,7 @@ export type DaemonRequest =
       initialCommand?: string;
       logDir?: string | null;
       taskId?: string;
+      claudeSessionId?: string;
     }
   | { reqId: number; op: "input"; terminalId: string; data: string }
   | { reqId: number; op: "resize"; terminalId: string; cols: number; rows: number }

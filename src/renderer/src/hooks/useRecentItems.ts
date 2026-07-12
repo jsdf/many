@@ -5,7 +5,7 @@ import { ProjectEntry } from "../types";
 // Unified "recent" item: a project-attached terminal or a recent Claude
 // session for one of those projects.
 export type RecentItem =
-  | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number }
+  | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number; claudeSessionId?: string }
   | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
 
 // Polls the live terminals and recent Claude sessions while `activeMode` is
@@ -17,7 +17,7 @@ export function useRecentItems(
   pinnedSessions: string[],
 ): RecentItem[] {
   const [recentTerminals, setRecentTerminals] = useState<
-    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; claudeSessionId?: string }[]
   >([]);
   const [recentSessions, setRecentSessions] = useState<
     { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
@@ -76,8 +76,12 @@ export function useRecentItems(
     }
 
     const items: RecentItem[] = [];
+    // Session ids already live in a terminal, so a discovered session with the
+    // same id is the same conversation and shouldn't appear as a second item.
+    const terminalSessionIds = new Set<string>();
     for (const t of recentTerminals) {
       if (!isUnderAnyProject(t.worktreePath)) continue;
+      if (t.claudeSessionId) terminalSessionIds.add(t.claudeSessionId);
       items.push({
         kind: "terminal",
         recency: Math.max(t.lastInputAt, t.createdAt),
@@ -85,9 +89,11 @@ export function useRecentItems(
         worktreePath: t.worktreePath,
         title: t.title,
         terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
+        claudeSessionId: t.claudeSessionId,
       });
     }
     for (const s of recentSessions) {
+      if (terminalSessionIds.has(s.sessionId)) continue;
       items.push({
         kind: "claude",
         recency: Date.parse(s.modified) || 0,

@@ -46,12 +46,9 @@
     "electron:build": "npm run build && npm run build:cli && npm run electron:rebuild && electron-builder --mac && npm run electron:rebuild:cli",
     "electron:rebuild:cli": "npm rebuild better-sqlite3 @lydell/node-pty",
     "electron:install": "npm run electron:build && ./scripts/install-mac.sh",
-    "prepublishOnly": "npm run build && npm run build:cli",
-    "claude-session:dev": "vite --config vite.claude-session.config.ts",
-    "claude-session:build": "vite build --config vite.claude-session.config.ts"
+    "prepublishOnly": "npm run build && npm run build:cli"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.81",
     "@base-ui-components/react": "^1.0.0-rc.0",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/language": "^6.12.3",
@@ -117,8 +114,7 @@
     "asar": true,
     "asarUnpack": [
       "node_modules/better-sqlite3/**",
-      "node_modules/@lydell/node-pty/**",
-      "node_modules/@anthropic-ai/claude-agent-sdk/**"
+      "node_modules/@lydell/node-pty/**"
     ],
     "electronLanguages": [
       "en"

@@ -60,9 +60,6 @@ import { Fzf } from "fzf";
 import { readProjectMetadata, refreshPrsYml } from "../services/project-metadata.js";
 import type { RunCommand } from "../services/types.js";
 
-// Import ClaudeService and SessionStore types — instantiated externally
-import { ClaudeService } from "../claude-session/server/claude-service.js";
-import { SessionStore } from "../claude-session/server/session-store.js";
 import { ClaudeUiService } from "./claude-ui/service.js";
 
 const userShell = process.env.SHELL || "/bin/bash";
@@ -271,11 +268,9 @@ async function recordTerminalWorktree(worktreePath: string) {
 
 export function createQueryHandlers(opts: {
   terminalManager: TerminalManagerClient;
-  claudeService: ClaudeService;
-  sessionStore: SessionStore;
   claudeUiService: ClaudeUiService;
 }): Partial<Record<QueryProcedure, QueryHandler>> {
-  const { terminalManager, claudeService, sessionStore, claudeUiService } = opts;
+  const { terminalManager, claudeUiService } = opts;
 
   return {
     // --- Worktree ---
@@ -505,7 +500,7 @@ export function createQueryHandlers(opts: {
     // --- Worktree activity ---
     "worktree.activity": async () => {
       const terminalCounts = await terminalManager.getSessionCountsByWorktree();
-      const claudeCounts = claudeService.getSessionCountsByCwd();
+      const claudeCounts = await claudeUiService.getRunningCountsByWorktree();
       const allPaths = new Set([...Object.keys(terminalCounts), ...Object.keys(claudeCounts)]);
       const result: Record<string, { terminals: number; claudeSessions: number }> = {};
       for (const p of allPaths) {
@@ -924,6 +919,7 @@ export function createQueryHandlers(opts: {
       const msg = input as {
         terminalId: string; worktreePath: string; cols: number; rows: number;
         isDark: boolean; env?: Record<string, string>; initialCommand?: string; taskId?: string;
+        claudeSessionId?: string;
       };
       let terminalLogDir: string | null = null;
       const appData = await loadAppData();
@@ -938,7 +934,7 @@ export function createQueryHandlers(opts: {
       if (msg.isDark) colorEnv.COLORFGBG = "15;0";
       else colorEnv.COLORFGBG = "0;15";
       const mergedEnv = { ...colorEnv, ...msg.env };
-      const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir, msg.taskId);
+      const existed = await terminalManager.createSession(msg.terminalId, msg.worktreePath, msg.cols || 80, msg.rows || 24, mergedEnv, msg.initialCommand, terminalLogDir, msg.taskId, msg.claudeSessionId);
       await recordTerminalWorktree(msg.worktreePath);
 
       if (msg.taskId && !existed) {
@@ -1043,61 +1039,6 @@ export function createQueryHandlers(opts: {
         if (type !== undefined) existing.type = type;
         if (closed !== undefined) existing.closed = closed;
         appData.sessionMeta[sessionId] = existing;
-      });
-      return { ok: true };
-    },
-
-    // --- Claude session service (live interactive) ---
-    "session.list": async (input) => {
-      const { dir, limit, offset } = input as { dir: string; limit?: number; offset?: number };
-      const sessions = await sessionStore.listSessions({ dir, limit, offset });
-      for (const s of sessions) s.isActive = claudeService.isActive(s.sessionId);
-      return sessions;
-    },
-    "session.messages": async (input) => {
-      const inp = input as { sessionId: string; dir?: string; limit?: number; offset?: number };
-      return sessionStore.getMessages(inp);
-    },
-    "session.start": async (input) => {
-      const inp = input as { cwd: string; prompt?: string; sessionId?: string; permissionMode?: string };
-      const sessionId = await claudeService.start({
-        cwd: inp.cwd,
-        prompt: inp.prompt,
-        sessionId: inp.sessionId,
-        permissionMode: (inp.permissionMode ?? "bypassPermissions") as any,
-      });
-      await withAppData((appData) => {
-        if (!appData.sessionMeta) appData.sessionMeta = {};
-        appData.sessionMeta[sessionId] = { type: "chat", closed: false };
-      });
-      return { sessionId };
-    },
-    "session.send": async (input) => {
-      const { sessionId, message } = input as { sessionId: string; message: string };
-      await claudeService.send(sessionId, message);
-      return { ok: true };
-    },
-    "session.permission": async (input) => {
-      const { sessionId, requestId, allow } = input as { sessionId: string; requestId: string; allow: boolean };
-      claudeService.resolvePermission(sessionId, requestId, allow);
-      return { ok: true };
-    },
-    "session.interrupt": async (input) => {
-      const { sessionId } = input as { sessionId: string };
-      await claudeService.interrupt(sessionId);
-      return { ok: true };
-    },
-    "session.close": async (input) => {
-      const { sessionId } = input as { sessionId: string };
-      claudeService.close(sessionId);
-      await withAppData((appData) => {
-        if (!appData.sessionMeta) appData.sessionMeta = {};
-        const existing = appData.sessionMeta[sessionId];
-        if (existing) {
-          existing.closed = true;
-        } else {
-          appData.sessionMeta[sessionId] = { type: "chat", closed: true };
-        }
       });
       return { ok: true };
     },
@@ -1226,10 +1167,9 @@ export function createSubscriptionHandlers(opts: {
   terminalManager: TerminalManagerClient;
   repoWatcher: RepoWatcher;
   worktreeWatcher: WorkdirWatcher;
-  claudeService: ClaudeService;
   claudeUiService: ClaudeUiService;
 }): Partial<Record<SubscriptionProcedure, SubscriptionHandler>> {
-  const { terminalManager, repoWatcher, worktreeWatcher, claudeService, claudeUiService } = opts;
+  const { terminalManager, repoWatcher, worktreeWatcher, claudeUiService } = opts;
 
   return {
     "worktree.updates": (input, push) => {
@@ -1539,11 +1479,6 @@ export function createSubscriptionHandlers(opts: {
       });
     },
 
-    "session.events": (input, push) => {
-      const { sessionId } = input as { sessionId: string };
-      return claudeService.subscribe(sessionId, (event) => push(event));
-    },
-
     "claudeui.events": (input, push) => {
       const { sessionId } = input as { sessionId: string };
 
@@ -1565,12 +1500,6 @@ export function createSubscriptionHandlers(opts: {
         cancelled = true;
         if (unsub) unsub();
       };
-    },
-
-    "session.list.updates": (input, push) => {
-      // Initial data + broadcast on changes (placeholder — could be enhanced)
-      const { dir } = input as { dir: string };
-      // For now, just send initial. Real-time updates would need a watcher.
     },
 
     "stream.runAutomation": (input, push) => {

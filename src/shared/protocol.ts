@@ -253,85 +253,6 @@ export type StreamEvent =
     };
 
 // ---------------------------------------------------------------------------
-// Claude session types
-// ---------------------------------------------------------------------------
-
-export interface SessionInfo {
-  sessionId: string;
-  summary: string;
-  lastModified: number;
-  cwd?: string;
-  gitBranch?: string;
-  createdAt?: number;
-  isActive: boolean;
-}
-
-export type MessageRole = "user" | "assistant" | "system";
-
-export interface ToolUse {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
-
-export interface ToolResult {
-  toolUseId: string;
-  output: string;
-  isError: boolean;
-}
-
-export type ContentBlock =
-  | { type: "text"; text: string }
-  | { type: "thinking"; thinking: string }
-  | { type: "tool_use"; toolUse: ToolUse }
-  | { type: "tool_result"; toolResult: ToolResult };
-
-export interface SessionMessage {
-  id: string;
-  role: MessageRole;
-  content: ContentBlock[];
-  timestamp: number | null;
-  error?: string;
-}
-
-export type SessionStatus =
-  | "idle"
-  | "running"
-  | "waiting_permission"
-  | "compacting"
-  | "error";
-
-export interface PermissionRequest {
-  requestId: string;
-  toolName: string;
-  toolInput: Record<string, unknown>;
-  description?: string;
-  displayName?: string;
-}
-
-export type SessionEvent =
-  | { type: "message"; message: SessionMessage }
-  | { type: "message_delta"; messageId: string; content: ContentBlock[] }
-  | { type: "status"; status: SessionStatus }
-  | { type: "permission_request"; request: PermissionRequest }
-  | { type: "permission_resolved"; requestId: string }
-  | { type: "result"; result: SessionResult }
-  | {
-      type: "tool_progress";
-      toolUseId: string;
-      toolName: string;
-      elapsed: number;
-    }
-  | { type: "error"; error: string };
-
-export interface SessionResult {
-  isError: boolean;
-  durationMs: number;
-  totalCostUsd: number;
-  numTurns: number;
-}
-
-// ---------------------------------------------------------------------------
 // Claude UI session types (CLI-backed sessions via libclaude)
 // ---------------------------------------------------------------------------
 
@@ -721,6 +642,9 @@ export interface QueryProcedures {
       env?: Record<string, string>;
       initialCommand?: string;
       taskId?: string;
+      // Claude Code session id this terminal runs, when launched with a known id
+      // (`claude --session-id <uuid>` or resumed via `--resume <id>`).
+      claudeSessionId?: string;
     };
     output: { existed: boolean };
   };
@@ -759,6 +683,7 @@ export interface QueryProcedures {
       lastDataAt: number;
       title?: string;
       userLabel?: string;
+      claudeSessionId?: string;
     }>;
   };
 
@@ -795,49 +720,6 @@ export interface QueryProcedures {
       type?: "chat" | "claude-code";
       closed?: boolean;
     };
-    output: { ok: boolean };
-  };
-  "session.list": {
-    input: { dir: string; limit?: number; offset?: number };
-    output: SessionInfo[];
-  };
-  "session.messages": {
-    input: {
-      sessionId: string;
-      dir?: string;
-      limit?: number;
-      offset?: number;
-    };
-    output: { messages: SessionMessage[]; hasMore: boolean };
-  };
-  "session.start": {
-    input: {
-      cwd: string;
-      prompt?: string;
-      sessionId?: string;
-      permissionMode?: string;
-    };
-    output: { sessionId: string };
-  };
-  "session.send": {
-    input: { sessionId: string; message: string };
-    output: { ok: boolean };
-  };
-  "session.permission": {
-    input: {
-      sessionId: string;
-      requestId: string;
-      allow: boolean;
-      remember?: boolean;
-    };
-    output: { ok: boolean };
-  };
-  "session.interrupt": {
-    input: { sessionId: string };
-    output: { ok: boolean };
-  };
-  "session.close": {
-    input: { sessionId: string };
     output: { ok: boolean };
   };
 
@@ -970,16 +852,6 @@ export interface SubscriptionProcedures {
       taskCommand?: string;
     };
     output: StreamEvent;
-  };
-  /** Claude session events (live messages, status, permission requests) */
-  "session.events": {
-    input: { sessionId: string };
-    output: SessionEvent;
-  };
-  /** Session list updates */
-  "session.list.updates": {
-    input: { dir: string };
-    output: SessionInfo[];
   };
   /** Claude UI session events (CLI-backed, streaming assistant/tool events) */
   "claudeui.events": {

@@ -17,8 +17,6 @@ import { TerminalManagerClient } from "../daemon/terminal-client.js";
 import { RepoWatcher, WorkdirWatcher } from "./git-watcher.js";
 import { RpcServer } from "./rpc-server.js";
 import { createQueryHandlers, createSubscriptionHandlers } from "./rpc-handlers.js";
-import { ClaudeService } from "../claude-session/server/claude-service.js";
-import { SessionStore } from "../claude-session/server/session-store.js";
 import { ClaudeUiService } from "./claude-ui/service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -233,8 +231,6 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   });
 
   // --- Unified mux-style WebSocket RPC ---
-  const claudeService = new ClaudeService();
-  const sessionStore = new SessionStore();
   const repoWatcher = new RepoWatcher();
   const worktreeWatcher = new WorkdirWatcher();
   const claudeUiService = new ClaudeUiService(terminalManager);
@@ -242,8 +238,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const rpcServer = new RpcServer({
     noServer: true,
     token,
-    queryHandlers: createQueryHandlers({ terminalManager, claudeService, sessionStore, claudeUiService }),
-    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, worktreeWatcher, claudeService, claudeUiService }),
+    queryHandlers: createQueryHandlers({ terminalManager, claudeUiService }),
+    subscriptionHandlers: createSubscriptionHandlers({ terminalManager, repoWatcher, worktreeWatcher, claudeUiService }),
   });
 
   // Start watching all known repos
@@ -288,7 +284,6 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     automationScheduler.stop();
     repoWatcher.close();
     worktreeWatcher.close();
-    claudeService.destroy();
     rpcServer.destroy();
     try {
       // Claude UI sessions now live in the daemon, same as terminals and

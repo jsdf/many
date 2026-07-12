@@ -26,6 +26,9 @@ interface TerminalSession {
   userLabel?: string;
   // Task ID if this terminal was launched as part of a task.
   taskId?: string;
+  // Claude Code session id this terminal is running, when known deterministically
+  // (launched with `--session-id <uuid>` or resumed with `--resume <id>`).
+  claudeSessionId?: string;
   // Trailing output buffer used to detect title sequences split across chunks.
   titleBuf: string;
   outputBlocks: OutputBlock[];
@@ -50,6 +53,7 @@ export interface TerminalSessionInfo {
   title?: string;
   userLabel?: string;
   taskId?: string;
+  claudeSessionId?: string;
 }
 
 // Pick up the latest OSC 0/1/2 window-title sequence from a session's output,
@@ -80,7 +84,8 @@ export class TerminalManager {
     extraEnv?: Record<string, string>,
     initialCommand?: string,
     terminalLogDir?: string | null,
-    taskId?: string
+    taskId?: string,
+    claudeSessionId?: string
   ): boolean {
     if (!terminalId) {
       throw new Error(`createSession called with invalid terminalId: ${JSON.stringify(terminalId)}`);
@@ -130,6 +135,7 @@ export class TerminalManager {
       exitListeners: new Set(),
       logBytesWritten: 0,
       taskId,
+      claudeSessionId,
     };
 
     this.sessions.set(terminalId, session);
@@ -273,6 +279,7 @@ export class TerminalManager {
         title: session.title,
         userLabel: session.userLabel,
         taskId: session.taskId,
+        claudeSessionId: session.claudeSessionId,
       });
     }
     return result;

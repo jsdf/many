@@ -130,7 +130,7 @@ const SessionHistoryTab: React.FC<SessionHistoryTabProps> = ({ sessionId, worktr
         ) : (
           <div
             style={{
-              height: `${virtualizer.getTotalSize()}px`,
+              height: `${virtualizer.getTotalSize() + 24}px`,
               width: "100%",
               position: "relative",
             }}

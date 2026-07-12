@@ -14,6 +14,7 @@ interface TerminalTabProps {
   env?: Record<string, string>;
   initialCommand?: string;
   taskId?: string;
+  claudeSessionId?: string;
   onTitleChange?: (title: string) => void;
 }
 
@@ -84,6 +85,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   env,
   initialCommand,
   taskId,
+  claudeSessionId,
   onTitleChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
       ...(env ? { env } : {}),
       ...(initialCommand ? { initialCommand } : {}),
       ...(taskId ? { taskId } : {}),
+      ...(claudeSessionId ? { claudeSessionId } : {}),
     }).then(() => {
       if (!mountedRef.current) return;
       unsubRef.current = getRpcClient().subscribe(

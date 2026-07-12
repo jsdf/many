@@ -8,8 +8,6 @@ import type { FsEntry } from "../shared/protocol.js";
 // The fs.* handlers do not touch the injected services, so stub them.
 const handlers = createQueryHandlers({
   terminalManager: {} as never,
-  claudeService: {} as never,
-  sessionStore: {} as never,
   claudeUiService: {} as never,
 });
 
@@ -18,7 +16,6 @@ const subHandlers = createSubscriptionHandlers({
   terminalManager: {} as never,
   repoWatcher: {} as never,
   worktreeWatcher: {} as never,
-  claudeService: {} as never,
   claudeUiService: {} as never,
 });
 
@@ -69,8 +66,6 @@ describe("terminal.closeWorktree", () => {
     };
     const h = createQueryHandlers({
       terminalManager: fakeTerminalManager as never,
-      claudeService: {} as never,
-      sessionStore: {} as never,
       claudeUiService: {} as never,
     });
     const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/a" })) as { closed: number };
@@ -85,8 +80,6 @@ describe("terminal.closeWorktree", () => {
     };
     const h = createQueryHandlers({
       terminalManager: fakeTerminalManager as never,
-      claudeService: {} as never,
-      sessionStore: {} as never,
       claudeUiService: {} as never,
     });
     const res = (await h["terminal.closeWorktree"]!({ worktreePath: "/repo/none" })) as { closed: number };

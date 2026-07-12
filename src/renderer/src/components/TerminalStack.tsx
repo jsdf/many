@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock, Type } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock, Type, MessageSquareText, SquareTerminal } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
 import SessionHistoryTab from "./SessionHistoryTab";
-import ClaudeSessionTab from "./ClaudeSessionTab";
 import ClaudeUiTab, { type ClaudeUiTabHandle } from "./ClaudeUiTab";
 import { setFocusedTerminal, useFocusedTerminal } from "../focused-terminal";
 
@@ -19,7 +18,6 @@ export interface TerminalStackHandle {
   createTerminalWithCommand: (env: Record<string, string>, initialCommand: string, taskId?: string) => void;
   openSessionHistory: (sessionId: string) => void;
   openTaskLog: (taskId: string, isSavedLog?: boolean) => void;
-  openClaudeSession: (sessionId?: string) => void;
   resumeClaudeCodeSession: (sessionId: string, command: string) => void;
   openClaudeUiSession: () => void;
   resumeClaudeUiSession: (sessionId: string) => void;
@@ -34,9 +32,12 @@ interface TerminalInfo {
   isSavedLog?: boolean; // saved terminal session from shutdown
   isSessionHistory?: boolean;
   sessionId?: string;
-  isClaudeSession?: boolean;
   isClaudeUi?: boolean;
   resumeSessionId?: string; // claude-code session this terminal was opened to resume
+  // Claude Code session id running in this terminal, known deterministically
+  // because we launched it with `--session-id`/`--resume`. Enables the
+  // terminal<->transcript toggle and dedupe against discovered sessions.
+  claudeSessionId?: string;
 }
 
 function formatTime(t: number): string {
@@ -111,10 +112,22 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
   const [serifIds, setSerifIds] = useState<Set<string>>(new Set());
+  // Terminals currently showing the formatted transcript view instead of the
+  // live xterm. Only applies to terminals with a known claudeSessionId.
+  const [historyViewIds, setHistoryViewIds] = useState<Set<string>>(new Set());
   const focusedId = useFocusedTerminal();
 
   const toggleSerif = useCallback((terminalId: string) => {
     setSerifIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(terminalId)) next.delete(terminalId);
+      else next.add(terminalId);
+      return next;
+    });
+  }, []);
+
+  const toggleHistoryView = useCallback((terminalId: string) => {
+    setHistoryViewIds((prev) => {
       const next = new Set(prev);
       if (next.has(terminalId)) next.delete(terminalId);
       else next.add(terminalId);
@@ -156,17 +169,6 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       } catch (err) {
         console.error("Failed to load terminal sessions:", err);
       }
-
-      try {
-        const sessions = await getRpcClient().query("claude.sessions", { worktreePath }) as any[];
-        if (cancelled) return;
-        for (const s of sessions) {
-          // Only auto-reopen sessions that are running, were created as chat sessions, and not explicitly closed
-          if (s.isRunning && s.sessionType === "chat" && !s.closed) {
-            tabs.push({ id: `claude-session-${s.sessionId}`, isClaudeSession: true, sessionId: s.sessionId });
-          }
-        }
-      } catch {}
 
       try {
         // Re-attach to live Claude UI sessions (server-owned, survive tab switches).
@@ -246,11 +248,11 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     return () => { cancelled = true; };
   }, [worktreePath, repoPath]);
 
-  const addTerminal = useCallback((env?: Record<string, string>, initialCommand?: string, taskId?: string) => {
+  const addTerminal = useCallback((env?: Record<string, string>, initialCommand?: string, taskId?: string, claudeSessionId?: string) => {
     terminalCounter++;
     const id = `${worktreePath}-term-${Date.now()}-${terminalCounter}`;
     setTerminals((prev) => {
-      const next = [...prev, { id, env, initialCommand, taskId }];
+      const next = [...prev, { id, env, initialCommand, taskId, claudeSessionId }];
       setSizes(next.map(() => 1 / next.length));
       setMaximizedId((m) => (m !== null ? id : m));
       return next;
@@ -260,6 +262,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const createTerminal = useCallback(() => {
     addTerminal();
   }, [addTerminal]);
+
+  // Launch a fresh Claude Code session in a terminal with a pre-assigned session
+  // id, so we can associate the terminal with the on-disk transcript (dedupe +
+  // terminal<->history toggle) without guessing.
+  const launchClaude = useCallback(() => {
+    const sessionId = crypto.randomUUID();
+    const base = claudeCommand || "claude";
+    addTerminal(undefined, `${base} --session-id ${sessionId}`, undefined, sessionId);
+  }, [addTerminal, claudeCommand]);
 
   const openTaskLog = useCallback((taskId: string, isSavedLog?: boolean) => {
     setTerminals((prev) => {
@@ -285,26 +296,13 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
-  const openClaudeSession = useCallback((sessionId?: string) => {
-    setTerminals((prev) => {
-      // Don't duplicate if resuming same session
-      if (sessionId && prev.some((t) => t.sessionId === sessionId && t.isClaudeSession)) return prev;
-      terminalCounter++;
-      const id = sessionId ? `claude-session-${sessionId}` : `claude-session-new-${Date.now()}`;
-      const next = [...prev, { id, isClaudeSession: true, sessionId }];
-      setSizes(next.map(() => 1 / next.length));
-      setMaximizedId((m) => (m !== null ? id : m));
-      return next;
-    });
-  }, []);
-
   const resumeClaudeCodeSession = useCallback((sessionId: string, command: string) => {
     setTerminals((prev) => {
       // Don't open a duplicate pane when this session is already being resumed.
       if (prev.some((t) => t.resumeSessionId === sessionId)) return prev;
       terminalCounter++;
       const id = `claude-resume-${sessionId}`;
-      const next = [...prev, { id, initialCommand: command, resumeSessionId: sessionId }];
+      const next = [...prev, { id, initialCommand: command, resumeSessionId: sessionId, claudeSessionId: sessionId }];
       setSizes(next.map(() => 1 / next.length));
       setMaximizedId((m) => (m !== null ? id : m));
       return next;
@@ -351,23 +349,16 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       addTerminal(env, initialCommand, taskId);
     },
     openSessionHistory,
-    openClaudeSession,
     resumeClaudeCodeSession,
     openClaudeUiSession,
     resumeClaudeUiSession,
     openTaskLog,
-  }), [addTerminal, openSessionHistory, openTaskLog, openClaudeSession, resumeClaudeCodeSession, openClaudeUiSession, resumeClaudeUiSession]);
+  }), [addTerminal, openSessionHistory, openTaskLog, resumeClaudeCodeSession, openClaudeUiSession, resumeClaudeUiSession]);
 
   const closeTerminal = useCallback(
     async (terminalId: string) => {
       const term = terminals.find((t) => t.id === terminalId);
-      if (term?.isClaudeSession && term.sessionId) {
-        try {
-          await getRpcClient().query("session.close", { sessionId: term.sessionId });
-        } catch {
-          // Session may already be dead
-        }
-      } else if (term?.isClaudeUi && term.sessionId) {
+      if (term?.isClaudeUi && term.sessionId) {
         try {
           await getRpcClient().query("claudeui.close", { sessionId: term.sessionId });
         } catch {
@@ -467,7 +458,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           <button className="btn btn-outline btn-neutral btn-xs" onClick={openClaudeUiSession}>
             + Claude (UI)
           </button>
-          <button className="btn btn-outline btn-neutral btn-xs" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
+          <button className="btn btn-outline btn-neutral btn-xs" onClick={launchClaude}>
             + Claude (term)
           </button>
           <button className="btn btn-outline btn-neutral btn-xs" onClick={createTerminal}>
@@ -484,7 +475,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-base-content/60" style={fixedTerminalHeight ? { height: fixedTerminalHeight } : undefined}>
             <p>No terminals open</p>
             <div className="flex gap-2">
-              <button className="btn btn-outline btn-neutral" onClick={() => addTerminal(undefined, claudeCommand || 'claude')}>
+              <button className="btn btn-outline btn-neutral" onClick={launchClaude}>
                 + Claude Code
               </button>
               <button className="btn btn-outline btn-neutral" onClick={createTerminal}>
@@ -526,12 +517,11 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
             >
               <div className={`group flex items-center justify-between px-2.5 py-[3px] border-b shrink-0 ${isFocused ? 'bg-base-content border-base-content' : 'bg-base-100 border-base-300'}`}>
                 {(() => {
-                  const isRenameable = !term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession;
+                  const isRenameable = !term.isTaskLog && !term.isSavedLog && !term.isSessionHistory;
                   const dynamicTitle = terminalTitles[term.id];
                   const userLabel = userLabels[term.id];
                   let displayTitle: string;
-                  if (term.isClaudeSession) displayTitle = "Claude Session";
-                  else if (term.isSessionHistory) displayTitle = "Session History";
+                  if (term.isSessionHistory) displayTitle = "Session History";
                   else if (term.isSavedLog) displayTitle = "Saved Log (read-only)";
                   else if (term.isTaskLog) displayTitle = "Task Log (read-only)";
                   else if (userLabel) displayTitle = dynamicTitle ? `${userLabel} | ${dynamicTitle}` : userLabel;
@@ -584,7 +574,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   );
                 })()}
                 <div className={`flex items-center ${isFocused ? 'text-base-100' : ''}`}>
-                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession && !term.isClaudeUi && (
+                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeUi && (
                     <TerminalActivityInfo worktreePath={worktreePath} terminalId={term.id} />
                   )}
                   {term.isClaudeUi && (
@@ -599,7 +589,16 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                       </ul>
                     </div>
                   )}
-                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeSession && !term.isClaudeUi && (
+                  {term.claudeSessionId && !term.isSessionHistory && !term.isClaudeUi && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => toggleHistoryView(term.id)}
+                      title={historyViewIds.has(term.id) ? "Show live terminal" : "Show formatted transcript"}
+                    >
+                      {historyViewIds.has(term.id) ? <SquareTerminal size={14} /> : <MessageSquareText size={14} />}
+                    </button>
+                  )}
+                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeUi && (
                     <button
                       className="btn btn-ghost btn-xs"
                       onClick={() => toggleSerif(term.id)}
@@ -642,11 +641,6 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     sessionId={term.sessionId}
                     onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
                   />
-                ) : term.isClaudeSession ? (
-                  <ClaudeSessionTab
-                    worktreePath={worktreePath}
-                    sessionId={term.sessionId}
-                  />
                 ) : term.isSessionHistory && term.sessionId ? (
                   <SessionHistoryTab
                     sessionId={term.sessionId}
@@ -657,12 +651,18 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     taskId={term.taskId}
                     isVisible={true}
                   />
+                ) : historyViewIds.has(term.id) && term.claudeSessionId ? (
+                  <SessionHistoryTab
+                    sessionId={term.claudeSessionId}
+                    worktreePath={worktreePath}
+                  />
                 ) : (
                   <TerminalTab
                     terminalId={term.id}
                     worktreePath={worktreePath}
                     isVisible={true}
                     serif={serifIds.has(term.id)}
+                    claudeSessionId={term.claudeSessionId}
                     env={term.env}
                     initialCommand={term.initialCommand}
                     taskId={term.taskId}

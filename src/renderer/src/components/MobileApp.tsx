@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Menu, X, ChevronRight, ChevronDown, RotateCw } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import type { ProjectEntry } from "../types";
-import ClaudeSessionTab from "./ClaudeSessionTab";
+import ClaudeUiTab from "./ClaudeUiTab";
 
 // Unified recent Claude session, merged across all projects and worktrees.
 interface RecentSession {
@@ -63,6 +63,47 @@ function TypeBadge({ type }: { type?: "chat" | "claude-code" }) {
   if (type === "chat") return <span className="badge badge-info badge-xs shrink-0">chat</span>;
   if (type === "claude-code") return <span className="badge badge-neutral badge-xs shrink-0">cli</span>;
   return null;
+}
+
+// The Claude UI session is server-owned. Resume the on-disk conversation
+// (idempotent if it is already live) before rendering the panel, which then
+// attaches to it and replays the transcript.
+function MobileSession({ sessionId, worktreePath }: { sessionId: string; worktreePath: string }) {
+  const [resumed, setResumed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResumed(false);
+    setError(null);
+    getRpcClient()
+      .query("claudeui.resume", { worktreePath, sessionId })
+      .then(() => {
+        if (!cancelled) setResumed(true);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, worktreePath]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full text-error text-sm px-6 text-center">
+        {error}
+      </div>
+    );
+  }
+  if (!resumed) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className="loading loading-spinner loading-md" />
+      </div>
+    );
+  }
+  return <ClaudeUiTab sessionId={sessionId} />;
 }
 
 export default function MobileApp() {
@@ -202,7 +243,7 @@ export default function MobileApp() {
       {/* Main: chat or empty state */}
       <div className="flex-1 min-h-0">
         {selected ? (
-          <ClaudeSessionTab
+          <MobileSession
             key={selected.sessionId}
             worktreePath={selected.worktreePath}
             sessionId={selected.sessionId}

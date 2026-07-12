@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { EditorState, Extension, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLineGutter, keymap } from "@codemirror/view";
 import { syntaxHighlighting, defaultHighlightStyle, LanguageDescription } from "@codemirror/language";
@@ -22,6 +22,7 @@ import PropertiesPanel from "./PropertiesPanel";
 import { parseFrontmatter, serializeFrontmatter, PropertyValue } from "../frontmatter";
 import { urlLinker } from "../url-linker";
 import { createDomFinder } from "../dom-find";
+import { OpenFile } from "../types";
 
 // Task lists are conventionally tight (no blank lines between checkboxes), but
 // tiptap-markdown only teaches bulletList/orderedList about the `tight` attribute,
@@ -122,6 +123,8 @@ interface FileEditorTabProps {
   data: FileData;
   onChange: (content: string) => void;
   onSave: () => void;
+  // Open a file linked from the markdown preview in an editor pane.
+  onOpenLinkedFile?: (file: OpenFile) => void;
 }
 
 function isMarkdownFile(fileName: string): boolean {
@@ -148,6 +151,30 @@ function fileApiUrl(filePath: string): string {
 function dirname(filePath: string): string {
   const i = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
   return i < 0 ? "" : filePath.slice(0, i);
+}
+
+function baseName(filePath: string): string {
+  const i = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return i >= 0 ? filePath.slice(i + 1) : filePath;
+}
+
+// Resolve a markdown link href to the absolute path of a local file, or null if
+// it isn't one (remote URL, mailto/tel/data, or a pure in-page anchor). Relative
+// hrefs resolve against the .md file's directory, mirroring resolveImageSrc.
+// Any #fragment/?query is dropped and %-escapes are decoded before resolving.
+function resolveLinkTarget(href: string, baseDir: string): string | null {
+  if (!href || href.startsWith("#")) return null;
+  if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(href) || /^(data|mailto|tel):/i.test(href)) return null;
+  const path = href.replace(/[#?].*$/, "");
+  if (!path) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    decoded = path;
+  }
+  const absolute = decoded.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(decoded);
+  return absolute ? normalizePath(decoded) : normalizePath(`${baseDir}/${decoded}`);
 }
 
 // Collapse "." and ".." segments in a "/"-separated path, preserving a leading slash.
@@ -626,10 +653,14 @@ const PREVIEW_COMPONENTS: Components = {
 // surfaces it via PropertiesPanel) so raw YAML isn't rendered as body text.
 function MarkdownPreview({
   content,
+  baseDir,
+  onOpenLinkedFile,
   searchRef,
   onMatches,
 }: {
   content: string;
+  baseDir: string;
+  onOpenLinkedFile?: (file: OpenFile) => void;
   searchRef?: React.Ref<SearchHandle>;
   onMatches?: (count: number, index: number) => void;
 }) {
@@ -637,6 +668,38 @@ function MarkdownPreview({
   const onMatchesRef = useRef(onMatches);
   onMatchesRef.current = onMatches;
   const [finder] = useState(() => createDomFinder(() => containerRef.current));
+
+  // A relative link opens the target file in an editor pane instead of
+  // navigating; remote links open in a new tab. Other overrides (mermaid) are
+  // inherited from PREVIEW_COMPONENTS.
+  const components = useMemo<Components>(
+    () => ({
+      ...PREVIEW_COMPONENTS,
+      a({ node: _node, href, children, ...rest }) {
+        const target = href ? resolveLinkTarget(href, baseDir) : null;
+        if (target && onOpenLinkedFile) {
+          return (
+            <a
+              href={href}
+              {...rest}
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenLinkedFile({ path: target, name: baseName(target) });
+              }}
+            >
+              {children}
+            </a>
+          );
+        }
+        return (
+          <a href={href} target="_blank" rel="noreferrer" {...rest}>
+            {children}
+          </a>
+        );
+      },
+    }),
+    [baseDir, onOpenLinkedFile],
+  );
 
   useEffect(() => () => finder.clear(), [finder]);
 
@@ -662,7 +725,7 @@ function MarkdownPreview({
   return (
     <div ref={containerRef} className="h-full overflow-auto p-4">
       <div className="chat-markdown">
-        <ReactMarkdown remarkPlugins={PREVIEW_REMARK_PLUGINS} components={PREVIEW_COMPONENTS}>
+        <ReactMarkdown remarkPlugins={PREVIEW_REMARK_PLUGINS} components={components}>
           {parseFrontmatter(content).body}
         </ReactMarkdown>
       </div>
@@ -777,7 +840,7 @@ function FindBar({
   );
 }
 
-const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data, onChange, onSave }) => {
+const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data, onChange, onSave, onOpenLinkedFile }) => {
   const markdown = isMarkdownFile(fileName);
   const media = mediaKind(fileName);
   const [mode, setMode] = useState<"code" | "wysiwyg" | "preview">(markdown ? "wysiwyg" : "code");
@@ -878,7 +941,7 @@ const FileEditorTab: React.FC<FileEditorTabProps> = ({ fileName, filePath, data,
         </div>
       )}
       {markdown && mode === "preview" ? (
-        <MarkdownPreview key="preview" content={data.content} searchRef={searchRef} onMatches={onMatches} />
+        <MarkdownPreview key="preview" content={data.content} baseDir={dirname(filePath)} onOpenLinkedFile={onOpenLinkedFile} searchRef={searchRef} onMatches={onMatches} />
       ) : markdown && mode === "wysiwyg" ? (
         <MarkdownEditor
           key="wysiwyg"

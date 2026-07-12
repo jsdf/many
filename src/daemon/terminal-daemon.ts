@@ -85,7 +85,8 @@ export interface DaemonManager {
     extraEnv?: Record<string, string>,
     initialCommand?: string,
     terminalLogDir?: string | null,
-    taskId?: string
+    taskId?: string,
+    claudeSessionId?: string
   ): boolean;
   sendData(terminalId: string, data: string): void;
   resize(terminalId: string, cols: number, rows: number): void;
@@ -154,7 +155,8 @@ export function attachConnection(
           req.extraEnv,
           req.initialCommand,
           req.logDir,
-          req.taskId
+          req.taskId,
+          req.claudeSessionId
         );
         const pid = manager.getSessionPid(req.terminalId);
         // Register the log-capture exit hook once, only for genuinely new

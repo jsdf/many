@@ -84,19 +84,19 @@ Then surface it: track the pending `request_id` in `ManagedSession`, emit a new
 `ClaudeUiEvent` (e.g. `permission_request`) up to the renderer, and resolve it
 when the user clicks allow/deny (write the `control_response`).
 
-## Reference implementation (SDK-based, same protocol)
+## Permission UI contract
 
-`src/claude-session/server/claude-service.ts` already does accept/reject via the
-SDK's `canUseTool` callback (`resolvePermission`, allow/deny). Its UI contract
-is in protocol.ts and worth mirroring rather than reinventing:
+The permission flow surfaces a `PermissionRequest` and resolves it allow/deny.
+The UI contract lives in protocol.ts:
 
 - `PermissionRequest` (requestId, toolName, toolInput, description, displayName)
 - `permission_request` / `permission_resolved` events
 - result `{behavior:"allow"} | {behavior:"deny", message}`
 
-History note: no prior session hand-rolled the `can_use_tool` flow over raw
-stream-json. The SDK binary is the ground-truth protocol reference; the
-`claude-session` SDK wrapper is the only working app-level example in the repo.
+History note: an earlier SDK-based session wrapper
+(`src/claude-session/server/claude-service.ts`, on `@anthropic-ai/claude-agent-sdk`)
+implemented this via the SDK's `canUseTool` callback. It has been removed; the
+CLI-backed `ClaudeUiManager` is now the only implementation.
 
 ## Learning the protocol from the Agent SDK source
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { Folder, Terminal, X, Circle, ArrowUp } from "lucide-react";
+import { Folder, Terminal, X, Circle, ArrowUp, ChevronDown } from "lucide-react";
 import { ProjectEntry, ProjectNode, OpenFile } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -61,6 +61,8 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
   const [claudeCommandLoaded, setClaudeCommandLoaded] = useState(false);
   // Right-click context menu for an open file's tab handle.
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; file: OpenFile } | null>(null);
+  // Dropdown menu of subprojects, opened by clicking the project name in the header.
+  const [subprojectMenu, setSubprojectMenu] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalStackRef = useRef<TerminalStackHandle>(null);
 
@@ -115,7 +117,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     if (pendingResume.projectPath !== project.path) return;
     const { sessionId, sessionType } = pendingResume;
     if (sessionType === "chat") {
-      terminalStackRef.current?.openClaudeSession(sessionId);
+      terminalStackRef.current?.resumeClaudeUiSession(sessionId);
     } else {
       terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
     }
@@ -199,6 +201,11 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
     .sort((a, b) => a.path.localeCompare(b.path))
     .map((p) => ({ project: p, relativePath: relativeToRoot(p.path, currentPath) }));
 
+  const openSubproject = (path: string) => {
+    const name = projects.find((p) => p.path === path)?.name ?? path.slice(path.lastIndexOf(sep) + 1);
+    onSelectNode({ name, path });
+  };
+
   const tabMenuItems = (file: OpenFile): ContextMenuItem[] => [
     { label: "Open in default app", onClick: () => getRpcClient().query("action.openPath", { path: file.path }).catch((err) => console.error("[action] openPath failed:", err)) },
     { label: "Copy relative path", onClick: () => copyToClipboard(relativeToRoot(file.path, project.path)) },
@@ -218,7 +225,21 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           </button>
         )}
         <div className="mr-2">
-          <h2 className="m-0 text-base font-semibold leading-tight">{project.name}</h2>
+          {subprojects.length > 0 ? (
+            <button
+              className="flex items-center gap-1 text-base font-semibold leading-tight hover:text-primary"
+              title="Show subprojects"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setSubprojectMenu({ x: rect.left, y: rect.bottom + 2 });
+              }}
+            >
+              {project.name}
+              <ChevronDown size={14} className="text-base-content/50" />
+            </button>
+          ) : (
+            <h2 className="m-0 text-base font-semibold leading-tight">{project.name}</h2>
+          )}
           <span className="block text-xs text-base-content/50 leading-tight" title={project.path}>{project.path}</span>
         </div>
         <button
@@ -304,10 +325,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 refreshingPrs={refreshingPrs}
                 onGoToWorktree={onGoToWorktree}
                 subprojects={subprojects}
-                onOpenSubproject={(path) => {
-                  const name = projects.find((p) => p.path === path)?.name ?? path.slice(path.lastIndexOf(sep) + 1);
-                  onSelectNode({ name, path });
-                }}
+                onOpenSubproject={openSubproject}
                 onOpenDoc={(name) => {
                   const filePath = `${project.path}${sep}${name}`;
                   openFileInContext(project.path, { path: filePath, name });
@@ -320,7 +338,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 worktreePath={project.path}
                 onResumeSession={(sessionId, target) => {
                   if (target === "ui") {
-                    terminalStackRef.current?.openClaudeSession(sessionId);
+                    terminalStackRef.current?.resumeClaudeUiSession(sessionId);
                   } else {
                     terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
                   }
@@ -334,6 +352,7 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
                 data={fileData[active.path]}
                 onChange={(content) => updateContent(active.path, content)}
                 onSave={() => saveFile(active.path)}
+                onOpenLinkedFile={(file) => project && openFileInContext(project.path, file)}
               />
             ) : null}
           </div>
@@ -360,6 +379,18 @@ const ProjectsPanel = forwardRef<ProjectsPanelHandle, ProjectsPanelProps>(({
           y={tabMenu.y}
           items={tabMenuItems(tabMenu.file)}
           onClose={() => setTabMenu(null)}
+        />
+      )}
+
+      {subprojectMenu && (
+        <ContextMenu
+          x={subprojectMenu.x}
+          y={subprojectMenu.y}
+          items={subprojects.map(({ project: p, relativePath }) => ({
+            label: relativePath,
+            onClick: () => openSubproject(p.path),
+          }))}
+          onClose={() => setSubprojectMenu(null)}
         />
       )}
     </div>

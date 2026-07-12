@@ -185,7 +185,8 @@ export class TerminalManagerClient {
     extraEnv?: Record<string, string>,
     initialCommand?: string,
     terminalLogDir?: string | null,
-    taskId?: string
+    taskId?: string,
+    claudeSessionId?: string
   ): Promise<boolean> {
     const { existed } = await this.request({
       reqId: this.newReqId(),
@@ -198,6 +199,7 @@ export class TerminalManagerClient {
       initialCommand,
       logDir: terminalLogDir,
       taskId,
+      claudeSessionId,
     });
     return existed;
   }

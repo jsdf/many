@@ -3,7 +3,7 @@ import { Folder, FileEdit, Terminal, Zap, Unlock, Package, GitPullRequest, X, Ci
 import { Worktree, PoolConfig, OpenFile, formatBranchName, findWorktreePool, isTmpBranch } from "../types";
 import { getRpcClient } from "../rpc-client";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { useFileEditors } from "../useFileEditors";
+import { useFileEditors, useOpenFile } from "../useFileEditors";
 import TopBar from "./TopBar";
 import WelcomeScreen from "./WelcomeScreen";
 import WorktreeDetails from "./WorktreeDetails";
@@ -72,6 +72,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     saveFile,
     isDirty,
   } = useFileEditors(selectedWorktree?.path ?? null, DETAILS_TAB);
+  const openFile = useOpenFile();
 
   // Fetch GitHub PR/branch link with periodic revalidation
   const fetchGhLink = useCallback(() => {
@@ -194,7 +195,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
     if (pendingResume.worktreePath !== selectedWorktree.path) return;
     const { sessionId, sessionType } = pendingResume;
     if (sessionType === "chat") {
-      terminalStackRef.current?.openClaudeSession(sessionId);
+      terminalStackRef.current?.resumeClaudeUiSession(sessionId);
     } else {
       terminalStackRef.current?.resumeClaudeCodeSession(sessionId, `${claudeCommand || "claude"} --resume ${sessionId}`);
     }
@@ -311,6 +312,7 @@ const MainContent = forwardRef<MainContentHandle, MainContentProps>(({
         data={fileData[active.path]}
         onChange={(content) => updateContent(active.path, content)}
         onSave={() => saveFile(active.path)}
+        onOpenLinkedFile={(file) => selectedWorktree && openFile(selectedWorktree.path, file)}
       />
     ) : null;
 
