@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog } from "electron";
+import { app, BrowserWindow, Menu, MenuItem, shell, dialog } from "electron";
 import crypto from "crypto";
 import { loadAppData, withAppData } from "../cli/config.js";
 import type { WebServerResult } from "../web/server.js";
@@ -50,6 +50,27 @@ async function createWindow(url: string) {
       event.preventDefault();
       shell.openExternal(url);
     }
+  });
+
+  // Provide a native right-click menu for editable fields and selected text.
+  // The app's own React context menus (list rows, tabs) handle their own areas;
+  // this fills in the "dead" right-clicks everywhere else with copy/paste.
+  mainWindow.webContents.on("context-menu", (_event, params) => {
+    const menu = new Menu();
+
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: "cut", enabled: params.editFlags.canCut }));
+      menu.append(new MenuItem({ role: "copy", enabled: params.editFlags.canCopy }));
+      menu.append(new MenuItem({ role: "paste", enabled: params.editFlags.canPaste }));
+      menu.append(new MenuItem({ type: "separator" }));
+      menu.append(new MenuItem({ role: "selectAll", enabled: params.editFlags.canSelectAll }));
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ role: "copy" }));
+    } else {
+      return;
+    }
+
+    if (mainWindow) menu.popup({ window: mainWindow });
   });
 
   // Save window bounds on resize/move (debounced)
