@@ -96,14 +96,18 @@ const ProjectsTab: React.FC<ProjectsTabProps> = ({
     [expanded, toggleDir, expandDir, expandPath, filtering],
   );
 
-  // Clicking a directory title selects it and toggles its expansion, so the
-  // title behaves like the caret.
+  // Clicking a directory title selects it first. Only a subsequent click on the
+  // already-selected folder toggles its expansion, so selecting a folder doesn't
+  // also collapse/expand it in the same click.
   const handleClickNode = useCallback(
     (node: ProjectNode, projectPath: string) => {
-      onSelectNode(node);
-      toggleNode(node.path, projectPath);
+      if (selectedNode?.path === node.path) {
+        toggleNode(node.path, projectPath);
+      } else {
+        onSelectNode(node);
+      }
     },
-    [onSelectNode, toggleNode],
+    [onSelectNode, toggleNode, selectedNode?.path],
   );
 
   // Opening a file first switches the panel to its containing directory, then

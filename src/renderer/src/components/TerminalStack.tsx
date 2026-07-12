@@ -450,6 +450,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
 
   const hasTerminals = terminals.length > 0;
 
+  // flex-grow only distributes ALL free space when the grow factors sum to >= 1.
+  // Minimized terminals contribute grow 0, so the remaining visible terminals'
+  // sizes (which sum to <1) would leave a gap. Normalize by the visible sum so
+  // they fill the space while keeping their relative ratios.
+  const visibleSizeSum = terminals.reduce(
+    (sum, term, i) => (minimizedIds.has(term.id) ? sum : sum + (sizes[i] ?? 1 / terminals.length)),
+    0
+  );
+
   return (
     <div className={`flex flex-col ${fixedTerminalHeight ? '' : 'h-full overflow-hidden'}`}>
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
@@ -510,7 +519,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   ? { flex: '1 0 0', minHeight: 0 }
                   : showHeaderOnly
                     ? { flex: '0 0 auto' }
-                    : { flex: `${sizes[i] ?? 1 / terminals.length} 0 0`, minHeight: 0 }
+                    : { flex: `${(sizes[i] ?? 1 / terminals.length) / (visibleSizeSum || 1)} 0 0`, minHeight: 0 }
               }
               onMouseDown={() => setFocusedTerminal(term.id)}
               onFocus={() => setFocusedTerminal(term.id)}
