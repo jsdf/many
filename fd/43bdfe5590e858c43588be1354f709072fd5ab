@@ -1,0 +1,20 @@
+src/electron/main.ts
+  s_fc37c6d8602596::t_afcf7661527fb7 55-75
+  s_fc37c6d8602596::t_16e92f57ad35fd 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "fd43bdfe5590e858c43588be1354f709072fd5ab",
+  "prompts": {},
+  "sessions": {
+    "s_fc37c6d8602596": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32bb408d-727e-47d6-a805-db0bcd9137e0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
