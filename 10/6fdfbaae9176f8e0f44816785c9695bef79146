@@ -1,0 +1,136 @@
+src/renderer/src/components/MainContent.tsx
+  s_31752df03cce21::t_198ddbb24c175e 6
+  s_31752df03cce21::t_129e91620d3b7b 75
+  s_31752df03cce21::t_de47bc696ebd82 315
+  s_2f90072e283d03::t_ea0b5d1742cf60 198
+src/renderer/src/components/ProjectsPanel.tsx
+  s_908f1bd1c57934::t_c97dfbd3707377 328
+  s_908f1bd1c57934::t_4a8838c4e06e3d 64-65
+  s_908f1bd1c57934::t_b09178d10474ea 204-208
+  s_2f90072e283d03::t_b19940a609b90d 120
+  s_2f90072e283d03::t_d128674b4cc43a 341
+  s_908f1bd1c57934::t_8ae949fb26ad9f 2
+  s_908f1bd1c57934::t_51723a25890f4d 384-395
+  s_31752df03cce21::t_c1a357aac6277b 355
+  s_908f1bd1c57934::t_8333c3ad98d788 228-242
+src/web/server.ts
+  s_2f90072e283d03::t_de5299fd803fac 241-242
+src/web/terminal-manager.ts
+  s_0c6fd0c938be7c::t_a4a587ac0873f0 87-88
+  s_0c6fd0c938be7c::t_99ccc89d3a97c3 56
+  s_0c6fd0c938be7c::t_969bdadedbacfe 29-31
+  s_0c6fd0c938be7c::t_35f4c616e49d19 138
+  s_0c6fd0c938be7c::t_930173bc5e1935 282
+src/daemon/terminal-daemon.ts
+  s_0c6fd0c938be7c::t_58c244d3872c4c 158-159
+  s_0c6fd0c938be7c::t_71ba98a34e558c 88-89
+src/daemon/terminal-daemon-protocol.ts
+  s_0c6fd0c938be7c::t_8b0a132139fa0c 13
+  s_0c6fd0c938be7c::t_0092804167bdd7 57
+package.json
+  s_2f90072e283d03::t_ec94c433495907 49
+  s_2f90072e283d03::t_f95707449cda5b 117
+src/renderer/src/components/FileEditorTab.tsx
+  s_31752df03cce21::t_eeec97d1c7079e 728
+  s_31752df03cce21::t_91e222dea91149 944
+  s_31752df03cce21::t_408df101b517b5 126-127
+  s_31752df03cce21::t_966003e3363655 1
+  s_31752df03cce21::t_aa48657650f0a6 25
+  s_31752df03cce21::t_b07d702cb8f04f 156-179
+  s_31752df03cce21::t_f369e44e8990a9 656-657,662-663,672-702
+  s_31752df03cce21::t_33401b1819285c 843
+  s_31752df03cce21::t_ded7a1f7786e6b 703
+src/renderer/src/components/MobileApp.tsx
+  s_2f90072e283d03::t_cb91da6e46e75e 5
+  s_2f90072e283d03::t_a90e0a575d69c8 68-108
+  s_2f90072e283d03::t_ae08885926d689 246
+src/shared/protocol.ts
+  s_0c6fd0c938be7c::t_97df6703a90a38 686
+  s_0c6fd0c938be7c::t_e9a5e68561d3d7 645-647
+src/renderer/src/components/TerminalTab.tsx
+  s_0c6fd0c938be7c::t_5a7502d3fb6ec2 17
+  s_0c6fd0c938be7c::t_50a111971fa943 141
+  s_0c6fd0c938be7c::t_673d9c51ff4589 88
+src/renderer/src/components/SessionHistoryTab.tsx
+  s_aa6d9b2824776d::t_42be0b642eace6 133
+src/web/rpc-handlers.ts
+  s_2f90072e283d03::t_d8a2188580bf6b 273
+  s_0c6fd0c938be7c::t_a05afc2104d97c 922
+  s_2f90072e283d03::t_176617bbdf8d31 503
+  s_0c6fd0c938be7c::t_99bf1bfa6f7fc2 937
+  s_2f90072e283d03::t_83ae7e52d653d8 1172
+src/renderer/src/hooks/useRecentItems.ts
+  s_0c6fd0c938be7c::t_15ad5aa0fb636d 20
+  s_0c6fd0c938be7c::t_ac5f79a91e1160 79-81,84,92,96
+  s_0c6fd0c938be7c::t_8c7e2f81b91c33 8
+src/web/claude-ui/AGENTS.md
+  s_2f90072e283d03::t_8e76f4c9df01e5 87,89-90,96-99
+src/renderer/src/components/TerminalStack.tsx
+  s_0c6fd0c938be7c::t_fa9258a0f16ba8 593-600
+  s_0c6fd0c938be7c::t_871678d7c8ddb2 654-658,665
+  s_2f90072e283d03::t_ef31fe2616c11f 361
+  s_2f90072e283d03::t_69ed7e18b01085 356
+  s_2f90072e283d03::t_bfa1ddf29f7919 520,524
+  s_2f90072e283d03::t_453750e5c2ccb1 577,592,601
+  s_0c6fd0c938be7c::t_c9728b16056f5b 115-117,129-130
+  s_0c6fd0c938be7c::t_021f4638f9ad7b 305
+  s_0c6fd0c938be7c::t_2d36839f7dbc65 2
+  s_0c6fd0c938be7c::t_ffbf5dadd7ebed 461,478
+  s_0c6fd0c938be7c::t_ef9ee8091310a7 251,255,266-273
+  s_0c6fd0c938be7c::t_66fbe6b04f640e 37-40
+  s_0c6fd0c938be7c::t_8e3aba67ccbf5c 131-133
+  s_0c6fd0c938be7c::t_45f86c8282e01c 274
+  s_2f90072e283d03::t_81d1297d12193d 134-137
+src/web/claude-ui/service.ts
+  s_2f90072e283d03::t_62ca11d8a3df69 73-81
+src/daemon/terminal-client.ts
+  s_0c6fd0c938be7c::t_923ba10778cef0 188-189,202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "106fdfbaae9176f8e0f44816785c9695bef79146",
+  "prompts": {},
+  "sessions": {
+    "s_0c6fd0c938be7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6487047-6a08-4879-bea8-9b4be1e208fa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_2f90072e283d03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4bb617f2-34d9-44d6-b35a-f39bb3f51fa3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_31752df03cce21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21c3de48-64de-4059-9319-f755811dffe6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_908f1bd1c57934": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3fc0c981-e4b2-49a9-ac99-aaae88a03269",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_aa6d9b2824776d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0ff1f9df-f057-4343-a2e2-2d9794d0424e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
