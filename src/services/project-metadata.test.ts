@@ -56,8 +56,13 @@ describe("parsePrsYml", () => {
       "  - url: https://github.com/clay-run/clay-base/pull/40984",
       '    title: "refactor: relocate swr"',
       "    branch: jsdf/data-fetching/relocate-swr-impl",
+      "    base: jsdf/data-fetching/dispatch-facade",
       "    status: open",
-      '    notes: "base of the stack"',
+      '    description: "base of the stack"',
+      "    history:",
+      "      - at: 2026-06-22",
+      '        note: "Merged."',
+      '      - note: "Opened."',
     ].join("\n");
 
     expect(parsePrsYml(yml)).toEqual([
@@ -65,8 +70,13 @@ describe("parsePrsYml", () => {
         url: "https://github.com/clay-run/clay-base/pull/40984",
         title: "refactor: relocate swr",
         branch: "jsdf/data-fetching/relocate-swr-impl",
+        base: "jsdf/data-fetching/dispatch-facade",
         status: "open",
-        notes: "base of the stack",
+        description: "base of the stack",
+        history: [
+          { at: "2026-06-22", note: "Merged." },
+          { at: undefined, note: "Opened." },
+        ],
       },
     ]);
   });
@@ -75,9 +85,17 @@ describe("parsePrsYml", () => {
     expect(parsePrsYml("prs: []")).toEqual([]);
   });
 
-  it("omits optional fields that are absent", () => {
+  it("omits optional fields that are absent and defaults history to []", () => {
     expect(parsePrsYml("prs:\n  - url: https://x/pull/1")).toEqual([
-      { url: "https://x/pull/1", title: undefined, branch: undefined, status: undefined, notes: undefined },
+      {
+        url: "https://x/pull/1",
+        title: undefined,
+        branch: undefined,
+        base: undefined,
+        status: undefined,
+        description: undefined,
+        history: [],
+      },
     ]);
   });
 });
@@ -170,14 +188,17 @@ describe("refreshPrsYml", () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
-  it("updates statuses while preserving comments and notes", async () => {
+  it("updates statuses while preserving comments, description, and history", async () => {
     const yml = [
       "# stack note",
       "prs:",
       "  - url: https://github.com/clay-run/clay-base/pull/100",
       '    title: "feat: thing"',
       "    status: draft",
-      '    notes: "important context"',
+      '    description: "important context"',
+      "    history:",
+      "      - at: 2026-06-22",
+      '        note: "Opened."',
       "  - url: https://github.com/clay-run/clay-base/pull/200",
       "    status: open",
       "# trailing comment",
@@ -195,7 +216,8 @@ describe("refreshPrsYml", () => {
     const written = await fs.readFile(path.join(dir, "prs.yml"), "utf-8");
     expect(written).toContain("# stack note");
     expect(written).toContain("# trailing comment");
-    expect(written).toContain('notes: "important context"');
+    expect(written).toContain('description: "important context"');
+    expect(written).toContain('note: "Opened."');
     expect(written).toContain("status: merged");
   });
 

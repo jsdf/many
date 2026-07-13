@@ -31,13 +31,21 @@ export interface ProjectLink {
   isUrl: boolean;
 }
 
+// One dated entry from a PR's `history` list in prs.yml.
+export interface ProjectPrHistoryEntry {
+  at?: string;
+  note: string;
+}
+
 // One entry from a project's prs.yml.
 export interface ProjectPr {
   url: string;
   title?: string;
   branch?: string;
+  base?: string;
   status?: string;
-  notes?: string;
+  description?: string;
+  history: ProjectPrHistoryEntry[];
 }
 
 // One entry from a project's tasks.yml.

@@ -3,7 +3,14 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { parse as parseYaml, parseDocument, isSeq, isMap } from "yaml";
-import type { ProjectEnv, ProjectLink, ProjectMetadata, ProjectPr, ProjectTask } from "../shared/protocol.js";
+import type {
+  ProjectEnv,
+  ProjectLink,
+  ProjectMetadata,
+  ProjectPr,
+  ProjectPrHistoryEntry,
+  ProjectTask,
+} from "../shared/protocol.js";
 
 const _exec = promisify(exec);
 const userShell = process.env.SHELL || "/bin/bash";
@@ -82,9 +89,25 @@ export function parsePrsYml(content: string): ProjectPr[] {
     url: coerceStr(item.url) ?? "",
     title: coerceStr(item.title),
     branch: coerceStr(item.branch),
+    base: coerceStr(item.base),
     status: coerceStr(item.status),
-    notes: coerceStr(item.notes),
+    description: coerceStr(item.description),
+    history: parseHistory(item.history),
   }));
+}
+
+// Parses a PR's `history` list into dated notes, dropping entries without a
+// note. Absent or malformed history yields an empty list.
+function parseHistory(raw: unknown): ProjectPrHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const entries: ProjectPrHistoryEntry[] = [];
+  for (const item of raw) {
+    if (!isObject(item)) continue;
+    const note = coerceStr(item.note);
+    if (note === undefined) continue;
+    entries.push({ at: coerceStr(item.at), note });
+  }
+  return entries;
 }
 
 export function parseTasksYml(content: string): ProjectTask[] {
@@ -153,8 +176,8 @@ const ghFetchPrStatus: PrStatusFetcher = async (url) => {
 };
 
 // Refetches the live state of every GitHub PR listed in a project's prs.yml and
-// writes the updated `status` back into the file, preserving comments, notes,
-// and formatting via the YAML document API. PRs whose URL isn't a viewable
+// writes the updated `status` back into the file, preserving comments,
+// description, history, and formatting via the YAML document API. PRs whose URL isn't a viewable
 // GitHub PR are skipped; per-PR fetch failures are collected and reported
 // rather than aborting the whole refresh. Returns the re-read metadata.
 export async function refreshPrsYml(

@@ -84,23 +84,51 @@ const Section: React.FC<{
   );
 };
 
-const PrRow: React.FC<{ pr: ProjectPr }> = ({ pr }) => (
-  <div
-    className={`bg-base-200 border border-base-300 rounded-lg p-3 ${pr.url ? "hover:border-primary/50 cursor-pointer" : ""}`}
-    onClick={() => pr.url && openUrl(pr.url)}
-  >
-    <div className="flex items-center gap-2 mb-1 min-w-0">
-      {pr.status && <span className={`badge badge-xs shrink-0 ${prStatusBadge(pr.status)}`}>{pr.status}</span>}
-      {pr.branch && (
-        <span className="text-xs text-base-content/50 font-mono truncate min-w-0">{pr.branch}</span>
+const PrRow: React.FC<{ pr: ProjectPr }> = ({ pr }) => {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = Boolean(pr.description) || pr.history.length > 0;
+  return (
+    <div
+      className={`bg-base-200 border border-base-300 rounded-lg p-3 ${pr.url ? "hover:border-primary/50 cursor-pointer" : ""}`}
+      onClick={() => pr.url && openUrl(pr.url)}
+    >
+      <div className="flex items-center gap-2 mb-1 min-w-0">
+        {pr.status && <span className={`badge badge-xs shrink-0 ${prStatusBadge(pr.status)}`}>{pr.status}</span>}
+        {pr.branch && (
+          <span className="text-xs text-base-content/50 font-mono truncate min-w-0">{pr.branch}</span>
+        )}
+      </div>
+      <p className="text-sm text-base-content/80 m-0 line-clamp-2">
+        {pr.title || pr.url || <span className="italic text-base-content/40">Untitled PR</span>}
+      </p>
+      {pr.description && (
+        <p className={`text-xs text-base-content/50 mt-1 ${expanded ? "" : "line-clamp-2"}`}>{pr.description}</p>
+      )}
+      {expanded && pr.history.length > 0 && (
+        <ul className="mt-2 space-y-1 border-l border-base-300 pl-2">
+          {pr.history.map((h, i) => (
+            <li key={i} className="text-xs text-base-content/50">
+              {h.at && <span className="font-mono text-base-content/40 mr-1">{h.at}</span>}
+              {h.note}
+            </li>
+          ))}
+        </ul>
+      )}
+      {hasDetail && (
+        <button
+          type="button"
+          className="text-xs text-base-content/40 hover:text-base-content/70 mt-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+        >
+          {expanded ? "Show less" : pr.history.length > 0 ? `Show history (${pr.history.length})` : "Show more"}
+        </button>
       )}
     </div>
-    <p className="text-sm text-base-content/80 m-0 line-clamp-2">
-      {pr.title || pr.url || <span className="italic text-base-content/40">Untitled PR</span>}
-    </p>
-    {pr.notes && <p className="text-xs text-base-content/50 mt-1 line-clamp-2">{pr.notes}</p>}
-  </div>
-);
+  );
+};
 
 const TaskRow: React.FC<{ task: ProjectTask }> = ({ task }) => (
   <div
