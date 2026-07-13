@@ -279,6 +279,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   const [effort, setEffort] = useState<ClaudeUiEffort>("default");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hasPromptRef = useRef(false);
 
   // Keep the latest onTitleChange in a ref so the subscription effect below can
   // call it without listing it as a dependency. The parent passes a fresh inline
@@ -304,6 +305,11 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   useEffect(() => {
     let mounted = true;
     setItems([]);
+    // Whether we've seen a prompt yet this attach; the first one provisionally
+    // titles the pane. Tracked in a ref (not derived inside the setItems updater)
+    // because a state updater must be pure — calling the parent's onTitleChange
+    // from inside it updates TerminalStack while ClaudeUiTab is rendering.
+    hasPromptRef.current = false;
 
     const unsubscribe = getRpcClient().subscribe(
       "claudeui.events",
@@ -325,12 +331,11 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
           return;
         }
         if (event.type === "prompt") {
-          setItems((prev) => {
-            if (prev.filter((i) => i.kind === "prompt").length === 0) {
-              onTitleChangeRef.current?.(event.text.length > 60 ? event.text.slice(0, 60) + "..." : event.text);
-            }
-            return [...prev, { kind: "prompt", id: nextId(), text: event.text, ts: event.ts }];
-          });
+          if (!hasPromptRef.current) {
+            hasPromptRef.current = true;
+            onTitleChangeRef.current?.(event.text.length > 60 ? event.text.slice(0, 60) + "..." : event.text);
+          }
+          setItems((prev) => [...prev, { kind: "prompt", id: nextId(), text: event.text, ts: event.ts }]);
         }
         if (event.type === "assistant" && event.content.length > 0) {
           setItems((prev) => [...prev, { kind: "assistant", id: nextId(), content: event.content, ts: event.ts }]);
@@ -397,6 +402,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
 
   const reset = useCallback(() => {
     setItems([]);
+    hasPromptRef.current = false;
     onTitleChange?.("");
     getRpcClient().query("claudeui.reset", { sessionId }).catch(() => {});
   }, [sessionId, onTitleChange]);
