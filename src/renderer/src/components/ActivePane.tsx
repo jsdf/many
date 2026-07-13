@@ -212,6 +212,12 @@ const ActivePane: React.FC<ActivePaneProps> = ({
                     <span className={`shrink-0 max-w-[45%] truncate mr-1.5 ${focused ? "text-base-100/70" : "text-base-content/50"}`}>
                       {baseName(item.worktreePath)}
                     </span>
+                    {item.needsAttention && (
+                      <span
+                        className={`shrink-0 w-2 h-2 rounded-full mr-1.5 ${focused ? "bg-base-100" : "bg-warning"}`}
+                        title="Activity since last interaction"
+                      />
+                    )}
                     <span className="flex-1 truncate">
                       {item.kind === "terminal" ? (item.title ? `Terminal ${item.terminalNumber}: ${item.title}` : `Terminal ${item.terminalNumber}`) : item.label}
                     </span>

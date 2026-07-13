@@ -30,6 +30,9 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
 }) => {
   const { expanded, childrenByDir, loading, expandDir, handleToggleDir } = useFsTree();
   const openFile = useOpenFile();
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => localStorage.getItem("worktreeFilesCollapsed") === "true",
+  );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; row: FileTreeRow } | null>(null);
   const [fsAction, setFsAction] = useState<FsAction | null>(null);
@@ -130,22 +133,37 @@ const WorktreeFileTree: React.FC<WorktreeFileTreeProps> = ({
     [worktreePath],
   );
 
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("worktreeFilesCollapsed", String(next));
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 mb-1">
-      <div className="px-1 mb-1 text-[10px] font-semibold text-base-content/50 uppercase tracking-wide">
+    <div className={`${collapsed ? "" : "flex-1"} flex flex-col min-h-0 mb-1`}>
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        className="flex items-center gap-1 px-1 mb-1 text-[10px] font-semibold text-base-content/50 uppercase tracking-wide hover:text-base-content/80"
+      >
+        <span className={`transition-transform ${collapsed ? "" : "rotate-90"}`}>▶</span>
         Files
-      </div>
-      <FileTree
-        rows={rows}
-        selectedPath={selectedPath ?? undefined}
-        worktreeActivity={worktreeActivity}
-        isExpanded={(row) => expanded.has(row.entry.path)}
-        isLoading={(row) => loading.has(row.entry.path)}
-        onRowClick={handleRowClick}
-        onToggleCaret={handleToggleCaret}
-        onContextMenu={handleContextMenu}
-        virtualized
-      />
+      </button>
+      {!collapsed && (
+        <FileTree
+          rows={rows}
+          selectedPath={selectedPath ?? undefined}
+          worktreeActivity={worktreeActivity}
+          isExpanded={(row) => expanded.has(row.entry.path)}
+          isLoading={(row) => loading.has(row.entry.path)}
+          onRowClick={handleRowClick}
+          onToggleCaret={handleToggleCaret}
+          onContextMenu={handleContextMenu}
+          virtualized
+        />
+      )}
 
       {menu && (
         <ContextMenu

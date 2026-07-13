@@ -238,9 +238,13 @@ export interface ClaudeUiTabHandle {
 interface ClaudeUiTabProps {
   sessionId: string;
   onTitleChange?: (title: string) => void;
+  // Called when a turn completes (needs attention) / when the user sends a
+  // message (attention cleared), to drive the pane title indicator.
+  onAttention?: () => void;
+  onClearAttention?: () => void;
 }
 
-const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ sessionId, onTitleChange }, ref) {
+const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ sessionId, onTitleChange, onAttention, onClearAttention }, ref) {
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -258,6 +262,14 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+
+  // Same ref indirection as onTitleChange: the subscription effect must not
+  // depend on this inline callback, or every attention update would tear down
+  // and replay the subscription.
+  const onAttentionRef = useRef(onAttention);
+  useEffect(() => {
+    onAttentionRef.current = onAttention;
+  }, [onAttention]);
 
   // Attach to the (server-owned) session and replay its buffered transcript.
   // The session outlives this component, so we never create or close it here —
@@ -301,6 +313,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
         }
         if (event.type === "result") {
           setItems((prev) => [...prev, { kind: "result", id: nextId(), isError: event.isError, costUsd: event.costUsd, durationMs: event.durationMs }]);
+          onAttentionRef.current?.();
         }
         if (event.type === "error") {
           setItems((prev) => [...prev, { kind: "error", id: nextId(), message: event.message }]);
@@ -326,6 +339,7 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
     const text = input.trim();
     if (!text) return;
     setInput("");
+    onClearAttention?.();
     // The prompt is rendered from the server's echoed "prompt" event so it
     // also replays on reconnect, rather than being added optimistically here.
     getRpcClient().query("claudeui.send", { sessionId, prompt: text }).catch((err) => {

@@ -61,7 +61,7 @@ describe("ClaudeUiManager", () => {
 
   it("create spawns a session and is idle (no turn sent)", () => {
     const info = mgr.create("s1", "/wt", "claude");
-    expect(info).toEqual({ sessionId: "s1", worktreePath: "/wt", title: undefined });
+    expect(info).toEqual({ sessionId: "s1", worktreePath: "/wt", title: undefined, needsAttention: false });
     expect(h.sessions).toHaveLength(1);
     expect(h.sessions[0].prompts).toEqual([]);
   });
@@ -113,7 +113,7 @@ describe("ClaudeUiManager", () => {
   it("resume seeds the buffer with the provided transcript and does not respawn if already live", () => {
     const seed: ClaudeUiEvent[] = [{ type: "prompt", text: "earlier prompt" }];
     const info = mgr.resume("s1", "/wt", seed, { title: "earlier prompt", firstPrompt: "earlier prompt" });
-    expect(info).toEqual({ sessionId: "s1", worktreePath: "/wt", title: "earlier prompt" });
+    expect(info).toEqual({ sessionId: "s1", worktreePath: "/wt", title: "earlier prompt", needsAttention: false });
     expect(replay(mgr, "s1")).toEqual(seed);
     expect(h.sessions[0].options).toMatchObject({ resume: "s1" });
 

@@ -1,5 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
-import { TerminalManager } from "./terminal-manager.js";
+import { TerminalManager, detectBell } from "./terminal-manager.js";
+
+describe("detectBell", () => {
+  // detectBell reads/writes the parser state on a session-like object.
+  const makeState = () => ({ bellState: 0 }) as { bellState: number };
+
+  it("detects a bare BEL as a real bell", () => {
+    expect(detectBell(makeState() as any, "hi\x07there")).toBe(true);
+  });
+
+  it("ignores a BEL that terminates an OSC title sequence", () => {
+    // OSC 0 ; title BEL — the trailing \x07 is the string terminator, not a bell.
+    expect(detectBell(makeState() as any, "\x1b]0;my title\x07")).toBe(false);
+  });
+
+  it("ignores a BEL terminating an OSC 8 hyperlink but catches a real one after", () => {
+    const s = makeState();
+    expect(detectBell(s as any, "\x1b]8;;https://example.com\x07link\x1b]8;;\x07")).toBe(false);
+    expect(detectBell(s as any, "done\x07")).toBe(true);
+  });
+
+  it("handles an OSC sequence split across chunks without a false positive", () => {
+    const s = makeState();
+    expect(detectBell(s as any, "\x1b]0;partial")).toBe(false);
+    // The terminating BEL arrives in the next chunk; still not a real bell.
+    expect(detectBell(s as any, " title\x07")).toBe(false);
+  });
+
+  it("treats a BEL after an ST-terminated OSC as a real bell", () => {
+    // OSC ... ST (ESC \) closes the string; the following BEL is a real bell.
+    expect(detectBell(makeState() as any, "\x1b]0;t\x1b\\\x07")).toBe(true);
+  });
+});
 
 describe("TerminalManager.createSession", () => {
   it("rejects an empty/invalid terminalId instead of spawning a null-keyed session", () => {

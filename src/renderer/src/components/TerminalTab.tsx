@@ -16,6 +16,8 @@ interface TerminalTabProps {
   taskId?: string;
   claudeSessionId?: string;
   onTitleChange?: (title: string) => void;
+  onBell?: () => void;
+  onInput?: () => void;
 }
 
 const MONOSPACE_FONT =
@@ -87,6 +89,8 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
   taskId,
   claudeSessionId,
   onTitleChange,
+  onBell,
+  onInput,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -146,6 +150,8 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
         (event: TerminalEvent) => {
           if (event.type === "data" || event.type === "buffered") {
             xterm.write(event.data);
+          } else if (event.type === "bell") {
+            onBell?.();
           } else if (event.type === "exit") {
             xterm.write("\r\n[Terminal session ended]\r\n");
           }
@@ -172,6 +178,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({
 
     // Send user input to server
     const dataDisposable = xterm.onData((data) => {
+      onInput?.();
       getRpcClient().query("terminal.input", { terminalId, data });
     });
 

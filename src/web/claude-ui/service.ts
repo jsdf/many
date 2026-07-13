@@ -40,9 +40,14 @@ export class ClaudeUiService {
     return sessionId;
   }
 
-  async list(worktreePath: string): Promise<{ sessionId: string; title?: string }[]> {
+  async list(worktreePath: string): Promise<{ sessionId: string; title?: string; needsAttention?: boolean }[]> {
     const sessions = await this.client.claudeUiList(worktreePath);
-    return sessions.map((s) => ({ sessionId: s.sessionId, title: s.title }));
+    return sessions.map((s) => ({ sessionId: s.sessionId, title: s.title, needsAttention: s.needsAttention }));
+  }
+
+  async listAll(): Promise<{ sessionId: string; worktreePath: string; title?: string; needsAttention?: boolean }[]> {
+    const sessions = await this.client.claudeUiListAll();
+    return sessions.map((s) => ({ sessionId: s.sessionId, worktreePath: s.worktreePath, title: s.title, needsAttention: s.needsAttention }));
   }
 
   async send(sessionId: string, prompt: string): Promise<void> {

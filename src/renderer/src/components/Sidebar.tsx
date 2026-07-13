@@ -192,11 +192,12 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   const [viewMode, setViewMode] = useState<"worktrees" | "sessions">("worktrees");
   const [selectedRecentKey, setSelectedRecentKey] = useState<string | null>(null);
   const [recentTerminals, setRecentTerminals] = useState<
-    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string }[]
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; needsAttention: boolean }[]
   >([]);
   const [recentSessions, setRecentSessions] = useState<
     { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
   >([]);
+  const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
 
   const worktreePaths = useMemo(() => new Set(worktrees.map((w) => w.path)), [worktrees]);
 
@@ -207,13 +208,15 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
       const client = getRpcClient();
       const rootPaths = worktrees.map((w) => w.path);
       try {
-        const [terminals, sessions] = await Promise.all([
+        const [terminals, sessions, claudeUi] = await Promise.all([
           client.query("terminal.listAll", {}),
           client.query("claude.recentSessions", { rootPaths, limit: 20 }),
+          client.query("claudeui.listAll", {}),
         ]);
         if (!cancelled) {
           setRecentTerminals(terminals);
           setRecentSessions(sessions);
+          setAttentionSessionIds(new Set(claudeUi.filter((s) => s.needsAttention).map((s) => s.sessionId)));
         }
       } catch {}
     };
@@ -223,8 +226,8 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
   }, [viewMode, worktrees]);
 
   type RecentItem =
-    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number }
-    | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
+    | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number; needsAttention: boolean }
+    | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string; needsAttention: boolean };
 
   const recentItems = useMemo<RecentItem[]>(() => {
     const byWorktree = new Map<string, { terminalId: string; createdAt: number }[]>();
@@ -249,6 +252,7 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
         worktreePath: t.worktreePath,
         title: t.title,
         terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
+        needsAttention: t.needsAttention,
       });
     }
     for (const s of recentSessions) {
@@ -259,10 +263,11 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
         worktreePath: s.worktreePath,
         sessionType: s.sessionType,
         label: (s.summary || s.firstPrompt || "").replace(/<[^>]+>/g, "").trim() || "Claude session",
+        needsAttention: attentionSessionIds.has(s.sessionId),
       });
     }
     return items.sort((a, b) => b.recency - a.recency);
-  }, [recentTerminals, recentSessions, worktreePaths]);
+  }, [recentTerminals, recentSessions, attentionSessionIds, worktreePaths]);
 
   const baseName = (p: string) => {
     const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
@@ -709,6 +714,12 @@ const WorktreesTab: React.FC<WorktreesTabProps> = ({
                     <span className="shrink-0 max-w-[45%] truncate text-base-content/50 mr-1.5">
                       {baseName(item.worktreePath)}
                     </span>
+                    {item.needsAttention && (
+                      <span
+                        className="shrink-0 w-2 h-2 rounded-full mr-1.5 bg-warning"
+                        title="Activity since last interaction"
+                      />
+                    )}
                     <span className="flex-1 truncate">
                       {item.kind === "terminal"
                         ? item.title

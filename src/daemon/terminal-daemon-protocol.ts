@@ -27,6 +27,9 @@ export interface ClaudeUiInfoWire {
   sessionId: string;
   worktreePath: string;
   title?: string;
+  // True when the session finished a turn (result) since the user last sent a
+  // message. Drives the "needs attention" indicator.
+  needsAttention?: boolean;
 }
 
 export type ClaudeUiWireEvent = { type: "claudeUi"; event: ClaudeUiEvent };

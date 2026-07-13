@@ -30,6 +30,8 @@ interface ManagedSession {
   firstPrompt?: string;
   // Whether a generated title has already been requested for this session.
   titleRequested?: boolean;
+  // True when a turn completed (result) since the user last sent a message.
+  needsAttention: boolean;
   listeners: Set<(e: ClaudeUiEvent) => void>;
 }
 
@@ -91,12 +93,16 @@ export class ClaudeUiManager {
       buffer: opts.seed ? [...opts.seed] : [],
       title: opts.title,
       firstPrompt: opts.firstPrompt,
+      needsAttention: false,
       listeners: new Set(),
     };
 
     session.on("event", (evt: ClaudeEvent) => {
       const uiEvent = mapClaudeEvent(evt);
       if (uiEvent) this.push(managed, uiEvent);
+      // A completed turn is the "stop" signal: flag the session for attention
+      // until the user sends the next message.
+      if (evt.type === "result") managed.needsAttention = true;
       // After the first turn completes the session has context, so ask the CLI
       // for a concise title and broadcast it as a transcript event.
       if (evt.type === "result" && !managed.titleRequested && managed.firstPrompt) {
@@ -131,6 +137,8 @@ export class ClaudeUiManager {
   send(sessionId: string, prompt: string): void {
     const managed = this.sessions.get(sessionId);
     if (!managed) throw new Error(`Claude UI session ${sessionId} not found`);
+    // Sending a new message clears the pending "stop" indicator.
+    managed.needsAttention = false;
     if (!managed.firstPrompt) managed.firstPrompt = prompt;
     if (!managed.title) managed.title = prompt.length > 60 ? prompt.slice(0, 60) + "..." : prompt;
     // Buffer the user's prompt as a transcript event so it replays on reconnect.
@@ -172,6 +180,7 @@ export class ClaudeUiManager {
     managed.title = undefined;
     managed.firstPrompt = undefined;
     managed.titleRequested = false;
+    managed.needsAttention = false;
     managed.session.reset();
   }
 
@@ -201,7 +210,7 @@ export class ClaudeUiManager {
   }
 
   private toInfo(sessionId: string, managed: ManagedSession): ClaudeUiInfoWire {
-    return { sessionId, worktreePath: managed.worktreePath, title: managed.title };
+    return { sessionId, worktreePath: managed.worktreePath, title: managed.title, needsAttention: managed.needsAttention };
   }
 
   private push(managed: ManagedSession, event: ClaudeUiEvent): void {

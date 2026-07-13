@@ -20,6 +20,12 @@ interface TerminalSession {
   lastInputAt: number;
   // Last time output data was received from the PTY.
   lastDataAt: number;
+  // Timestamp of the last real terminal bell (BEL) since the user last typed.
+  // 0 means "no pending bell". Drives the "needs attention" indicator.
+  bellAt: number;
+  // Incremental parser state for bell detection across data chunks, so a BEL
+  // that terminates an OSC/string escape sequence isn't mistaken for a real bell.
+  bellState: number;
   // Window title set by the shell/program via OSC 0/2 escape sequences.
   title?: string;
   // User-assigned persistent label (overrides the default "Terminal N" display).
@@ -37,6 +43,7 @@ interface TerminalSession {
   maxBlockSize: number;
   dataListeners: Set<(data: string) => void>;
   exitListeners: Set<() => void>;
+  bellListeners: Set<() => void>;
   logFileHandle?: fs.FileHandle;
   logBytesWritten: number;
   // While an auto-run initial command is pending, user keystrokes are buffered
@@ -54,6 +61,45 @@ export interface TerminalSessionInfo {
   userLabel?: string;
   taskId?: string;
   claudeSessionId?: string;
+  // True when a bell has rung since the user last typed into this terminal.
+  needsAttention: boolean;
+}
+
+// Detect a real terminal bell (BEL, \x07) in a data chunk, ignoring BELs that
+// terminate an OSC/DCS/APC/PM/SOS string escape sequence (where BEL is the
+// string terminator, not an audible/visual bell). State is carried across chunks
+// via `session.bellState` so sequences split across reads are handled correctly.
+// States: 0 normal, 1 after ESC, 2 inside string sequence, 3 after ESC in string.
+export function detectBell(session: TerminalSession, data: string): boolean {
+  let bell = false;
+  let state = session.bellState;
+  for (let i = 0; i < data.length; i++) {
+    const c = data.charCodeAt(i);
+    switch (state) {
+      case 0: // normal
+        if (c === 0x07) bell = true;
+        else if (c === 0x1b) state = 1;
+        break;
+      case 1: // after ESC
+        // OSC (]), DCS (P), SOS (X), PM (^), APC (_) begin a string sequence
+        // whose payload may contain a BEL terminator.
+        if (c === 0x5d || c === 0x50 || c === 0x58 || c === 0x5e || c === 0x5f) state = 2;
+        else if (c === 0x1b) state = 1;
+        else state = 0;
+        break;
+      case 2: // inside string sequence
+        if (c === 0x07) state = 0; // BEL terminates the string; not a real bell
+        else if (c === 0x1b) state = 3;
+        break;
+      case 3: // ESC inside string sequence
+        if (c === 0x5c) state = 0; // ST (ESC \) terminates the string
+        else if (c === 0x1b) state = 3;
+        else state = 2;
+        break;
+    }
+  }
+  session.bellState = state;
+  return bell;
 }
 
 // Pick up the latest OSC 0/1/2 window-title sequence from a session's output,
@@ -126,6 +172,8 @@ export class TerminalManager {
       createdAt: now,
       lastInputAt: now,
       lastDataAt: now,
+      bellAt: 0,
+      bellState: 0,
       titleBuf: "",
       outputBlocks: [],
       currentBlockData: "",
@@ -133,6 +181,7 @@ export class TerminalManager {
       maxBlockSize: 1000,
       dataListeners: new Set(),
       exitListeners: new Set(),
+      bellListeners: new Set(),
       logBytesWritten: 0,
       taskId,
       claudeSessionId,
@@ -175,6 +224,10 @@ export class TerminalManager {
     ptyProcess.onData((data: string) => {
       session.lastDataAt = Date.now();
       updateTitle(session, data);
+      if (detectBell(session, data)) {
+        session.bellAt = Date.now();
+        for (const listener of session.bellListeners) listener();
+      }
       this.appendOutput(session, data);
       if (session.logFileHandle && session.logBytesWritten < MAX_LOG_BYTES) {
         const bytes = Buffer.byteLength(data, "utf8");
@@ -207,6 +260,8 @@ export class TerminalManager {
     const session = this.sessions.get(terminalId);
     if (session) {
       session.lastInputAt = Date.now();
+      // Typing into the terminal clears the pending bell indicator.
+      session.bellAt = 0;
       if (session.inputBuffer) {
         session.inputBuffer.push(data);
         return;
@@ -280,6 +335,7 @@ export class TerminalManager {
         userLabel: session.userLabel,
         taskId: session.taskId,
         claudeSessionId: session.claudeSessionId,
+        needsAttention: session.bellAt > 0,
       });
     }
     return result;
@@ -319,6 +375,20 @@ export class TerminalManager {
     const session = this.sessions.get(terminalId);
     if (session) {
       session.exitListeners.delete(listener);
+    }
+  }
+
+  addBellListener(terminalId: string, listener: () => void): void {
+    const session = this.sessions.get(terminalId);
+    if (session) {
+      session.bellListeners.add(listener);
+    }
+  }
+
+  removeBellListener(terminalId: string, listener: () => void): void {
+    const session = this.sessions.get(terminalId);
+    if (session) {
+      session.bellListeners.delete(listener);
     }
   }
 

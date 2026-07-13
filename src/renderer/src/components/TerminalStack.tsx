@@ -106,22 +106,59 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const [sizes, setSizes] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
   const [terminalTitles, setTerminalTitles] = useState<Record<string, string>>({});
+  // Terminal/Claude tabs that rang a bell (or finished a Claude turn) and haven't
+  // been interacted with since. Drives the attention dot in each pane's title.
+  const [bellIds, setBellIds] = useState<Set<string>>(new Set());
+  const markBell = useCallback((terminalId: string) => {
+    setBellIds((prev) => (prev.has(terminalId) ? prev : new Set(prev).add(terminalId)));
+  }, []);
+  const clearBell = useCallback((terminalId: string) => {
+    setBellIds((prev) => {
+      if (!prev.has(terminalId)) return prev;
+      const next = new Set(prev);
+      next.delete(terminalId);
+      return next;
+    });
+  }, []);
   const [userLabels, setUserLabels] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [maximizedId, setMaximizedId] = useState<string | null>(null);
-  const [minimizedIds, setMinimizedIds] = useState<Set<string>>(new Set());
-  const [serifIds, setSerifIds] = useState<Set<string>>(new Set());
+  const [maximizedId, setMaximizedId] = useState<string | null>(
+    () => localStorage.getItem(`terminalMaximized:${worktreePath}`) || null,
+  );
+  const [minimizedIds, setMinimizedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(`terminalMinimized:${worktreePath}`);
+      return raw ? new Set<string>(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [serif, setSerif] = useState<boolean>(
+    () => localStorage.getItem("terminalSerif") === "1",
+  );
   // Terminals currently showing the formatted transcript view instead of the
   // live xterm. Only applies to terminals with a known claudeSessionId.
   const [historyViewIds, setHistoryViewIds] = useState<Set<string>>(new Set());
   const focusedId = useFocusedTerminal();
 
-  const toggleSerif = useCallback((terminalId: string) => {
-    setSerifIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(terminalId)) next.delete(terminalId);
-      else next.add(terminalId);
+  // Persist maximize/minimize state so it survives MainContent unmounting when
+  // switching to the Projects tab and back. Terminal ids are stable (restored
+  // from server sessions), so the stored ids still match after a remount.
+  useEffect(() => {
+    if (maximizedId) localStorage.setItem(`terminalMaximized:${worktreePath}`, maximizedId);
+    else localStorage.removeItem(`terminalMaximized:${worktreePath}`);
+  }, [maximizedId, worktreePath]);
+  useEffect(() => {
+    if (minimizedIds.size > 0)
+      localStorage.setItem(`terminalMinimized:${worktreePath}`, JSON.stringify([...minimizedIds]));
+    else localStorage.removeItem(`terminalMinimized:${worktreePath}`);
+  }, [minimizedIds, worktreePath]);
+
+  const toggleSerif = useCallback(() => {
+    setSerif((prev) => {
+      const next = !prev;
+      localStorage.setItem("terminalSerif", next ? "1" : "0");
       return next;
     });
   }, []);
@@ -377,6 +414,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
           // Session may already be dead
         }
       }
+      clearBell(terminalId);
       setMaximizedId((prev) => (prev === terminalId ? null : prev));
       setMinimizedIds((prev) => {
         if (!prev.has(terminalId)) return prev;
@@ -464,6 +502,13 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-base-100 border-b border-base-300 shrink-0">
         <span className="text-sm text-base-content/60 font-medium">Terminals</span>
         <div className="flex gap-1">
+          <button
+            className={`btn btn-xs ${serif ? 'btn-neutral' : 'btn-outline btn-neutral'}`}
+            onClick={toggleSerif}
+            title={serif ? "Switch all terminals to monospace font" : "Switch all terminals to serif font"}
+          >
+            <Type size={14} />
+          </button>
           <button className="btn btn-outline btn-neutral btn-xs" onClick={openClaudeUiSession}>
             + Claude (UI)
           </button>
@@ -569,6 +614,12 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   }
                   return (
                     <span className={`flex items-center gap-1 min-w-0 ${isFocused ? 'text-base-100' : ''}`}>
+                      {bellIds.has(term.id) && (
+                        <span
+                          className="shrink-0 w-2 h-2 rounded-full bg-warning"
+                          title="Activity since last interaction"
+                        />
+                      )}
                       <span className={`text-xs truncate ${isFocused ? 'text-base-100' : 'text-base-content/60'}`}>{displayTitle}</span>
                       {isRenameable && (
                         <button
@@ -607,15 +658,6 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                       {historyViewIds.has(term.id) ? <SquareTerminal size={14} /> : <MessageSquareText size={14} />}
                     </button>
                   )}
-                  {!term.isTaskLog && !term.isSavedLog && !term.isSessionHistory && !term.isClaudeUi && (
-                    <button
-                      className="btn btn-ghost btn-xs"
-                      onClick={() => toggleSerif(term.id)}
-                      title={serifIds.has(term.id) ? "Switch to monospace font" : "Switch to serif font"}
-                    >
-                      <Type size={14} />
-                    </button>
-                  )}
                   {!fixedTerminalHeight && !isMaximized && (
                     <button
                       className="btn btn-ghost btn-xs"
@@ -649,6 +691,8 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}
                     sessionId={term.sessionId}
                     onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
+                    onAttention={() => markBell(term.id)}
+                    onClearAttention={() => clearBell(term.id)}
                   />
                 ) : term.isSessionHistory && term.sessionId ? (
                   <SessionHistoryTab
@@ -670,12 +714,14 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                     terminalId={term.id}
                     worktreePath={worktreePath}
                     isVisible={true}
-                    serif={serifIds.has(term.id)}
+                    serif={serif}
                     claudeSessionId={term.claudeSessionId}
                     env={term.env}
                     initialCommand={term.initialCommand}
                     taskId={term.taskId}
                     onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
+                    onBell={() => markBell(term.id)}
+                    onInput={() => clearBell(term.id)}
                   />
                 )}
               </div>

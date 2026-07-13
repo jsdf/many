@@ -19,6 +19,7 @@ class FakeManager implements DaemonManager {
       buffered: string;
       dataListeners: Set<(d: string) => void>;
       exitListeners: Set<() => void>;
+      bellListeners: Set<() => void>;
     }
   >();
   inputs: Array<{ terminalId: string; data: string }> = [];
@@ -33,6 +34,7 @@ class FakeManager implements DaemonManager {
       buffered: "",
       dataListeners: new Set(),
       exitListeners: new Set(),
+      bellListeners: new Set(),
     });
     return false;
   }
@@ -60,6 +62,7 @@ class FakeManager implements DaemonManager {
       createdAt: 0,
       lastInputAt: 0,
       lastDataAt: 0,
+      needsAttention: false,
     }));
   }
   getSessionCountsByWorktree(): Record<string, number> {
@@ -98,6 +101,12 @@ class FakeManager implements DaemonManager {
   removeExitListener(terminalId: string, listener: () => void): void {
     this.sessions.get(terminalId)?.exitListeners.delete(listener);
   }
+  addBellListener(terminalId: string, listener: () => void): void {
+    this.sessions.get(terminalId)?.bellListeners.add(listener);
+  }
+  removeBellListener(terminalId: string, listener: () => void): void {
+    this.sessions.get(terminalId)?.bellListeners.delete(listener);
+  }
   cleanup(): void {
     this.sessions.clear();
   }
@@ -114,6 +123,11 @@ class FakeManager implements DaemonManager {
     if (!s) return;
     for (const l of s.exitListeners) l();
     this.sessions.delete(terminalId);
+  }
+  emitBell(terminalId: string): void {
+    const s = this.sessions.get(terminalId);
+    if (!s) return;
+    for (const l of s.bellListeners) l();
   }
 }
 
@@ -201,6 +215,15 @@ describe("TerminalManagerClient against a fake daemon", () => {
       { type: "data", data: "LIVE" },
       { type: "exit" },
     ]);
+  });
+
+  it("subscribe forwards bell events", async () => {
+    await client.createSession("t1", "/wt", 80, 24);
+    const events: TerminalEvent[] = [];
+    await client.subscribe("t1", (e) => events.push(e));
+    manager.emitBell("t1");
+    await waitFor(() => events.some((e) => e.type === "bell"));
+    expect(events).toEqual([{ type: "bell" }]);
   });
 
   it("subscribe with no buffered output only delivers live events", async () => {

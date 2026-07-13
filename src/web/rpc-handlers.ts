@@ -1114,6 +1114,9 @@ export function createQueryHandlers(opts: {
       const { worktreePath } = input as { worktreePath: string };
       return await claudeUiService.list(worktreePath);
     },
+    "claudeui.listAll": async () => {
+      return await claudeUiService.listAll();
+    },
     "claudeui.setPermissionMode": async (input) => {
       const { sessionId, mode } = input as { sessionId: string; mode: ClaudeUiPermissionMode };
       await claudeUiService.setPermissionMode(sessionId, mode);

@@ -5,8 +5,8 @@ import { ProjectEntry } from "../types";
 // Unified "recent" item: a project-attached terminal or a recent Claude
 // session for one of those projects.
 export type RecentItem =
-  | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number; claudeSessionId?: string }
-  | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string };
+  | { kind: "terminal"; recency: number; terminalId: string; worktreePath: string; title?: string; terminalNumber: number; claudeSessionId?: string; needsAttention: boolean }
+  | { kind: "claude"; recency: number; sessionId: string; worktreePath: string; sessionType?: "chat" | "claude-code"; label: string; needsAttention: boolean };
 
 // Polls the live terminals and recent Claude sessions while `activeMode` is
 // "recent", and derives the unified, pin-sorted recent list (newest first)
@@ -17,11 +17,14 @@ export function useRecentItems(
   pinnedSessions: string[],
 ): RecentItem[] {
   const [recentTerminals, setRecentTerminals] = useState<
-    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; claudeSessionId?: string }[]
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; claudeSessionId?: string; needsAttention: boolean }[]
   >([]);
   const [recentSessions, setRecentSessions] = useState<
     { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
   >([]);
+  // Live Claude UI sessions, so a finished ("stop") session can be flagged in the
+  // list. Keyed to the matching on-disk session by sessionId.
+  const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
 
   // Poll the live terminals and recent Claude sessions while showing the
   // "recent" view. A terminal's recency is the newer of its last user input and
@@ -33,13 +36,15 @@ export function useRecentItems(
       const client = getRpcClient();
       const rootPaths = projects.map((p) => p.path);
       try {
-        const [terminals, sessions] = await Promise.all([
+        const [terminals, sessions, claudeUi] = await Promise.all([
           client.query("terminal.listAll", {}),
           client.query("claude.recentSessions", { rootPaths, limit: 10 }),
+          client.query("claudeui.listAll", {}),
         ]);
         if (!cancelled) {
           setRecentTerminals(terminals);
           setRecentSessions(sessions);
+          setAttentionSessionIds(new Set(claudeUi.filter((s) => s.needsAttention).map((s) => s.sessionId)));
         }
       } catch {}
     };
@@ -90,6 +95,7 @@ export function useRecentItems(
         title: t.title,
         terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
         claudeSessionId: t.claudeSessionId,
+        needsAttention: t.needsAttention,
       });
     }
     for (const s of recentSessions) {
@@ -101,6 +107,7 @@ export function useRecentItems(
         worktreePath: s.worktreePath,
         sessionType: s.sessionType,
         label: (s.summary || s.firstPrompt || "").replace(/<[^>]+>/g, "").trim() || "Claude session",
+        needsAttention: attentionSessionIds.has(s.sessionId),
       });
     }
     const keyOf = (it: RecentItem) => (it.kind === "terminal" ? `t:${it.terminalId}` : `c:${it.sessionId}`);
@@ -110,7 +117,7 @@ export function useRecentItems(
       if (ap !== bp) return ap - bp;
       return b.recency - a.recency;
     });
-  }, [recentTerminals, recentSessions, isUnderAnyProject, pinnedSessionSet]);
+  }, [recentTerminals, recentSessions, attentionSessionIds, isUnderAnyProject, pinnedSessionSet]);
 
   return recentItems;
 }

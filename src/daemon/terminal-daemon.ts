@@ -103,6 +103,8 @@ export interface DaemonManager {
   removeDataListener(terminalId: string, listener: (data: string) => void): void;
   addExitListener(terminalId: string, listener: () => void): void;
   removeExitListener(terminalId: string, listener: () => void): void;
+  addBellListener(terminalId: string, listener: () => void): void;
+  removeBellListener(terminalId: string, listener: () => void): void;
   cleanup(): void;
 }
 
@@ -220,11 +222,14 @@ export function attachConnection(
         if (buffered) sendEvent(subId, { type: "buffered", data: buffered });
         const dataListener = (data: string) => sendEvent(subId, { type: "data", data });
         const exitListener = () => sendEvent(subId, { type: "exit" });
+        const bellListener = () => sendEvent(subId, { type: "bell" });
         manager.addDataListener(terminalId, dataListener);
         manager.addExitListener(terminalId, exitListener);
+        manager.addBellListener(terminalId, bellListener);
         subs.set(subId, () => {
           manager.removeDataListener(terminalId, dataListener);
           manager.removeExitListener(terminalId, exitListener);
+          manager.removeBellListener(terminalId, bellListener);
         });
         respond(req.reqId, { ok: true });
         break;

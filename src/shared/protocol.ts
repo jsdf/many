@@ -235,6 +235,7 @@ export interface AutomationRun {
 export type TerminalEvent =
   | { type: "data"; data: string }
   | { type: "buffered"; data: string }
+  | { type: "bell" }
   | { type: "exit" };
 
 // Streaming operation events (replaces SSE)
@@ -684,6 +685,7 @@ export interface QueryProcedures {
       title?: string;
       userLabel?: string;
       claudeSessionId?: string;
+      needsAttention: boolean;
     }>;
   };
 
@@ -760,7 +762,11 @@ export interface QueryProcedures {
   };
   "claudeui.list": {
     input: { worktreePath: string };
-    output: { sessionId: string; title?: string }[];
+    output: { sessionId: string; title?: string; needsAttention?: boolean }[];
+  };
+  "claudeui.listAll": {
+    input: {};
+    output: { sessionId: string; worktreePath: string; title?: string; needsAttention?: boolean }[];
   };
   "claudeui.setPermissionMode": {
     input: { sessionId: string; mode: ClaudeUiPermissionMode };
