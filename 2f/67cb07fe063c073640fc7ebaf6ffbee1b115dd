@@ -1,0 +1,115 @@
+src/daemon/claude-ui-manager.test.ts
+  s_39dc167d3e094c::t_9d4e9d455b4bf7 83
+  s_39dc167d3e094c::t_ab2c8dfd98f904 100-101
+  s_39dc167d3e094c::t_5f6137e87b13bc 169-206
+  s_39dc167d3e094c::t_b98363347a4645 9,12,21-22
+  s_39dc167d3e094c::t_b00ee5dbd72308 23
+src/renderer/src/components/Sidebar.tsx
+  s_ec219cbee14b14::t_7e53d26f156586 879,883,885,887,892,896,898-900,902
+  s_ec219cbee14b14::t_c970df4f089454 1008
+src/daemon/claude-ui-manager.ts
+  s_39dc167d3e094c::t_20d47ff65e3962 36-42
+  s_39dc167d3e094c::t_802bc55a42f60b 12
+  s_39dc167d3e094c::t_eaf1a8ab6c3e1e 274-281
+  s_39dc167d3e094c::t_80eac2ce9d36c1 205-229
+  s_39dc167d3e094c::t_2a2fbcbd19a7fd 92-94,102-106,108-132,144,163,167
+src/daemon/terminal-daemon.ts
+  s_39dc167d3e094c::t_23164a1a1d80d5 302-305
+  s_39dc167d3e094c::t_6e7eb39c07fe37 69
+  s_39dc167d3e094c::t_18026cf8e04b6f 30
+src/web/claude-sessions.ts
+  s_39dc167d3e094c::t_ed234cf2a51a8a 475,482,489,495,500
+src/renderer/src/components/AutomationsModal.tsx
+  s_ec219cbee14b14::t_6fa020f7614012 227-229
+  s_ec219cbee14b14::t_6033d0a4226b53 281-285,302-303
+  s_ec219cbee14b14::t_dc4d9409e55e09 77-78,81,83,91-98,101-106
+  s_ec219cbee14b14::t_889f538c076eee 258-262
+  s_ec219cbee14b14::t_7d54bb5de488a2 2,7-22
+  s_ec219cbee14b14::t_e12d5f656a12e7 203-209
+  s_ec219cbee14b14::t_d3d4247c29941e 48-51
+  s_ec219cbee14b14::t_5aca0417de5f52 322-382
+  s_ec219cbee14b14::t_362cfc2d37bccf 23
+  s_ec219cbee14b14::t_90020a51e8fb5b 279-280
+src/web/rpc-handlers.ts
+  s_ec219cbee14b14::t_3eb92168506a48 773-780
+  s_39dc167d3e094c::t_33421efe6ba816 11
+  s_39dc167d3e094c::t_d1717e0af5b008 1133-1137
+src/renderer/src/components/ProjectsPalette.tsx
+  s_7107ddb3c0ffa9::t_043af004634858 71
+  s_7107ddb3c0ffa9::t_0b79181e036dc5 140
+  s_7107ddb3c0ffa9::t_40daef83f35bfd 32,34
+  s_7107ddb3c0ffa9::t_ca9513fe3631f2 116-129
+src/renderer/src/components/ClaudeUiTab.tsx
+  s_39dc167d3e094c::t_aacaab68f71e95 430-432,439-443
+  s_39dc167d3e094c::t_5750254fa43d53 124-127,137,144-146,148,159-160,167,169-170
+  s_39dc167d3e094c::t_168c93ee991af4 332,336
+  s_39dc167d3e094c::t_3b9511813e7453 278-279
+  s_39dc167d3e094c::t_7ab4d988aee0f3 220,228,233,235
+  s_39dc167d3e094c::t_6f510d5db7984c 16-31
+  s_39dc167d3e094c::t_a2a343f5f7b0e1 184-185,190-192,195-196,199-200
+  s_39dc167d3e094c::t_718654b2c42a39 251-254
+  s_39dc167d3e094c::t_6808090976034d 492-513
+  s_39dc167d3e094c::t_9457f01f83a329 386-397
+  s_39dc167d3e094c::t_2462432ceb9c84 5
+src/daemon/terminal-daemon-protocol.ts
+  s_39dc167d3e094c::t_160900aad2a491 10
+  s_39dc167d3e094c::t_6e281e1791548c 104
+  s_39dc167d3e094c::t_ce17a09896e7f0 144
+src/shared/protocol.ts
+  s_39dc167d3e094c::t_b24d9d208811c1 284-286
+  s_ec219cbee14b14::t_279e56d3c20f9f 549-555
+  s_39dc167d3e094c::t_4efcb522c3746e 267-273
+  s_39dc167d3e094c::t_08cca1752406cf 789-792
+src/renderer/src/App.tsx
+  s_ec219cbee14b14::t_6311d67a5e9b6a 1013-1014,1023-1026
+  s_ec219cbee14b14::t_2c10b2b0264d19 95-98
+  s_ec219cbee14b14::t_02c392561d1883 584
+  s_7107ddb3c0ffa9::t_53a5a06d66bdc4 1089-1092
+  s_ec219cbee14b14::t_f81a351c630cda 927-928
+  s_ec219cbee14b14::t_88ff6445fb3df4 262,265-272
+  s_ec219cbee14b14::t_bd485546015d14 273
+src/renderer/src/components/TaskQueuePanel.tsx
+  s_ec219cbee14b14::t_a7a8d658f8d4e2 160-164
+  s_ec219cbee14b14::t_ef3dbecdedfd7a 10-15
+  s_ec219cbee14b14::t_7331364b5620c6 178-182
+  s_ec219cbee14b14::t_36fd59cc155989 242-250
+  s_ec219cbee14b14::t_0ebe3163cd4e7e 31,34,41-44,46-53
+src/daemon/terminal-client.ts
+  s_39dc167d3e094c::t_ec4a8526b723d1 10
+  s_39dc167d3e094c::t_cd8b658c7c8636 356-359
+src/web/claude-ui/service.ts
+  s_39dc167d3e094c::t_37ad02328d9a2a 2
+  s_39dc167d3e094c::t_ce80fb0a106376 65-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "2f67cb07fe063c073640fc7ebaf6ffbee1b115dd",
+  "prompts": {},
+  "sessions": {
+    "s_39dc167d3e094c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a340fd76-18e5-4733-890b-c36c17249280",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_7107ddb3c0ffa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "048d33c2-bb40-43db-b5cf-48cab0ca8780",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    },
+    "s_ec219cbee14b14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a094156-c64f-4df0-befb-af818e6a4c00",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "James Friend <james@kitefire.com>"
+    }
+  }
+}
