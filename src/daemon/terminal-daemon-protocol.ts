@@ -7,7 +7,7 @@
  * JSON strings (same as over the websocket today), so no base64 needed.
  */
 
-import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 
 export const DAEMON_PROTOCOL_VERSION = 4;
@@ -101,6 +101,7 @@ export type DaemonRequest =
   | { reqId: number; op: "claudeUiList"; worktreePath: string }
   | { reqId: number; op: "claudeUiListAll" }
   | { reqId: number; op: "claudeUiSetPermissionMode"; sessionId: string; mode: ClaudeUiPermissionMode }
+  | { reqId: number; op: "claudeUiSetModelEffort"; sessionId: string; model: ClaudeUiModel; effort: ClaudeUiEffort }
   | { reqId: number; op: "claudeUiInterrupt"; sessionId: string }
   | { reqId: number; op: "claudeUiReset"; sessionId: string }
   | { reqId: number; op: "claudeUiClose"; sessionId: string }
@@ -140,6 +141,7 @@ export interface DaemonResultMap {
   claudeUiList: { sessions: ClaudeUiInfoWire[] };
   claudeUiListAll: { sessions: ClaudeUiInfoWire[] };
   claudeUiSetPermissionMode: { ok: true };
+  claudeUiSetModelEffort: { ok: true };
   claudeUiInterrupt: { ok: true };
   claudeUiReset: { ok: true };
   claudeUiClose: { ok: true };

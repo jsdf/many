@@ -8,7 +8,7 @@ import { promises as fs, watch, type FSWatcher } from "fs";
 import { spawn, execSync } from "child_process";
 import logger from "../shared/logger.js";
 import type { QueryHandler, SubscriptionHandler } from "./rpc-server.js";
-import type { QueryProcedure, SubscriptionProcedure, StreamEvent, FsEntry, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { QueryProcedure, SubscriptionProcedure, StreamEvent, FsEntry, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../shared/protocol.js";
 import { loadAppData, withAppData, getRepoConfig, getGlobalSettings } from "../cli/config.js";
 import { getTrackedBranches, addTrackedBranch, removeTrackedBranch, reorderTrackedBranches } from "../cli/db.js";
 import {
@@ -770,6 +770,14 @@ export function createQueryHandlers(opts: {
       const appData = await loadAppData();
       return getRepoConfig(appData, repoPath);
     },
+    "repo.tabVisibility": async () => {
+      const appData = await loadAppData();
+      const configs = Object.values(appData.repositoryConfigs);
+      return {
+        tracked: configs.some((c: any) => c.showTrackedTab),
+        automations: configs.some((c: any) => c.showAutomationsTab),
+      };
+    },
     "repo.saveConfig": async (input) => {
       const { repoPath, config } = input as { repoPath: string; config: any };
       await withAppData((appData) => {
@@ -1120,6 +1128,11 @@ export function createQueryHandlers(opts: {
     "claudeui.setPermissionMode": async (input) => {
       const { sessionId, mode } = input as { sessionId: string; mode: ClaudeUiPermissionMode };
       await claudeUiService.setPermissionMode(sessionId, mode);
+      return { ok: true };
+    },
+    "claudeui.setModelEffort": async (input) => {
+      const { sessionId, model, effort } = input as { sessionId: string; model: ClaudeUiModel; effort: ClaudeUiEffort };
+      await claudeUiService.setModelEffort(sessionId, model, effort);
       return { ok: true };
     },
     "claudeui.send": async (input) => {

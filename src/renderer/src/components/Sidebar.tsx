@@ -876,6 +876,19 @@ const AutomationsTab: React.FC<AutomationsTabProps> = ({
       <div className="flex-1 overflow-y-auto mb-3">
         <div
           className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
+            subView === "definitions"
+              ? "border-l-primary bg-primary/15"
+              : "border-l-transparent hover:bg-base-content/5"
+          }`}
+          onClick={() => onSubViewChange("definitions")}
+        >
+          <div className="text-sm font-semibold leading-tight">Definitions</div>
+          <div className="text-[11px] text-base-content/50 mt-0.5">
+            Manage automation definitions
+          </div>
+        </div>
+        <div
+          className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
             subView === "running"
               ? "border-l-primary bg-primary/15"
               : "border-l-transparent hover:bg-base-content/5"
@@ -887,19 +900,6 @@ const AutomationsTab: React.FC<AutomationsTabProps> = ({
           </div>
           <div className="text-[11px] text-base-content/50 mt-0.5">
             Active and recent tasks
-          </div>
-        </div>
-        <div
-          className={`px-3 py-2 mb-0.5 cursor-pointer transition-colors border-l-[3px] rounded-none ${
-            subView === "definitions"
-              ? "border-l-primary bg-primary/15"
-              : "border-l-transparent hover:bg-base-content/5"
-          }`}
-          onClick={() => onSubViewChange("definitions")}
-        >
-          <div className="text-sm font-semibold leading-tight">Definitions</div>
-          <div className="text-[11px] text-base-content/50 mt-0.5">
-            Manage automation definitions
           </div>
         </div>
       </div>
@@ -1005,7 +1005,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {showAutomationsTab && (
           <button
             className={`flex-1 text-xs py-1.5 font-semibold transition-colors ${activeTab === "automations" ? "border-b-2 border-primary text-primary" : "text-base-content/50 hover:text-base-content/80"}`}
-            onClick={() => onAutomationsSubViewChange?.("running")}
+            onClick={() => onAutomationsSubViewChange?.("definitions")}
           >
             Automations
           </button>

@@ -7,7 +7,7 @@
  */
 
 import net from "net";
-import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { TerminalEvent, ClaudeUiEvent, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../shared/protocol.js";
 import type { TerminalSessionInfo } from "../web/terminal-manager.js";
 import logger from "../shared/logger.js";
 import {
@@ -351,6 +351,10 @@ export class TerminalManagerClient {
 
   async claudeUiSetPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): Promise<void> {
     await this.request({ reqId: this.newReqId(), op: "claudeUiSetPermissionMode", sessionId, mode });
+  }
+
+  async claudeUiSetModelEffort(sessionId: string, model: ClaudeUiModel, effort: ClaudeUiEffort): Promise<void> {
+    await this.request({ reqId: this.newReqId(), op: "claudeUiSetModelEffort", sessionId, model, effort });
   }
 
   async claudeUiInterrupt(sessionId: string): Promise<void> {

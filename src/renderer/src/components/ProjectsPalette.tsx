@@ -29,8 +29,9 @@ const ProjectsPalette: React.FC<{
   projects: ProjectEntry[];
   selectedNode: ProjectNode | null;
   onOpenFile: (file: OpenFile, projectPath: string, projectName: string) => void;
+  onSelectProject: (node: ProjectNode) => void;
   onNewTerminal: () => void;
-}> = ({ active, projects, selectedNode, onOpenFile, onNewTerminal }) => {
+}> = ({ active, projects, selectedNode, onOpenFile, onSelectProject, onNewTerminal }) => {
   const [mode, setMode] = useState<Mode | null>(null);
   const [query, setQuery] = useState("");
 
@@ -67,6 +68,7 @@ const ProjectsPalette: React.FC<{
     () => (files ? new Fzf(files, { selector: (f) => f.rel }) : null),
     [files],
   );
+  const projectFzf = useMemo(() => new Fzf(projects, { selector: (p) => p.name }), [projects]);
 
   // Contextual ranking: the directory of the file focused in the selected
   // project's editor, then the selected node's subtree.
@@ -111,7 +113,20 @@ const ProjectsPalette: React.FC<{
     const q = query.trim();
     if (mode === "quickOpen") {
       if (!files || !fileFzf) return [];
-      return rankFiles(q, files, fileFzf, boosts, FILE_LIMIT).map(({ file, positions }) => fileItem(file, positions));
+      const projectMatches = q
+        ? projectFzf.find(q)
+        : projects.map((p) => ({ item: p, positions: new Set<number>() }));
+      const projectItems: PaletteItem[] = projectMatches.map(({ item, positions }) => ({
+        id: `project:${item.path}`,
+        label: highlight(item.name, positions),
+        detail: "Project",
+        onSelect: () => {
+          onSelectProject({ name: item.name, path: item.path });
+          close();
+        },
+      }));
+      const fileItems = rankFiles(q, files, fileFzf, boosts, FILE_LIMIT).map(({ file, positions }) => fileItem(file, positions));
+      return [...projectItems, ...fileItems];
     }
     const ranked = q
       ? commandFzf.find(q)
@@ -122,7 +137,7 @@ const ProjectsPalette: React.FC<{
       onSelect: item.run,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, query, files, fileFzf, boosts, commandFzf, commandDefs, projects.length]);
+  }, [mode, query, files, fileFzf, projectFzf, projects, boosts, commandFzf, commandDefs]);
 
   if (mode === null) return null;
 

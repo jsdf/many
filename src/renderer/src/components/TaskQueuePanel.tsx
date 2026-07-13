@@ -7,6 +7,12 @@ interface TaskQueuePanelProps {
   currentRepo: string | null;
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
+  onViewAutomation?: (automationId: string) => void;
+}
+
+interface TaskAutomation {
+  id: string;
+  name: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -22,19 +28,29 @@ const statusColors: Record<string, string> = {
   unknown: "badge-neutral",
 };
 
-const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCollapsed, onExpandSidebar }) => {
+const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCollapsed, onExpandSidebar, onViewAutomation }) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskAutomations, setTaskAutomations] = useState<Record<string, TaskAutomation>>({});
   const [loading, setLoading] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchTasks = async () => {
     if (!currentRepo) return;
     try {
-      const result = await getRpcClient().query("task.list", {
-        repoPath: currentRepo,
-      });
+      const [result, runs] = await Promise.all([
+        getRpcClient().query("task.list", { repoPath: currentRepo }),
+        getRpcClient().query("automation.listRuns", { repoPath: currentRepo }),
+      ]);
       setTasks(result as TaskRecord[]);
+      // Map each launched task back to the automation whose run produced it.
+      const map: Record<string, TaskAutomation> = {};
+      for (const run of runs) {
+        for (const item of run.workItems) {
+          if (item.taskId) map[item.taskId] = { id: run.automationId, name: run.automationName };
+        }
+      }
+      setTaskAutomations(map);
     } catch (err) {
       console.error("Failed to load tasks:", err);
     } finally {
@@ -141,7 +157,11 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCol
         {/* Task detail */}
         <div className="flex-1 overflow-y-auto p-5">
           {selectedTask ? (
-            <TaskDetail task={selectedTask} />
+            <TaskDetail
+              task={selectedTask}
+              automation={taskAutomations[selectedTask.id]}
+              onViewAutomation={onViewAutomation}
+            />
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-base-content/50 italic text-sm">
@@ -155,7 +175,11 @@ const TaskQueuePanel: React.FC<TaskQueuePanelProps> = ({ currentRepo, sidebarCol
   );
 };
 
-const TaskDetail: React.FC<{ task: TaskRecord }> = ({ task }) => {
+const TaskDetail: React.FC<{
+  task: TaskRecord;
+  automation?: TaskAutomation;
+  onViewAutomation?: (automationId: string) => void;
+}> = ({ task, automation, onViewAutomation }) => {
   const [logContent, setLogContent] = useState("");
   const [logSize, setLogSize] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
@@ -213,6 +237,15 @@ const TaskDetail: React.FC<{ task: TaskRecord }> = ({ task }) => {
         {task.status === "running" && (
           <button className="btn btn-error btn-xs" onClick={handleKill}>
             Kill
+          </button>
+        )}
+        {automation && onViewAutomation && (
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={() => onViewAutomation(automation.id)}
+            title="View the automation that launched this task"
+          >
+            Automation: {automation.name} &rarr;
           </button>
         )}
       </div>

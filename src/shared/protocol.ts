@@ -264,6 +264,13 @@ export type ClaudeUiPermissionMode =
   | "plan"
   | "bypassPermissions";
 
+// Model/effort passed as spawn-time `--model` / `--effort` flags. "default"
+// means don't pass the flag (use the CLI's own default). Changing either at
+// runtime respawns the CLI process resuming the same on-disk conversation.
+export type ClaudeUiModel = "default" | "fable" | "opus" | "sonnet";
+
+export type ClaudeUiEffort = "default" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export type ClaudeUiContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string }
@@ -274,9 +281,9 @@ export type ClaudeUiEvent =
   | { type: "init"; sessionId: string }
   | { type: "status"; ready: boolean; busy: boolean; queued: number; sessionId: string | null }
   | { type: "title"; title: string }
-  | { type: "prompt"; text: string }
-  | { type: "assistant"; content: ClaudeUiContentBlock[] }
-  | { type: "user"; content: ClaudeUiContentBlock[] }
+  | { type: "prompt"; text: string; ts?: number }
+  | { type: "assistant"; content: ClaudeUiContentBlock[]; ts?: number }
+  | { type: "user"; content: ClaudeUiContentBlock[]; ts?: number }
   | { type: "result"; isError: boolean; costUsd?: number; durationMs?: number }
   | { type: "error"; message: string };
 
@@ -539,6 +546,13 @@ export interface QueryProcedures {
     input: { repoPath: string };
     output: RepositoryConfig;
   };
+  // Whether the Tracked / Automations tabs should be shown, aggregated across
+  // all repositories. These tabs live above the repo selector, so their
+  // visibility must not depend on which repo is currently selected.
+  "repo.tabVisibility": {
+    input: {};
+    output: { tracked: boolean; automations: boolean };
+  };
   "repo.saveConfig": {
     input: { repoPath: string; config: RepositoryConfig };
     output: { ok: boolean };
@@ -770,6 +784,10 @@ export interface QueryProcedures {
   };
   "claudeui.setPermissionMode": {
     input: { sessionId: string; mode: ClaudeUiPermissionMode };
+    output: { ok: boolean };
+  };
+  "claudeui.setModelEffort": {
+    input: { sessionId: string; model: ClaudeUiModel; effort: ClaudeUiEffort };
     output: { ok: boolean };
   };
   "claudeui.send": {

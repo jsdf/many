@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { ClaudeUiEvent, ClaudeUiPermissionMode } from "../../shared/protocol.js";
+import type { ClaudeUiEvent, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../../shared/protocol.js";
 import type { TerminalManagerClient } from "../../daemon/terminal-client.js";
 import { getSessionUiEvents } from "../claude-sessions.js";
 
@@ -60,6 +60,10 @@ export class ClaudeUiService {
 
   async setPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): Promise<void> {
     await this.client.claudeUiSetPermissionMode(sessionId, mode);
+  }
+
+  async setModelEffort(sessionId: string, model: ClaudeUiModel, effort: ClaudeUiEffort): Promise<void> {
+    await this.client.claudeUiSetModelEffort(sessionId, model, effort);
   }
 
   async reset(sessionId: string): Promise<void> {

@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { AutomationDefinition, AutomationRunTarget } from "../types";
+import { AutomationDefinition, AutomationRunTarget, AutomationRun } from "../types";
 import { getRpcClient } from "../rpc-client";
 import TopBar from "./TopBar";
 import { isValidCron } from "../../../shared/cron";
+
+function timeAgo(iso: string): string {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+const runStatusColors: Record<string, string> = {
+  running: "badge-warning",
+  completed: "badge-success",
+  failed: "badge-error",
+  cancelled: "badge-neutral",
+};
 
 const DEFAULT_SYNC_SCRIPT = `set -euo pipefail
 BRANCH="\${MANY_MAIN_BRANCH:-main}"
@@ -28,6 +45,10 @@ interface AutomationsModalProps {
   sidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
   onClose: () => void;
+  // When set (e.g. navigated from a running task), open the run history for
+  // this automation directly. Call onHistoryConsumed once handled.
+  initialHistoryAutomationId?: string | null;
+  onHistoryConsumed?: () => void;
 }
 
 function generateId(): string {
@@ -53,9 +74,13 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
   sidebarCollapsed,
   onExpandSidebar,
   onClose,
+  initialHistoryAutomationId,
+  onHistoryConsumed,
 }) => {
   const [automations, setAutomations] = useState<AutomationDefinition[]>([]);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
   const [editing, setEditing] = useState<AutomationDefinition | null>(null);
+  const [historyFor, setHistoryFor] = useState<AutomationDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [runStatus, setRunStatus] = useState<{ id: string; message: string; error: boolean } | null>(null);
 
@@ -63,10 +88,22 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
     loadAutomations();
   }, [currentRepo]);
 
+  // Open history directly when navigated here from a running task.
+  useEffect(() => {
+    if (!initialHistoryAutomationId || automations.length === 0) return;
+    const match = automations.find((a) => a.id === initialHistoryAutomationId);
+    if (match) setHistoryFor(match);
+    onHistoryConsumed?.();
+  }, [initialHistoryAutomationId, automations]);
+
   const loadAutomations = async () => {
     try {
-      const result = await getRpcClient().query("automation.list", { repoPath: currentRepo });
-      setAutomations(result as AutomationDefinition[]);
+      const [defs, runList] = await Promise.all([
+        getRpcClient().query("automation.list", { repoPath: currentRepo }),
+        getRpcClient().query("automation.listRuns", { repoPath: currentRepo }),
+      ]);
+      setAutomations(defs as AutomationDefinition[]);
+      setRuns(runList as AutomationRun[]);
     } catch (err) {
       console.error("Failed to load automations:", err);
     } finally {
@@ -163,7 +200,13 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
       </TopBar>
 
       <div className="p-5 overflow-y-auto flex-1">
-        {editing ? (
+        {historyFor ? (
+            <AutomationHistory
+              automation={historyFor}
+              runs={runs.filter((r) => r.automationId === historyFor.id)}
+              onBack={() => setHistoryFor(null)}
+            />
+          ) : editing ? (
             <AutomationForm
               automation={editing}
               onSave={handleSave}
@@ -181,7 +224,9 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {automations.map((a) => (
+                  {automations.map((a) => {
+                    const lastRun = runs.find((r) => r.automationId === a.id);
+                    return (
                     <div
                       key={a.id}
                       className="bg-base-300 rounded-lg p-4 flex items-start justify-between gap-3"
@@ -210,6 +255,11 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                               ? (a.script ?? "").slice(0, 80)
                               : (a.prompt ?? "").slice(0, 80)}
                         </div>
+                        <div className="text-xs text-base-content/40 mt-1">
+                          {lastRun
+                            ? `Last run ${timeAgo(lastRun.startedAt)}`
+                            : "Never run"}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {runStatus?.id === a.id && (
@@ -228,6 +278,13 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                         </button>
                         <button
                           className="btn btn-ghost btn-sm"
+                          onClick={() => setHistoryFor(a)}
+                          title="Run history"
+                        >
+                          History
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
                           onClick={() => setEditing({ ...a })}
                           title="Edit"
                         >
@@ -242,7 +299,8 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -257,6 +315,67 @@ const AutomationsModal: React.FC<AutomationsModalProps> = ({
             </>
           )}
       </div>
+    </div>
+  );
+};
+
+// --- History sub-component ---
+
+interface AutomationHistoryProps {
+  automation: AutomationDefinition;
+  runs: AutomationRun[];
+  onBack: () => void;
+}
+
+const AutomationHistory: React.FC<AutomationHistoryProps> = ({
+  automation,
+  runs,
+  onBack,
+}) => {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4">
+        <button className="btn btn-ghost btn-sm" onClick={onBack}>
+          &larr; Back
+        </button>
+        <h4 className="text-base font-semibold m-0">History: {automation.name}</h4>
+      </div>
+
+      {runs.length === 0 ? (
+        <p className="text-base-content/50 text-center py-8">
+          This automation has not run yet.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {runs.map((run) => (
+            <div key={run.id} className="bg-base-300 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <span className={`badge ${runStatusColors[run.status] ?? "badge-neutral"} badge-sm`}>
+                  {run.status}
+                </span>
+                <span className="text-sm">{timeAgo(run.startedAt)}</span>
+                <span className="text-xs text-base-content/50">
+                  {new Date(run.startedAt).toLocaleString()}
+                </span>
+              </div>
+              {run.workItems.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {run.workItems.map((item) => (
+                    <div key={item.id} className="text-xs text-base-content/60 flex items-start gap-2">
+                      <span className={`badge ${runStatusColors[item.status] ?? "badge-neutral"} badge-xs mt-0.5`}>
+                        {item.status}
+                      </span>
+                      <span className="whitespace-pre-wrap break-words min-w-0">
+                        {item.prompt.slice(0, 200)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

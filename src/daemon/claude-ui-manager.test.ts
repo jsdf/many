@@ -6,9 +6,10 @@ import type { ClaudeUiEvent } from "../shared/protocol.js";
 const h = vi.hoisted(() => {
   const { EventEmitter } = require("node:events");
   class FakeSession extends EventEmitter {
-    options: unknown;
+    options: any;
     prompts: string[] = [];
     disposed = false;
+    sessionId: string | null = null;
     reset = vi.fn();
     interrupt = vi.fn();
     setPermissionMode = vi.fn();
@@ -16,6 +17,9 @@ const h = vi.hoisted(() => {
     constructor(options: unknown) {
       super();
       this.options = options;
+    }
+    get status() {
+      return { ready: true, busy: false, queued: 0, sessionId: this.sessionId, pid: 1 };
     }
     prompt(p: string): Promise<unknown> {
       this.prompts.push(p);
@@ -76,7 +80,7 @@ describe("ClaudeUiManager", () => {
     mgr.create("s1", "/wt");
     mgr.send("s1", "do the thing");
     expect(h.sessions[0].prompts).toEqual(["do the thing"]);
-    expect(replay(mgr, "s1")).toEqual([{ type: "prompt", text: "do the thing" }]);
+    expect(replay(mgr, "s1")).toEqual([{ type: "prompt", text: "do the thing", ts: expect.any(Number) }]);
   });
 
   it("subscribe replays buffered transcript + last status, then delivers live events", () => {
@@ -93,8 +97,8 @@ describe("ClaudeUiManager", () => {
     const unsub = mgr.subscribe("s1", (e) => received.push(e));
 
     expect(received).toEqual([
-      { type: "prompt", text: "hi" },
-      { type: "assistant", content: [{ type: "text", text: "one" }] },
+      { type: "prompt", text: "hi", ts: expect.any(Number) },
+      { type: "assistant", content: [{ type: "text", text: "one" }], ts: expect.any(Number) },
       { type: "status", ready: true, busy: true, queued: 0, sessionId: "cli-1" },
     ]);
 
@@ -160,6 +164,44 @@ describe("ClaudeUiManager", () => {
     expect(session.interrupt).toHaveBeenCalled();
     expect(session.setPermissionMode).toHaveBeenCalledWith("plan");
     expect(session.reset).toHaveBeenCalled();
+  });
+
+  it("setModelAndEffort respawns resuming the conversation, preserving mode and transcript", () => {
+    mgr.create("s1", "/wt");
+    mgr.send("s1", "hi");
+    mgr.setPermissionMode("s1", "plan");
+    const first = h.sessions[0];
+    first.sessionId = "cli-1"; // a turn has produced an on-disk conversation id
+
+    mgr.setModelAndEffort("s1", "opus", "high");
+
+    expect(first.disposed).toBe(true);
+    expect(h.sessions).toHaveLength(2);
+    expect(h.sessions[1].options).toMatchObject({
+      resume: "cli-1",
+      model: "opus",
+      extraArgs: ["--effort", "high"],
+      permissionMode: "plan",
+    });
+    // The daemon's transcript buffer is untouched by the respawn.
+    expect(replay(mgr, "s1")).toEqual([{ type: "prompt", text: "hi", ts: expect.any(Number) }]);
+  });
+
+  it("setModelAndEffort defaults omit --model and --effort, and fresh-spawns with no turn yet", () => {
+    mgr.create("s1", "/wt");
+    mgr.setModelAndEffort("s1", "default", "default");
+    expect(h.sessions[0].disposed).toBe(false); // no change from defaults: no-op
+    expect(h.sessions).toHaveLength(1);
+
+    mgr.setModelAndEffort("s1", "sonnet", "default");
+    const respawned = h.sessions[1];
+    expect(respawned.options.model).toBe("sonnet");
+    expect(respawned.options.extraArgs).toEqual([]);
+    expect(respawned.options.resume).toBeUndefined(); // no on-disk id yet
+  });
+
+  it("setModelAndEffort throws for an unknown session", () => {
+    expect(() => mgr.setModelAndEffort("nope", "opus", "high")).toThrow(/not found/);
   });
 
   it("reset clears the buffered transcript", () => {

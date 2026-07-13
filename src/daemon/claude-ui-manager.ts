@@ -9,7 +9,7 @@
 
 import { ClaudeSession } from "@libclaude/core";
 import type { ClaudeEvent, SessionStatus, SessionLogger } from "@libclaude/core";
-import type { ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { ClaudeUiEvent, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../shared/protocol.js";
 import type { ClaudeUiInfoWire } from "./terminal-daemon-protocol.js";
 import logger from "../shared/logger.js";
 import { mapClaudeEvent } from "../shared/claude-event-map.js";
@@ -33,6 +33,13 @@ interface ManagedSession {
   // True when a turn completed (result) since the user last sent a message.
   needsAttention: boolean;
   listeners: Set<(e: ClaudeUiEvent) => void>;
+  // Spawn parameters, kept so the CLI can be respawned (resuming the same
+  // conversation) when the model/effort/permission mode change at runtime.
+  claudeBin?: string;
+  model: ClaudeUiModel;
+  effort: ClaudeUiEffort;
+  permissionMode: ClaudeUiPermissionMode;
+  logger: SessionLogger;
 }
 
 export class ClaudeUiManager {
@@ -80,14 +87,11 @@ export class ClaudeUiManager {
       error: (m) => logger.error(`${tag} ${m}`),
     };
     logger.info(`${tag} ${opts.resume ? "resume" : "create"}: worktree=${worktreePath} claudeBin=${claudeBin ?? "claude"}`);
-    // Run through an interactive login shell so a configured claudeBin that is
-    // a shell alias or a command with args (e.g. "claude --mcp-config ...")
-    // resolves the way it would in the user's terminal. Default to "auto"
-    // permission mode; callers can change it at runtime via setPermissionMode.
-    const session = new ClaudeSession({ cwd: worktreePath, permissionMode: "auto", claudeBin, loginShell: true, logger: sessionLogger, resume: opts.resume });
 
     const managed: ManagedSession = {
-      session,
+      // Replaced immediately by newSession(); typed non-null for the rest of
+      // the object's life.
+      session: null as unknown as ClaudeSession,
       worktreePath,
       // Seed with the resumed transcript so a subscribing client replays it.
       buffer: opts.seed ? [...opts.seed] : [],
@@ -95,7 +99,37 @@ export class ClaudeUiManager {
       firstPrompt: opts.firstPrompt,
       needsAttention: false,
       listeners: new Set(),
+      claudeBin,
+      model: "default",
+      effort: "default",
+      permissionMode: "auto",
+      logger: sessionLogger,
     };
+    managed.session = this.newSession(managed, opts.resume);
+
+    this.sessions.set(sessionId, managed);
+    return this.toInfo(sessionId, managed);
+  }
+
+  /**
+   * Construct a ClaudeSession from the managed session's current spawn
+   * parameters and wire its event handlers. Used for the initial spawn and for
+   * respawns after a model/effort change.
+   */
+  private newSession(managed: ManagedSession, resume: string | undefined): ClaudeSession {
+    // Run through an interactive login shell so a configured claudeBin that is
+    // a shell alias or a command with args (e.g. "claude --mcp-config ...")
+    // resolves the way it would in the user's terminal.
+    const session = new ClaudeSession({
+      cwd: managed.worktreePath,
+      permissionMode: managed.permissionMode,
+      claudeBin: managed.claudeBin,
+      loginShell: true,
+      logger: managed.logger,
+      resume,
+      model: managed.model === "default" ? undefined : managed.model,
+      extraArgs: managed.effort === "default" ? [] : ["--effort", managed.effort],
+    });
 
     session.on("event", (evt: ClaudeEvent) => {
       const uiEvent = mapClaudeEvent(evt);
@@ -107,7 +141,7 @@ export class ClaudeUiManager {
       // for a concise title and broadcast it as a transcript event.
       if (evt.type === "result" && !managed.titleRequested && managed.firstPrompt) {
         managed.titleRequested = true;
-        session.generateSessionTitle(managed.firstPrompt).then((title) => {
+        managed.session.generateSessionTitle(managed.firstPrompt).then((title) => {
           if (!title) return;
           managed.title = title;
           this.push(managed, { type: "title", title });
@@ -126,12 +160,11 @@ export class ClaudeUiManager {
     });
 
     session.on("error", (err: Error) => {
-      sessionLogger.error?.(`session error: ${err.message}`);
+      managed.logger.error?.(`session error: ${err.message}`);
       this.push(managed, { type: "error", message: err.message });
     });
 
-    this.sessions.set(sessionId, managed);
-    return this.toInfo(sessionId, managed);
+    return session;
   }
 
   send(sessionId: string, prompt: string): void {
@@ -169,7 +202,31 @@ export class ClaudeUiManager {
   }
 
   setPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): void {
-    this.sessions.get(sessionId)?.session.setPermissionMode(mode);
+    const managed = this.sessions.get(sessionId);
+    if (!managed) return;
+    // Remember it so a later model/effort respawn keeps the same mode.
+    managed.permissionMode = mode;
+    managed.session.setPermissionMode(mode);
+  }
+
+  /**
+   * Change the model and/or effort. These are spawn-time CLI flags with no
+   * runtime control request, so the CLI process is respawned resuming the same
+   * on-disk conversation (if any turns have run). The daemon's transcript
+   * buffer is untouched, so the UI keeps its history.
+   */
+  setModelAndEffort(sessionId: string, model: ClaudeUiModel, effort: ClaudeUiEffort): void {
+    const managed = this.sessions.get(sessionId);
+    if (!managed) throw new Error(`Claude UI session ${sessionId} not found`);
+    if (managed.model === model && managed.effort === effort) return;
+    managed.model = model;
+    managed.effort = effort;
+    // Resume the CLI's current on-disk conversation, or start fresh if no turn
+    // has produced one yet (nothing to lose).
+    const resume = managed.session.status.sessionId ?? undefined;
+    managed.logger.info?.(`respawn: model=${model} effort=${effort} resume=${resume ?? "(none)"}`);
+    managed.session.dispose();
+    managed.session = this.newSession(managed, resume);
   }
 
   reset(sessionId: string): void {
@@ -214,6 +271,14 @@ export class ClaudeUiManager {
   }
 
   private push(managed: ManagedSession, event: ClaudeUiEvent): void {
+    // Stamp transcript messages with wall-clock time so the UI can show when
+    // each was sent; buffered so it replays unchanged on reconnect.
+    if (
+      (event.type === "prompt" || event.type === "assistant" || event.type === "user") &&
+      event.ts === undefined
+    ) {
+      event.ts = Date.now();
+    }
     // Status is replayed from lastStatus, not buffered; init is transient
     // readiness signalling. Everything else is transcript content.
     if (event.type === "status") {

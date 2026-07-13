@@ -27,7 +27,7 @@ import {
 import { saveAndRegisterTerminalLog } from "./log-capture.js";
 import { ClaudeAgentManager, type AgentInfo } from "./claude-agent-manager.js";
 import { ClaudeUiManager } from "./claude-ui-manager.js";
-import type { ClaudeUiEvent, ClaudeUiPermissionMode } from "../shared/protocol.js";
+import type { ClaudeUiEvent, ClaudeUiPermissionMode, ClaudeUiModel, ClaudeUiEffort } from "../shared/protocol.js";
 import type { ClaudeUiInfoWire } from "./terminal-daemon-protocol.js";
 
 /**
@@ -66,6 +66,7 @@ export interface ClaudeUiManagerIface {
   listAll(): ClaudeUiInfoWire[];
   interrupt(sessionId: string): void;
   setPermissionMode(sessionId: string, mode: ClaudeUiPermissionMode): void;
+  setModelAndEffort(sessionId: string, model: ClaudeUiModel, effort: ClaudeUiEffort): void;
   reset(sessionId: string): void;
   close(sessionId: string): void;
   cleanup(): void;
@@ -296,6 +297,10 @@ export function attachConnection(
         break;
       case "claudeUiSetPermissionMode":
         uiManager.setPermissionMode(req.sessionId, req.mode);
+        respond(req.reqId, { ok: true });
+        break;
+      case "claudeUiSetModelEffort":
+        uiManager.setModelAndEffort(req.sessionId, req.model, req.effort);
         respond(req.reqId, { ok: true });
         break;
       case "claudeUiInterrupt":

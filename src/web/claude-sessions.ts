@@ -472,31 +472,32 @@ export async function getSessionUiEvents(
 
   for await (const line of rl) {
     if (!line.trim()) continue;
-    let record: { type?: string; message?: { content?: unknown } };
+    let record: { type?: string; message?: { content?: unknown }; timestamp?: string };
     try {
       record = JSON.parse(line);
     } catch {
       continue;
     }
     const content = record.message?.content;
+    const ts = record.timestamp ? new Date(record.timestamp).getTime() : undefined;
 
     if (record.type === "user") {
       const blocks = Array.isArray(content) ? content : [];
       const hasToolResult = blocks.some((b) => b?.type === "tool_result");
       if (hasToolResult) {
         const mapped = blocks.map(toUiBlock).filter((b): b is ClaudeUiContentBlock => b !== null);
-        if (mapped.length) events.push({ type: "user", content: mapped });
+        if (mapped.length) events.push({ type: "user", content: mapped, ts });
       } else {
         const text = typeof content === "string"
           ? content
           : blocks.filter((b) => b?.type === "text").map((b) => b.text ?? "").join("");
         const cleaned = stripSystemTags(text);
-        if (cleaned) events.push({ type: "prompt", text: cleaned });
+        if (cleaned) events.push({ type: "prompt", text: cleaned, ts });
       }
     } else if (record.type === "assistant") {
       const blocks = Array.isArray(content) ? content : [];
       const mapped = blocks.map(toUiBlock).filter((b): b is ClaudeUiContentBlock => b !== null);
-      if (mapped.length) events.push({ type: "assistant", content: mapped });
+      if (mapped.length) events.push({ type: "assistant", content: mapped, ts });
     }
   }
 

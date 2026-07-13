@@ -92,6 +92,10 @@ const App: React.FC = () => {
   const [worktreesToArchive, setWorktreesToArchive] = useState<Worktree[]>([]);
   const [showGlobalSettingsModal, setShowGlobalSettingsModal] = useState(false);
   const [repoConfig, setRepoConfig] = useState<RepositoryConfig | null>(null);
+  // Tab visibility is aggregated across all repos (not the selected one) since
+  // the Tracked/Automations tabs sit above the repo selector.
+  const [tabVisibility, setTabVisibility] = useState<{ tracked: boolean; automations: boolean }>({ tracked: false, automations: false });
+  const [focusedAutomationId, setFocusedAutomationId] = useState<string | null>(null);
   const [claimPoolTarget, setClaimPoolTarget] = useState<PoolConfig | null>(null);
   const [claimPreselectedPath, setClaimPreselectedPath] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -255,7 +259,17 @@ const App: React.FC = () => {
     loadSavedRepos();
     restoreSelectedRepo();
     loadProjects();
+    loadTabVisibility();
   }, []);
+
+  const loadTabVisibility = async () => {
+    try {
+      const result = await getRpcClient().query("repo.tabVisibility", {});
+      setTabVisibility(result);
+    } catch (err) {
+      console.error("Failed to load tab visibility:", err);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -567,6 +581,7 @@ const App: React.FC = () => {
       await getRpcClient().query("repo.saveConfig", { repoPath: currentRepo, config });
       setRepoConfig(config);
       setShowRepoConfigModal(false);
+      loadTabVisibility();
     } catch (error) {
       console.error("Failed to save repo config:", error);
       throw error;
@@ -909,8 +924,8 @@ const App: React.FC = () => {
                 : mainPaneView.type === 'projects' ? 'projects'
                 : 'worktrees'
               }
-              showTrackedTab={repoConfig?.showTrackedTab ?? false}
-              showAutomationsTab={repoConfig?.showAutomationsTab ?? false}
+              showTrackedTab={tabVisibility.tracked}
+              showAutomationsTab={tabVisibility.automations}
               projects={projects}
               selectedNode={selectedNode}
               pinnedFolders={pinnedFolders}
@@ -995,6 +1010,8 @@ const App: React.FC = () => {
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
             onClose={() => setMainPaneView({ type: 'runningTasks' })}
+            initialHistoryAutomationId={focusedAutomationId}
+            onHistoryConsumed={() => setFocusedAutomationId(null)}
           />
         </div>
       ) : mainPaneView.type === 'runningTasks' && currentRepo ? (
@@ -1003,6 +1020,10 @@ const App: React.FC = () => {
             currentRepo={currentRepo}
             sidebarCollapsed={sidebarCollapsed && isNarrow}
             onExpandSidebar={() => setSidebarCollapsed(false)}
+            onViewAutomation={(automationId) => {
+              setFocusedAutomationId(automationId);
+              setMainPaneView({ type: 'automations' });
+            }}
           />
         </div>
       ) : mainPaneView.type === 'projects' ? (
@@ -1065,6 +1086,10 @@ const App: React.FC = () => {
         projects={projects}
         selectedNode={selectedNode}
         onOpenFile={openProjectFile}
+        onSelectProject={(node) => {
+          setSelectedNode(node);
+          setMainPaneView({ type: 'projects' });
+        }}
         onNewTerminal={() => projectsPanelRef.current?.newTerminal()}
       />
 
