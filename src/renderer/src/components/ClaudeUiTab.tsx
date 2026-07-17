@@ -267,9 +267,13 @@ interface ClaudeUiTabProps {
   // message (attention cleared), to drive the pane title indicator.
   onAttention?: () => void;
   onClearAttention?: () => void;
+  // Focus the input once on mount. Set only for freshly created sessions, so
+  // re-attaching to an existing session (tab switch, page reload) doesn't steal
+  // focus.
+  autoFocus?: boolean;
 }
 
-const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ sessionId, onTitleChange, onAttention, onClearAttention }, ref) {
+const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function ClaudeUiTab({ sessionId, onTitleChange, onAttention, onClearAttention, autoFocus }, ref) {
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -359,6 +363,13 @@ const ClaudeUiTab = forwardRef<ClaudeUiTabHandle, ClaudeUiTabProps>(function Cla
       unsubscribe();
     };
   }, [sessionId]);
+
+  // Focus the input once when this tab is first created. Runs on mount only, so
+  // re-attaching to an existing session doesn't steal focus.
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll to bottom when new items arrive
   useEffect(() => {

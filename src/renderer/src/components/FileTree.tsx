@@ -87,12 +87,15 @@ const FileTree: React.FC<FileTreeProps> = ({
     overscan: 12,
   });
 
-  // Keep the selected row visible. Virtualized lists scroll by index (the row
-  // may not be in the DOM); plain lists scroll the rendered element. Re-runs
-  // when the row list changes too, so selection stays visible after expand.
+  // Bring the selected/focused row into view only when the target itself
+  // changes. We intentionally do NOT re-run when `rows` changes: the row list
+  // gets a fresh reference on every activity poll, and scrolling on those would
+  // yank a manually scrolled-away selection back into view.
   const scrollTarget = focusedPath ?? selectedPath;
+  const lastScrolledTarget = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!scrollTarget) return;
+    if (!scrollTarget || scrollTarget === lastScrolledTarget.current) return;
+    lastScrolledTarget.current = scrollTarget;
     const index = rows.findIndex((r) => r.entry.path === scrollTarget);
     if (index < 0) return;
     if (virtualized) {
@@ -103,7 +106,7 @@ const FileTree: React.FC<FileTreeProps> = ({
         ?.scrollIntoView({ block: "nearest" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollTarget, rows, virtualized]);
+  }, [scrollTarget, virtualized]);
 
   // Arrow-key navigation: up/down move the cursor, left/right collapse/expand
   // the focused directory (or hop to parent / first child), Enter activates it.

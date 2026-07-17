@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock, Type, MessageSquareText, SquareTerminal } from "lucide-react";
+import { Maximize2, Minimize2, ChevronDown, ChevronUp, Pencil, X, Clock, Type, MessageSquareText, SquareTerminal, Play } from "lucide-react";
 import { getRpcClient } from "../rpc-client";
 import TerminalTab from "./TerminalTab";
 import TaskLogTab from "./TaskLogTab";
@@ -33,7 +33,9 @@ interface TerminalInfo {
   isSessionHistory?: boolean;
   sessionId?: string;
   isClaudeUi?: boolean;
+  justCreated?: boolean; // freshly created this session (not restored) — focus its input on mount
   resumeSessionId?: string; // claude-code session this terminal was opened to resume
+  savedTaskId?: string; // restored saved-terminal snapshot: task record id to dismiss/resume from
   // Claude Code session id running in this terminal, known deterministically
   // because we launched it with `--session-id`/`--resume`. Enables the
   // terminal<->transcript toggle and dedupe against discovered sessions.
@@ -221,8 +223,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
       } catch {}
 
       if (!cancelled && tabs.length > 0) {
-        setTerminals(tabs);
-        setSizes(tabs.map(() => 1 / tabs.length));
+        // Merge, don't replace: the saved-terminal restore effect runs
+        // concurrently and may have already appended read-only tabs. Replacing
+        // here would race-wipe them.
+        setTerminals((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const merged = [...prev, ...tabs.filter((t) => !existingIds.has(t.id))];
+          setSizes(merged.map(() => 1 / merged.length));
+          return merged;
+        });
       }
     };
 
@@ -252,17 +261,27 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     const checkForOrphanTasks = async () => {
       try {
         const tasks = await getRpcClient().query("task.list", { repoPath });
-        // Show running tasks (CLI-launched) — saved logs are opened on demand via "View Log" button
+        // Show running tasks (CLI-launched) — CLI task saved logs are opened on
+        // demand via "View Log" button.
         const runningTasksForWorktree = tasks.filter(
           (t: any) => t.worktreePath === worktreePath && t.logFile && t.status === "running"
         );
+        // Restore terminals that were killed on shutdown/exit: read-only view +
+        // resume. Claude ones (with a session id) show the transcript; others
+        // show the saved scrollback log.
+        const savedTerminals = tasks.filter(
+          (t: any) =>
+            t.worktreePath === worktreePath &&
+            t.status !== "running" &&
+            t.prompt === "Terminal session (saved on shutdown)"
+        );
 
-        if (cancelled || runningTasksForWorktree.length === 0) return;
+        if (cancelled || (runningTasksForWorktree.length === 0 && savedTerminals.length === 0)) return;
 
         setTerminals((prev) => {
           // Don't add if we already have a tab for this task
-          const existingTaskIds = new Set(prev.filter((t) => t.taskId).map((t) => t.taskId));
-          const newTabs = runningTasksForWorktree
+          const existingTaskIds = new Set(prev.filter((t) => t.taskId || t.savedTaskId).map((t) => t.taskId || t.savedTaskId));
+          const newRunningTabs = runningTasksForWorktree
             .filter((t: any) => !existingTaskIds.has(t.id))
             .map((t: any) => ({
               id: `task-log-${t.id}`,
@@ -270,7 +289,27 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
               isTaskLog: true,
               isSavedLog: t.status !== "running",
             }));
+          const newSavedTabs = savedTerminals
+            .filter((t: any) => !existingTaskIds.has(t.id))
+            .map((t: any) =>
+              t.claudeSessionId
+                ? {
+                    id: `saved-session-${t.id}`,
+                    savedTaskId: t.id,
+                    isSessionHistory: true,
+                    sessionId: t.claudeSessionId,
+                    claudeSessionId: t.claudeSessionId,
+                  }
+                : {
+                    id: `saved-log-${t.id}`,
+                    savedTaskId: t.id,
+                    taskId: t.id,
+                    isTaskLog: true,
+                    isSavedLog: true,
+                  }
+            );
 
+          const newTabs = [...newRunningTabs, ...newSavedTabs];
           if (newTabs.length === 0) return prev;
           const next = [...prev, ...newTabs];
           setSizes(next.map(() => 1 / next.length));
@@ -346,6 +385,26 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     });
   }, []);
 
+  // Resume a restored saved-terminal snapshot: Claude ones reopen with
+  // `claude --resume <id>`; plain shells just get a fresh terminal in the
+  // worktree. Either way the read-only snapshot is dismissed.
+  const resumeSavedTerminal = useCallback((term: TerminalInfo) => {
+    if (term.claudeSessionId) {
+      const base = claudeCommand || "claude";
+      resumeClaudeCodeSession(term.claudeSessionId, `${base} --resume ${term.claudeSessionId}`);
+    } else {
+      addTerminal();
+    }
+    if (term.savedTaskId) {
+      getRpcClient().query("task.remove", { taskId: term.savedTaskId }).catch(() => {});
+    }
+    setTerminals((prev) => {
+      const next = prev.filter((t) => t.id !== term.id);
+      setSizes(next.length ? next.map(() => 1 / next.length) : []);
+      return next;
+    });
+  }, [claudeCommand, resumeClaudeCodeSession, addTerminal]);
+
   const openClaudeUiSession = useCallback(async () => {
     // The session is server-owned (it outlives the tab), so create it first and
     // key the tab on its id. Restoring on return uses the same id, so a returning
@@ -353,7 +412,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
     const { sessionId } = await getRpcClient().query("claudeui.create", { worktreePath });
     setTerminals((prev) => {
       const id = `claude-ui-${sessionId}`;
-      const next = [...prev, { id, isClaudeUi: true, sessionId }];
+      const next = [...prev, { id, isClaudeUi: true, sessionId, justCreated: true }];
       setSizes(next.map(() => 1 / next.length));
       setMaximizedId((m) => (m !== null ? id : m));
       return next;
@@ -395,6 +454,11 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
   const closeTerminal = useCallback(
     async (terminalId: string) => {
       const term = terminals.find((t) => t.id === terminalId);
+      if (term?.savedTaskId) {
+        // Dismissing a restored snapshot: delete its saved record + log so it
+        // doesn't reappear on next open.
+        getRpcClient().query("task.remove", { taskId: term.savedTaskId }).catch(() => {});
+      }
       if (term?.isClaudeUi && term.sessionId) {
         try {
           await getRpcClient().query("claudeui.close", { sessionId: term.sessionId });
@@ -575,7 +639,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   const dynamicTitle = terminalTitles[term.id];
                   const userLabel = userLabels[term.id];
                   let displayTitle: string;
-                  if (term.isSessionHistory) displayTitle = "Session History";
+                  if (term.isSessionHistory) displayTitle = term.savedTaskId ? "Saved Claude (read-only)" : "Session History";
                   else if (term.isSavedLog) displayTitle = "Saved Log (read-only)";
                   else if (term.isTaskLog) displayTitle = "Task Log (read-only)";
                   else if (userLabel) displayTitle = dynamicTitle ? `${userLabel} | ${dynamicTitle}` : userLabel;
@@ -649,6 +713,15 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                       </ul>
                     </div>
                   )}
+                  {term.savedTaskId && (
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => resumeSavedTerminal(term)}
+                      title={term.claudeSessionId ? "Resume this Claude session" : "Start a new terminal here"}
+                    >
+                      <Play size={14} />
+                    </button>
+                  )}
                   {term.claudeSessionId && !term.isSessionHistory && !term.isClaudeUi && (
                     <button
                       className="btn btn-ghost btn-xs"
@@ -679,7 +752,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   <button
                     className="btn btn-ghost btn-xs"
                     onClick={() => closeTerminal(term.id)}
-                    title={term.isSavedLog ? "Dismiss saved log" : term.isTaskLog ? "Close and kill task" : "Close terminal"}
+                    title={term.savedTaskId ? "Dismiss saved terminal" : term.isSavedLog ? "Dismiss saved log" : term.isTaskLog ? "Close and kill task" : "Close terminal"}
                   >
                     <X size={14} />
                   </button>
@@ -690,6 +763,7 @@ const TerminalStack = forwardRef<TerminalStackHandle, TerminalStackProps>(({ wor
                   <ClaudeUiTab
                     ref={(r) => { if (r) claudeUiRefs.current.set(term.id, r); else claudeUiRefs.current.delete(term.id); }}
                     sessionId={term.sessionId}
+                    autoFocus={term.justCreated}
                     onTitleChange={(title) => setTerminalTitles((prev) => ({ ...prev, [term.id]: title }))}
                     onAttention={() => markBell(term.id)}
                     onClearAttention={() => clearBell(term.id)}

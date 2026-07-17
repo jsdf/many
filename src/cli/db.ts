@@ -23,6 +23,7 @@ export function getDb(): Database.Database {
   _db.pragma("foreign_keys = ON");
 
   initSchema(_db);
+  migrateSchema(_db);
   migrateJsonData(_db);
   return _db;
 }
@@ -87,6 +88,15 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
     CREATE INDEX IF NOT EXISTS idx_work_items_task ON work_items(task_id);
   `);
+}
+
+// Add columns introduced after the initial schema. SQLite has no
+// "ADD COLUMN IF NOT EXISTS", so check the table's columns first.
+function migrateSchema(db: Database.Database): void {
+  const cols = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "claude_session_id")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN claude_session_id TEXT");
+  }
 }
 
 function isoToEpoch(iso: string | undefined): number | null {

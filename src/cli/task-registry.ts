@@ -23,6 +23,7 @@ export interface TaskRecord {
   processCount?: number;
   logFile?: string;
   launchedBy: "cli" | "web";
+  claudeSessionId?: string;
 }
 
 // Map a DB row (snake_case, epoch ms) to a TaskRecord (camelCase, ISO string)
@@ -42,6 +43,7 @@ interface TaskRow {
   exit_code: number | null;
   log_file: string | null;
   launched_by: string;
+  claude_session_id: string | null;
 }
 
 function rowToRecord(row: TaskRow): TaskRecord {
@@ -61,6 +63,7 @@ function rowToRecord(row: TaskRow): TaskRecord {
     exitCode: row.exit_code ?? undefined,
     logFile: row.log_file ?? undefined,
     launchedBy: row.launched_by as "cli" | "web",
+    claudeSessionId: row.claude_session_id ?? undefined,
   };
 }
 
@@ -116,8 +119,8 @@ export async function registerTask(
   const now = Date.now();
 
   db.prepare(`
-    INSERT INTO tasks (id, pid, repo_path, worktree_path, pool_prefix, pool_name, branch, prompt, task_command, started_at, status, log_file, launched_by)
-    VALUES (@id, @pid, @repo_path, @worktree_path, @pool_prefix, @pool_name, @branch, @prompt, @task_command, @started_at, @status, @log_file, @launched_by)
+    INSERT INTO tasks (id, pid, repo_path, worktree_path, pool_prefix, pool_name, branch, prompt, task_command, started_at, status, log_file, launched_by, claude_session_id)
+    VALUES (@id, @pid, @repo_path, @worktree_path, @pool_prefix, @pool_name, @branch, @prompt, @task_command, @started_at, @status, @log_file, @launched_by, @claude_session_id)
   `).run({
     id,
     pid: fields.pid,
@@ -132,6 +135,7 @@ export async function registerTask(
     status: "running",
     log_file: fields.logFile ?? null,
     launched_by: fields.launchedBy,
+    claude_session_id: fields.claudeSessionId ?? null,
   });
 
   return {
@@ -192,6 +196,15 @@ export async function getTask(id: string): Promise<TaskRecord | null> {
     "SELECT * FROM tasks WHERE id = ?"
   ).get(id);
   return row ? rowToRecord(row) : null;
+}
+
+// Remove a task record entirely. Used to dismiss a restored saved-terminal
+// snapshot so it doesn't reappear on next open. Returns the log file path (if
+// any) so the caller can unlink it.
+export async function deleteTask(id: string): Promise<string | null> {
+  const task = await getTask(id);
+  getDb().prepare("DELETE FROM tasks WHERE id = ?").run(id);
+  return task?.logFile ?? null;
 }
 
 export async function killTask(id: string, signal: NodeJS.Signals = "SIGTERM"): Promise<boolean> {

@@ -399,7 +399,10 @@ async function main(): Promise<void> {
     manager.addExitListener(terminalId, () => {
       if (shuttingDown) return;
       const output = manager.getBufferedOutput(terminalId);
-      saveAndRegisterTerminalLog(terminalId, worktreePath, output).catch(() => {});
+      const claudeSessionId = manager
+        .listAllSessions()
+        .find((s) => s.terminalId === terminalId)?.claudeSessionId;
+      saveAndRegisterTerminalLog(terminalId, worktreePath, output, claudeSessionId).catch(() => {});
     });
   };
 
@@ -411,7 +414,13 @@ async function main(): Promise<void> {
     const sessions = manager.listAllSessions();
     await Promise.all(
       sessions.map((s) =>
-        saveAndRegisterTerminalLog(s.terminalId, s.worktreePath, manager.getBufferedOutput(s.terminalId))
+        saveAndRegisterTerminalLog(
+          s.terminalId,
+          s.worktreePath,
+          manager.getBufferedOutput(s.terminalId),
+          s.claudeSessionId,
+          true
+        )
       )
     );
     agentManager.cleanup();

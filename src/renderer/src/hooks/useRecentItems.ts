@@ -17,7 +17,7 @@ export function useRecentItems(
   pinnedSessions: string[],
 ): RecentItem[] {
   const [recentTerminals, setRecentTerminals] = useState<
-    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; claudeSessionId?: string; needsAttention: boolean }[]
+    { terminalId: string; worktreePath: string; createdAt: number; lastInputAt: number; title?: string; userLabel?: string; claudeSessionId?: string; needsAttention: boolean }[]
   >([]);
   const [recentSessions, setRecentSessions] = useState<
     { sessionId: string; worktreePath: string; firstPrompt: string; summary?: string; modified: string; gitBranch: string; sessionType?: "chat" | "claude-code" }[]
@@ -92,7 +92,7 @@ export function useRecentItems(
         recency: Math.max(t.lastInputAt, t.createdAt),
         terminalId: t.terminalId,
         worktreePath: t.worktreePath,
-        title: t.title,
+        title: t.userLabel ?? t.title,
         terminalNumber: terminalNumbers.get(t.terminalId) ?? 1,
         claudeSessionId: t.claudeSessionId,
         needsAttention: t.needsAttention,

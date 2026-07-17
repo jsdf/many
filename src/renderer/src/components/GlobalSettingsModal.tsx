@@ -13,6 +13,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
   const [defaultTerminal, setDefaultTerminal] = useState("");
   const [defaultClaudeCommand, setDefaultClaudeCommand] = useState("");
   const [markdownSerif, setMarkdownSerif] = useState(false);
+  const [scrollbackLines, setScrollbackLines] = useState("500");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
         setDefaultTerminal(settings.defaultTerminal || "");
         setDefaultClaudeCommand(settings.defaultClaudeCommand || "");
         setMarkdownSerif(settings.markdownSerif ?? false);
+        setScrollbackLines(String(settings.terminalScrollbackLines ?? 500));
       } catch (err) {
         console.error("Failed to load global settings:", err);
         setError("Failed to load settings");
@@ -59,6 +61,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
         defaultTerminal: defaultTerminal.trim() || null,
         defaultClaudeCommand: defaultClaudeCommand.trim() || null,
         markdownSerif,
+        terminalScrollbackLines: Math.max(1, parseInt(scrollbackLines, 10) || 500),
       });
       applyMarkdownSerif(markdownSerif);
       onClose();
@@ -139,6 +142,24 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ onClose, onAd
                   />
                   <p className="text-xs text-base-content/50 mt-1.5">
                     Command used to launch Claude Code from the projects page. Leave empty to use "claude".
+                  </p>
+                </div>
+                <div className="mb-5">
+                  <label className="block mb-2 text-sm font-medium" htmlFor="scrollback-lines-input">
+                    Saved Terminal Scrollback (lines):
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    id="scrollback-lines-input"
+                    className="input input-bordered w-full"
+                    value={scrollbackLines}
+                    onChange={(e) => setScrollbackLines(e.target.value)}
+                    placeholder="500"
+                    disabled={isSaving}
+                  />
+                  <p className="text-xs text-base-content/50 mt-1.5">
+                    How many lines of a non-Claude terminal's output are saved when it closes, shown read-only on next open.
                   </p>
                 </div>
                 <div className="mb-5">

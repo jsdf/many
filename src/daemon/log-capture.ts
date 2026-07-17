@@ -16,10 +16,17 @@ import { getTaskLogDir, registerTask, markTaskCompleted } from "../cli/task-regi
  * task pointing at it. No-op when there is no output. Best-effort: failures are
  * logged, not thrown, so they can't block daemon shutdown.
  */
+// Marks a snapshot saved because the daemon was shutting down and killed the
+// PTY. These are auto-restored (read-only + resume) on next open. Natural
+// per-terminal exits use a different prompt and are only opened on demand.
+export const SHUTDOWN_SNAPSHOT_PROMPT = "Terminal session (saved on shutdown)";
+
 export async function saveAndRegisterTerminalLog(
   terminalId: string,
   worktreePath: string,
-  output: string
+  output: string,
+  claudeSessionId?: string,
+  savedOnShutdown = false
 ): Promise<void> {
   if (!output) return;
   try {
@@ -29,9 +36,16 @@ export async function saveAndRegisterTerminalLog(
     const label = path.basename(worktreePath).replace(/[/\\:*?"<>|]/g, "_");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const logFile = path.join(logDir, `terminal-${label}-${timestamp}.log`);
-    await fs.writeFile(logFile, output);
 
     const appData = await loadAppData();
+
+    // Keep only the last N lines of scrollback (configurable) so restored
+    // read-only views stay short and disk use is bounded.
+    const maxLines = appData.globalSettings?.terminalScrollbackLines ?? 500;
+    const lines = output.split("\n");
+    const trimmed = lines.length > maxLines ? lines.slice(-maxLines).join("\n") : output;
+    await fs.writeFile(logFile, trimmed);
+
     let repoPath = "";
     for (const [rp, cfg] of Object.entries(appData.repositoryConfigs)) {
       const worktreeDir = (cfg as any).worktreeDirectory || path.dirname(rp);
@@ -57,10 +71,11 @@ export async function saveAndRegisterTerminalLog(
       poolPrefix: "",
       poolName: "",
       branch,
-      prompt: "Terminal session (saved on exit)",
+      prompt: savedOnShutdown ? SHUTDOWN_SNAPSHOT_PROMPT : "Terminal session (saved on exit)",
       taskCommand: "",
       logFile,
       launchedBy: "web",
+      claudeSessionId,
     });
     await markTaskCompleted(task.id, 0);
   } catch (err) {

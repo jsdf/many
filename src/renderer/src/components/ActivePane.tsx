@@ -219,7 +219,7 @@ const ActivePane: React.FC<ActivePaneProps> = ({
                       />
                     )}
                     <span className="flex-1 truncate">
-                      {item.kind === "terminal" ? (item.title ? `Terminal ${item.terminalNumber}: ${item.title}` : `Terminal ${item.terminalNumber}`) : item.label}
+                      {item.kind === "terminal" ? (item.title ? item.title : `Terminal ${item.terminalNumber}`) : item.label}
                     </span>
                     <PinToggle
                       pinned={pinnedSessionSet.has(itemKey)}

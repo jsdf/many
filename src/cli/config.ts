@@ -66,6 +66,9 @@ export interface GlobalSettings {
   defaultTerminal: string | null;
   defaultClaudeCommand: string | null;
   markdownSerif?: boolean;
+  // Max lines of scrollback saved for a non-Claude terminal when it dies, shown
+  // read-only on next open. Defaults to 500.
+  terminalScrollbackLines?: number;
 }
 
 export interface AppData {
@@ -173,7 +176,7 @@ export async function withAppData<T>(mutator: (data: AppData) => T | Promise<T>)
 }
 
 export function getGlobalSettings(appData: AppData): GlobalSettings {
-  return appData.globalSettings || { defaultEditor: null, defaultTerminal: null, defaultClaudeCommand: null };
+  return appData.globalSettings || { defaultEditor: null, defaultTerminal: null, defaultClaudeCommand: null, terminalScrollbackLines: 500 };
 }
 
 export function getRepoConfig(appData: AppData, repoPath: string): RepositoryConfig {

@@ -159,6 +159,7 @@ export interface GlobalSettings {
   defaultTerminal?: string | null;
   defaultClaudeCommand?: string | null;
   markdownSerif?: boolean;
+  terminalScrollbackLines?: number;
 }
 
 export interface TaskRecord {
@@ -179,6 +180,9 @@ export interface TaskRecord {
   recursiveMemoryBytes?: number;
   processCount?: number;
   launchedBy: "cli" | "web";
+  // Set for saved terminal snapshots that were running a Claude Code session, so
+  // the restored read-only view can show the transcript instead of raw output.
+  claudeSessionId?: string;
 }
 
 export interface GitHubLink {
@@ -640,6 +644,10 @@ export interface QueryProcedures {
     output: TaskRecord[];
   };
   "task.kill": {
+    input: { taskId: string };
+    output: { ok: boolean };
+  };
+  "task.remove": {
     input: { taskId: string };
     output: { ok: boolean };
   };

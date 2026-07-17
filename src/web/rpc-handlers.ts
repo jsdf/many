@@ -903,6 +903,13 @@ export function createQueryHandlers(opts: {
       await killTaskById(taskId);
       return { ok: true };
     },
+    "task.remove": async (input) => {
+      const { taskId } = input as { taskId: string };
+      const { deleteTask } = await import("../cli/task-registry.js");
+      const logFile = await deleteTask(taskId);
+      if (logFile) await fs.unlink(logFile).catch(() => {});
+      return { ok: true };
+    },
     "task.getLog": async (input) => {
       const { taskId, offset } = input as { taskId: string; offset?: number };
       const { getTask } = await import("../cli/task-registry.js");
